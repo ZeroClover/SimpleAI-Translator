@@ -122,11 +122,11 @@
 
 ## 11. 文档与发布
 
-- [ ] 11.1 更新 `README.md` / `README-CN.md`:功能列表、provider 列表、模型自动发现说明、OpenAI TTS 章节、截图替换、移除 OCR/写作/画词章节
-- [ ] 11.2 在 `AGENTS.md` 中更新代码地图与"被移除模块"清单
-- [ ] 11.3 撰写 `CHANGELOG.md`(若不存在则新增)BREAKING 段:列出删除项、说明旧 Provider/旧历史数据不迁移、回退方法(切到 `v-pre-slim` tag)
-- [ ] 11.4 在 `package.json` 中升级 major 版本号(0.1.x → 1.0.0,或按现行约定)
-- [ ] 11.5 在 GitHub Release notes 中复述 BREAKING 内容并附旧 tag 链接
+- [x] 11.1 更新 `README.md` / `README-CN.md`:功能列表、provider 列表、模型自动发现说明、OpenAI TTS 章节、截图替换、移除 OCR/写作/画词章节
+- [x] 11.2 在 `AGENTS.md` 中更新代码地图与"被移除模块"清单
+- [x] 11.3 撰写 `CHANGELOG.md`(若不存在则新增)BREAKING 段:列出删除项、说明旧 Provider/旧历史数据不迁移、回退方法(切到 `v-pre-slim` tag)
+- [x] 11.4 在 `package.json` 中升级 major 版本号(0.1.x → 1.0.0,或按现行约定)
+- [x] 11.5 在 GitHub Release notes 中复述 BREAKING 内容并附旧 tag 链接
 
 ## 12. 验证
 

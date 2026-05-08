@@ -1,180 +1,110 @@
-# Due to receiving a trademark ownership warning from OpenAI, this project and product has been renamed to nextai translator. We hope you understand.
+# NextAI Translator
 
 <p align="center">
     <br> English | <a href="README-CN.md">中文</a>
 </p>
-<p align="center">
-    <em>The translator that does more than just translation</em>
-</p>
 
-<p align="center">
-  <a href="LICENSE" target="_blank">
-    <img alt="MIT License" src="https://img.shields.io/github/license/nextai-translator/nextai-translator.svg?style=flat-square" />
-  </a>
+NextAI Translator is a cross-platform translator for browser extensions and desktop. Version 1.0 refocuses the app on translation, language detection, translation history, and text-to-speech.
 
-  <!-- TypeScript Badge -->
-  <img alt="TypeScript" src="https://img.shields.io/badge/-TypeScript-blue?style=flat-square&logo=typescript&logoColor=white" />
+## Features
 
-  <!-- Rust Badge -->
-  <img alt="Rust" src="https://img.shields.io/badge/-Rust-orange?style=flat-square&logo=rust&logoColor=white" />
+1. Streaming text translation.
+2. Local and remote language detection.
+3. Source and target language selection with a configurable default target language.
+4. One-click copy for translation results.
+5. Translation history with provider and model metadata.
+6. Text-to-speech for source text and translation results.
+7. Edge TTS, system speech synthesis, and OpenAI-compatible TTS.
+8. Browser extension and Tauri desktop apps for Windows, macOS, and Linux.
 
-  <a href="https://chrome.google.com/webstore/detail/nextai-translator/ogjibjphoadhljaoicdnjnmgokohngcc" target="_blank">
-    <img alt="Chrome" src="https://img.shields.io/chrome-web-store/stars/ogjibjphoadhljaoicdnjnmgokohngcc?color=blue&label=Chrome&style=flat-square&logo=google-chrome&logoColor=white" />
-  </a>
+## LLM Providers
 
-  <a href="https://addons.mozilla.org/en-US/firefox/addon/nextai-translator/" target="_blank">
-    <img alt="Firefox" src="https://img.shields.io/amo/stars/nextai-translator?color=orange&label=Firefox&style=flat-square&logo=firefox&logoColor=white" />
-  </a>
+NextAI Translator 1.0 supports provider configuration by protocol, not by vendor template. The supported protocols are:
 
-  <a href="https://github.com/nextai-translator/nextai-translator/releases" target="_blank">
-    <img alt="macOS" src="https://img.shields.io/badge/-macOS-black?style=flat-square&logo=apple&logoColor=white" />
-  </a>
+-   `openai-chat`: OpenAI Chat Completions compatible APIs.
+-   `openai-responses`: OpenAI Responses API compatible APIs.
+-   `anthropic`: Anthropic Messages API compatible APIs.
 
-  <a href="https://github.com/nextai-translator/nextai-translator/releases" target="_blank">
-    <img alt="Windows" src="https://img.shields.io/badge/-Windows-blue?style=flat-square&logo=windows&logoColor=white" />
-  </a>
+You can add multiple providers for the same protocol, give each provider a name, set one provider as the default, and temporarily switch providers from the translation window. When the endpoint is blank, the app uses the official OpenAI or Anthropic endpoint for the selected protocol. For any compatible third-party service, enter its endpoint and model manually.
 
-  <a href="https://github.com/nextai-translator/nextai-translator/releases" target="_blank">
-    <img alt="Linux" src="https://img.shields.io/badge/-Linux-yellow?style=flat-square&logo=linux&logoColor=white" />
-  </a>
-</p>
+The provider form can refresh available models from the provider API. Chat and translation model lists are filtered to hide embedding, realtime, audio, transcription, moderation, TTS, image, video, and search-specific models. The model field also accepts free-form text, so private model aliases and providers without a `/models` endpoint remain usable.
 
-# Why Yet another Translator
+## Text-to-Speech
 
-I have developed a [Bob](https://bobtranslate.com/) [plugin](https://github.com/yetone/bob-plugin-nextai-translator) that utilizes ChatGPT API to provide global word translation on macOS. However, since not all users have access to macOS to benefit from the plugin, I have created this project!
+The TTS settings support three backends:
 
-# More than just a browser extension
+-   `edge`: Microsoft Edge TTS.
+-   `system`: the browser or operating system speech synthesis engine.
+-   `openai`: OpenAI-compatible `/audio/speech`.
 
-What began as a Chrome extension has now evolved into a multi-platform desktop app that I am currently developing.
+OpenAI TTS reuses an existing `openai-chat` or `openai-responses` provider. It does not store a separate TTS endpoint or API key. The TTS model picker filters results to `tts-1`, `tts-1-hd`, `gpt-4o-mini-tts`, and `gpt-4o-mini-tts-YYYY-MM-DD`, while still allowing manual model entry.
 
-<p align="center">
-  <img width="560" src="https://user-images.githubusercontent.com/1206493/223899374-ff386436-63b8-4618-afdd-fed2e6b48d56.png" />
-</p>
+## Breaking Changes in 1.0
 
-# More than just translation
+Version 1.0 removes OCR, writing assistant, vocabulary book, custom actions, promotion banners, and the old polishing/summarize/analyze/explain-code modes. Old provider settings and old history data are not migrated. A fresh install starts with no provider configured; add an LLM Provider in settings before translating.
 
-What began as a translation tool has now evolved to include surprisingly effective word polishing and summarization capabilities, ~~accidentally~~.
+If you need the previous feature set, use the `v-pre-slim` source tag:
 
-# How to use
+https://github.com/nextai-translator/nextai-translator/tree/v-pre-slim
 
-<p align="center">
-  <img width="800" src="https://user-images.githubusercontent.com/1206493/223200182-6a1d2a02-3fe0-4723-bdae-99d8b7212a33.gif" />
-</p>
+## Installation
 
-# Features
+### Windows
 
-1. It offers three modes: translation, polishing and summarization.
-2. Our tool allows for mutual translation, polishing and summarization across 55 different languages.
-3. Streaming mode is supported!
-4. It allows users to customize their translation text.
-5. One-click copying
-6. Text-to-Speech (TTS)
-7. Available on all platforms (Windows, macOS, and Linux) for both browsers and Desktop
-8. Support screenshot translation
-9. Support for vocabulary books, as well as support for generating memory aids based on the words in the vocabulary books
-10. Supports [OpenAI](https://openai.com/), [Azure OpenAI Service](https://azure.microsoft.com/en-us/products/cognitive-services/openai-service), [MiniMax](https://www.minimaxi.com/), and other LLM providers
+1. Download the `.exe` installer from the [Latest Release](https://github.com/nextai-translator/nextai-translator/releases/latest) page.
+2. Double-click the installer.
+3. If Windows shows a warning, choose `More Info` -> `Run Anyway`.
 
-# Preparation
+### macOS
 
--   (required) Apply for an OpenAI API key [here](https://platform.openai.com/account/api-keys) or [Azure OpenAI Service API Key](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/chatgpt-quickstart?tabs=command-line&pivots=rest-api#retrieve-key-and-endpoint)
--   (optional) If you cannot access OpenAI, you can use the OpenAI API Proxy.
+1. Download the `.dmg` for your CPU from the [Latest Release](https://github.com/nextai-translator/nextai-translator/releases/latest) page.
+2. Open the `.dmg` and move `NextAI Translator` to `Applications`.
 
-# Installation
+If macOS reports that the app cannot be opened because the developer cannot be verified, open `Settings` -> `Privacy & Security`, choose `Still Open`, then confirm `Open`.
 
-## Windows
+If Apple Silicon macOS reports that the app is damaged, run:
 
-### Install Manually
-
-1. Download the installation package ending in `.exe` from the [Latest Release](https://github.com/nextai-translator/nextai-translator/releases/latest) page.
-2. Double click the downloaded file to install it.
-3. If prompted as unsafe, you can click on `More Info` -> `Run Anyway` to proceed with the installation.
-4. Ready to use!
-
-## MacOS
-
-### Install Manually
-
-1. Go to the [Latest Release](https://github.com/nextai-translator/nextai-translator/releases/latest) page and download the corresponding chip's `.dmg` installation package. Note: Use aarch64 version for Apple Silicon machines and run `xattr` command below.
-2. Double click the downloaded file to install it.
-3. Ready to use!
-
-### Troubleshooting
-
--   "NextAI Translator" can’t be opened because the developer cannot be verified.
- 
-    <p align="center">
-      <img width="300" src="https://user-images.githubusercontent.com/1206493/223916804-45ce3f34-6a4a-4baf-a0c1-4ab5c54c521f.png" />
-    </p>
- 
-    -   Click the `Cancel` button, then go to the `Settings` -> `Privacy and Security` page, click the `Still Open` button, and then click the `Open` button in the pop-up window. After that, there will be no more pop-up warnings when opening `NextAI Translator`. 🎉
-        <p align="center">
-          <img width="500" src="https://user-images.githubusercontent.com/1206493/223916970-9c99f15e-cf61-4770-b92d-4a78f980bb26.png" /> <img width="200" src="https://user-images.githubusercontent.com/1206493/223917449-ed1ac19f-c43d-4b13-9888-79ba46ceb862.png" />
-        </p>
- 
-    -   If you cannot find the above options in `Privacy & Security`, or get error prompts such as broken files with Apple Silicon machines. Open `Terminal.app` and enter the following command (you may need to enter a password halfway through), then restart `NextAI Translator`:
-
-        ```sh
-        sudo xattr -d com.apple.quarantine /Applications/NextAI\ Translator.app
-        ```
-
--   If you encounter a permission prompt every time you open it, or if you cannot perform a shortcut translation, please go to `Settings` -> `Privacy & Security` -> `Supporting Features` to remove NextAI Translator, and then re-add NextAI Translator.
-
-    <p align="center">
-      <img width="500" src="https://user-images.githubusercontent.com/1206493/224536148-eec559bf-4d99-48c1-bbd3-2cc105aff084.png" />
-      <img width="600" src="https://user-images.githubusercontent.com/1206493/224536277-4200f58e-8dc0-4c01-a27a-a30d7d8dc69e.gif" />
-    </p>
-
-## Installing Desktop Clip Extensions
-
-For details, see [Desktop Clip Extension](./CLIP-EXTENSIONS.md)
-
-  <p align="center">
-    <img width="600" src="https://user-images.githubusercontent.com/1206493/240355949-8f41d98d-f097-4ce4-a533-af60e1757ca1.gif" />
-  </p>
- 
-## Browser Extension
-
-1. Visit your Browser Extension Store to install this plugin:
-
-   <p align="center">
-     <a target="_blank" href="https://chrome.google.com/webstore/detail/nextai-translator/ogjibjphoadhljaoicdnjnmgokohngcc">
-       <img src="https://img.shields.io/chrome-web-store/v/ogjibjphoadhljaoicdnjnmgokohngcc?label=Chrome%20Web%20Store&style=for-the-badge&color=blue&logo=google-chrome&logoColor=white" />
-     </a>
-     <a target="_blank" href="https://addons.mozilla.org/en-US/firefox/addon/nextai-translator/">
-       <img src="https://img.shields.io/amo/v/nextai-translator?label=Firefox%20Add-on&style=for-the-badge&color=orange&logo=firefox&logoColor=white" />
-     </a>
-   </p>
-
-2. Click on the NextAI Translator icon in the browser plugin list, and enter the obtained API KEY into the configuration interface that pops up from this plugin.
- 
-   <p align="center">
-     <img width="600" src="https://user-images.githubusercontent.com/1206493/222958165-159719b4-28a5-44a4-b700-567786df7f03.png" />
-   </p>
-
-3. Refresh the page in the browser to enjoy the smooth translation experience 🎉!
-
-## Configure Azure OpenAI Service
-
-```ts
-const API_URL = `https://${resourceName}.openai.azure.com`
-const API_URL_PATH = `/openai/deployments/${deployName}/chat/completions?api-version=${apiVersion}`
+```sh
+sudo xattr -d com.apple.quarantine /Applications/NextAI\ Translator.app
 ```
 
-- resourceName: Your Azure OpenAI Service resource name.
-- deployName: Your Azure OpenAI Service model deploy name, you can change your model here.
-- api-version: 2023-05-15, or newer. (supported api-version can be found at [Azure's official doc](https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#completions))
+### Browser Extension
 
-# License
-
-[LICENSE](./LICENSE)
-
-# Star History
+Install the extension from your browser store:
 
 <p align="center">
-  <a target="_blank" href="https://star-history.com/#nextai-translator/nextai-translator&Date">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=nextai-translator/nextai-translator&type=Date&theme=dark">
-      <img alt="NebulaGraph Data Intelligence Suite(ngdi)" src="https://api.star-history.com/svg?repos=nextai-translator/nextai-translator&type=Date">
-    </picture>
+  <a target="_blank" href="https://chrome.google.com/webstore/detail/nextai-translator/ogjibjphoadhljaoicdnjnmgokohngcc">
+    <img src="https://img.shields.io/chrome-web-store/v/ogjibjphoadhljaoicdnjnmgokohngcc?label=Chrome%20Web%20Store&style=for-the-badge&color=blue&logo=google-chrome&logoColor=white" />
+  </a>
+  <a target="_blank" href="https://addons.mozilla.org/en-US/firefox/addon/nextai-translator/">
+    <img src="https://img.shields.io/amo/v/nextai-translator?label=Firefox%20Add-on&style=for-the-badge&color=orange&logo=firefox&logoColor=white" />
   </a>
 </p>
+
+After installation, open settings, add an LLM Provider, set the default provider, and refresh the current page.
+
+## Desktop Clip Extensions
+
+For details, see [Desktop Clip Extension](./CLIP-EXTENSIONS.md).
+
+## Development
+
+Install dependencies with:
+
+```sh
+pnpm install
+```
+
+Common commands:
+
+-   `pnpm dev-chromium`: start the Chromium extension dev build.
+-   `pnpm dev-tauri`: start the Tauri desktop app.
+-   `pnpm build-browser-extension`: build Chromium and Firefox extension bundles.
+-   `pnpm build-tauri`: build the desktop app.
+-   `pnpm lint`: run ESLint.
+-   `pnpm exec vitest run`: run unit tests once.
+-   `pnpm test:e2e`: run Playwright tests.
+
+## License
+
+[LICENSE](./LICENSE)

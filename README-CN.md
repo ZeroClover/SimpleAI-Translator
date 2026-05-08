@@ -1,178 +1,110 @@
-# 因为收到了 OpenAI 公司的品牌名称所有权的警告，所以此项目和此产品改名为 nextai translator，望您能够理解。
+# NextAI Translator
 
 <p align="center">
     <br> <a href="README.md">English</a> | 中文
 </p>
-<p align="center">
-    <em>The translator that does more than just translation</em>
-</p>
 
-<p align="center">
-  <a href="LICENSE" target="_blank">
-    <img alt="MIT License" src="https://img.shields.io/github/license/nextai-translator/nextai-translator.svg?style=flat-square" />
-  </a>
+NextAI Translator 是同时支持浏览器扩展和桌面端的翻译工具。1.0 版本重新聚焦于翻译、语言检测、翻译历史与文本朗读。
 
-  <!-- TypeScript Badge -->
-  <img alt="TypeScript" src="https://img.shields.io/badge/-TypeScript-blue?style=flat-square&logo=typescript&logoColor=white" />
+## 功能
 
-  <!-- Rust Badge -->
-  <img alt="Rust" src="https://img.shields.io/badge/-Rust-orange?style=flat-square&logo=rust&logoColor=white" />
+1. 流式文本翻译。
+2. 本地与远端语言检测。
+3. 源语言、目标语言选择，以及默认目标语言设置。
+4. 一键复制翻译结果。
+5. 翻译历史，记录使用的 Provider 与模型。
+6. 朗读源文本与翻译结果。
+7. 支持 Edge TTS、系统语音合成与 OpenAI 兼容 TTS。
+8. 支持浏览器扩展与 Windows、macOS、Linux 桌面端。
 
-  <a href="https://chrome.google.com/webstore/detail/nextai-translator/ogjibjphoadhljaoicdnjnmgokohngcc" target="_blank">
-    <img alt="Chrome" src="https://img.shields.io/chrome-web-store/stars/ogjibjphoadhljaoicdnjnmgokohngcc?color=blue&label=Chrome&style=flat-square&logo=google-chrome&logoColor=white" />
-  </a>
+## LLM Provider
 
-  <a href="https://addons.mozilla.org/en-US/firefox/addon/nextai-translator/" target="_blank">
-    <img alt="Firefox" src="https://img.shields.io/amo/stars/nextai-translator?color=orange&label=Firefox&style=flat-square&logo=firefox&logoColor=white" />
-  </a>
+NextAI Translator 1.0 按协议配置 Provider，不再按厂商模板配置。当前支持三种协议：
 
-  <a href="https://github.com/nextai-translator/nextai-translator/releases" target="_blank">
-    <img alt="macOS" src="https://img.shields.io/badge/-macOS-black?style=flat-square&logo=apple&logoColor=white" />
-  </a>
+-   `openai-chat`：兼容 OpenAI Chat Completions API。
+-   `openai-responses`：兼容 OpenAI Responses API。
+-   `anthropic`：兼容 Anthropic Messages API。
 
-  <a href="https://github.com/nextai-translator/nextai-translator/releases" target="_blank">
-    <img alt="Windows" src="https://img.shields.io/badge/-Windows-blue?style=flat-square&logo=windows&logoColor=white" />
-  </a>
+你可以为同一种协议添加多份 Provider，分别命名、设置默认 Provider，并在翻译窗口中临时切换。Endpoint 留空时，应用会使用对应协议的 OpenAI 或 Anthropic 官方 Endpoint。要接入兼容协议的第三方服务，请手动填写 Endpoint 与模型名。
 
-  <a href="https://github.com/nextai-translator/nextai-translator/releases" target="_blank">
-    <img alt="Linux" src="https://img.shields.io/badge/-Linux-yellow?style=flat-square&logo=linux&logoColor=white" />
-  </a>
+Provider 表单支持从 API 刷新模型列表。对话/翻译模型列表会过滤嵌入、实时语音、音频、转录、审核、TTS、图像、视频与搜索专用模型。模型字段仍支持手动输入，因此私有模型别名和不提供 `/models` 端点的服务仍可使用。
 
-</p>
+## 文本朗读
 
-# 为啥要造这个轮子？
+TTS 设置支持三种 backend：
 
-我开发了一个 Bob 的插件 [bob-plugin-nextai-translator](https://github.com/yetone/bob-plugin-nextai-translator) 使用 ChatGPT API 在 macOS 上进行全局划词翻译。
+-   `edge`：Microsoft Edge TTS。
+-   `system`：浏览器或操作系统语音合成。
+-   `openai`：OpenAI 兼容 `/audio/speech`。
 
-但是由于很多用户并不是 macOS 用户，所以特此开发了一个浏览器插件方便非 macOS 用户使用 ChatGPT 进行划词翻译。
+OpenAI TTS 会复用已有的 `openai-chat` 或 `openai-responses` Provider，不会单独保存 TTS Endpoint 或 API Key。TTS 模型选择器会过滤出 `tts-1`、`tts-1-hd`、`gpt-4o-mini-tts` 与 `gpt-4o-mini-tts-YYYY-MM-DD`，同时保留手动输入模型名的能力。
 
-# 既是浏览器插件也是跨平台桌面端应用！
+## 1.0 破坏性变更
 
-<p align="center">
-  <img width="560" src="https://user-images.githubusercontent.com/1206493/223899374-ff386436-63b8-4618-afdd-fed2e6b48d56.png" />
-</p>
+1.0 版本移除了 OCR、写作助手、生词本、自定义 Action、远程推广提示，以及旧的润色、总结、分析、代码解释模式。旧 Provider 设置和旧历史数据不会迁移。全新启动时默认没有 Provider，需要先在设置中添加 LLM Provider 后才能翻译。
 
-# 使用截图
+如需继续使用旧功能，可切换到 `v-pre-slim` 源码 tag：
 
-<p align="center">
-  <img width="800" src="https://user-images.githubusercontent.com/1206493/223200182-6a1d2a02-3fe0-4723-bdae-99d8b7212a33.gif" />
-</p>
+https://github.com/nextai-translator/nextai-translator/tree/v-pre-slim
 
-# 特性
+## 安装
 
-1. 支持三种翻译模式：翻译、润色、总结
-2. 支持 55 种语言的相互翻译、润色和总结功能
-3. 支持实时翻译、润色和总结，以最快的速度响应用户，让翻译、润色和总结的过程达到前所未有的流畅和顺滑
-4. 支持自定义翻译文本
-5. 支持一键复制
-6. 支持 TTS
-7. 有桌面端应用，全平台（Windows + macOS + Linux）支持！
-8. 支持截图翻译
-9. 支持生词本，同时支持基于生词本里的单词生成帮助记忆的内容
-10. 支持 [OpenAI](https://openai.com/)、[Azure OpenAI Service](https://azure.microsoft.com/en-us/products/cognitive-services/openai-service)、[MiniMax](https://www.minimaxi.com/) 等多种 LLM 服务商
+### Windows
 
-# 使用准备
+1. 在 [Latest Release](https://github.com/nextai-translator/nextai-translator/releases/latest) 页面下载 `.exe` 安装包。
+2. 双击安装包进行安装。
+3. 如果系统提示不安全，点击 `更多信息` -> `仍要运行`。
 
--   （必须）申请 [OpenAI API Key](https://platform.openai.com/account/api-keys) 或 [Azure OpenAI Service API Key](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/chatgpt-quickstart?tabs=command-line&pivots=rest-api#retrieve-key-and-endpoint)
--   （可选）如果无法访问 OpenAI，可以使用 OpenAI API Proxy
+### macOS
 
-# 安装
+1. 在 [Latest Release](https://github.com/nextai-translator/nextai-translator/releases/latest) 页面下载对应芯片的 `.dmg` 安装包。
+2. 打开 `.dmg`，将 `NextAI Translator` 拖入 `Applications`。
 
-## Windows
+如果 macOS 提示开发者无法验证，请打开 `设置` -> `隐私与安全性`，点击 `仍要打开`，再确认 `打开`。
 
-### 手动安装
+如果 Apple Silicon 版本提示文件损坏，请运行：
 
-1. 在 [Latest Release](https://github.com/nextai-translator/nextai-translator/releases/latest) 页面下载以 `.exe` 结尾的安装包
-2. 下载完成后双击安装包进行安装
-3. 如果提示不安全，可以点击 `更多信息` -> `仍要运行` 进行安装
-4. 开始使用吧！
-
-## MacOS
-
-### 手动安装
-
-1.  去 [Latest Release](https://github.com/nextai-translator/nextai-translator/releases/latest) 页面下载对应芯片以 `.dmg` 的安装包（Apple Silicon机器请使用aarch64版本，并注意执行下文`xattr`指令）
-2.  下载完成后双击安装包进行安装，然后将 `NextAI Translator` 拖动到 `Applications` 文件夹。
-3.  开始使用吧！
-
-### 故障排除
-
--   "NextAI Translator" can’t be opened because the developer cannot be verified.
-    
-    <p align="center">
-      <img width="300" src="https://user-images.githubusercontent.com/1206493/223916804-45ce3f34-6a4a-4baf-a0c1-4ab5c54c521f.png" />
-    </p>
-
-    -   点击 `Cancel` 按钮，然后去 `设置` -> `隐私与安全性` 页面，点击 `仍要打开` 按钮，然后在弹出窗口里点击 `打开` 按钮即可，以后打开 `NextAI Translator` 就再也不会有任何弹窗告警了 🎉
-        
-        <p align="center">
-          <img width="500" src="https://user-images.githubusercontent.com/1206493/223916970-9c99f15e-cf61-4770-b92d-4a78f980bb26.png" /> <img width="200" src="https://user-images.githubusercontent.com/1206493/223917449-ed1ac19f-c43d-4b13-9888-79ba46ceb862.png" />
-        </p>
-
-    -   如果在 `隐私与安全性` 中找不到以上选项，或启动时提示文件损坏（Apple Silicon版本）。打开 `Terminal.app`，并输入以下命令（中途可能需要输入密码），然后重启 `NextAI Translator` 即可：
-
-        ```sh
-        sudo xattr -d com.apple.quarantine /Applications/NextAI\ Translator.app
-        ```
-
--   如果您每次打开它都遇到权限提示，或者无法执行快捷键划词翻译，请前往 `设置` -> `隐私与安全性` -> `辅助功能` 中删除 NextAI Translator，然后重新添加 NextAI Translator:
-
-    <p align="center">
-      <img width="500" src="https://user-images.githubusercontent.com/1206493/224536148-eec559bf-4d99-48c1-bbd3-2cc105aff084.png" />
-      <img width="600" src="https://user-images.githubusercontent.com/1206493/224536277-4200f58e-8dc0-4c01-a27a-a30d7d8dc69e.gif" />
-    </p>
-
-## 安装桌面端划词扩展
-
-详情请见 [桌面端划词扩展](./CLIP-EXTENSIONS-CN.md)
-
-  <p align="center">
-    <img width="600" src="https://user-images.githubusercontent.com/1206493/240355949-8f41d98d-f097-4ce4-a533-af60e1757ca1.gif" />
-  </p>
-
-## 浏览器插件
-
-1. 访问你使用的浏览器的插件市场安装此插件：
-
-   <p align="center">
-     <a target="_blank" href="https://chrome.google.com/webstore/detail/nextai-translator/ogjibjphoadhljaoicdnjnmgokohngcc">
-       <img src="https://img.shields.io/chrome-web-store/v/ogjibjphoadhljaoicdnjnmgokohngcc?label=Chrome%20Web%20Store&style=for-the-badge&color=blue&logo=google-chrome&logoColor=white" />
-     </a>
-     <a target="_blank" href="https://addons.mozilla.org/en-US/firefox/addon/nextai-translator/">
-       <img src="https://img.shields.io/amo/v/nextai-translator?label=Firefox%20Add-on&style=for-the-badge&color=orange&logo=firefox&logoColor=white" />
-     </a>
-   </p>
-
-2. 点击浏览器插件列表里的 NextAI Translator 图标，把获取的 API KEY 填入此插件弹出的配置界面中
-
-   <p align="center">
-     <img width="600" src="https://user-images.githubusercontent.com/1206493/222958165-159719b4-28a5-44a4-b700-567786df7f03.png" />
-   </p>
-
-3. 刷新浏览器页面，即可享受丝滑般的划词翻译体验 🎉
-
-## 配置 Azure OpenAI Service
-
-```ts
-const API_URL = `https://${resourceName}.openai.azure.com`
-const API_URL_PATH = `/openai/deployments/${deployName}/chat/completions?api-version=${apiVersion}`
+```sh
+sudo xattr -d com.apple.quarantine /Applications/NextAI\ Translator.app
 ```
 
-- resourceName: 你的 Azure OpenAI Service 资源名称。
-- deployName: 你的 Azure OpenAI Service 模型部署名称，更改部署名称以切换模型。
-- api-version: 2023-05-15，或者更新的版本。（受支持的API version列表可以在[Azure官方文档](https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#completions)查找）
+### 浏览器扩展
 
-# License
-
-[LICENSE](./LICENSE)
-
-# Star 历史
+从浏览器扩展商店安装：
 
 <p align="center">
-  <a target="_blank" href="https://star-history.com/#nextai-translator/nextai-translator&Date">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=nextai-translator/nextai-translator&type=Date&theme=dark">
-      <img alt="NebulaGraph Data Intelligence Suite(ngdi)" src="https://api.star-history.com/svg?repos=nextai-translator/nextai-translator&type=Date">
-    </picture>
+  <a target="_blank" href="https://chrome.google.com/webstore/detail/nextai-translator/ogjibjphoadhljaoicdnjnmgokohngcc">
+    <img src="https://img.shields.io/chrome-web-store/v/ogjibjphoadhljaoicdnjnmgokohngcc?label=Chrome%20Web%20Store&style=for-the-badge&color=blue&logo=google-chrome&logoColor=white" />
+  </a>
+  <a target="_blank" href="https://addons.mozilla.org/en-US/firefox/addon/nextai-translator/">
+    <img src="https://img.shields.io/amo/v/nextai-translator?label=Firefox%20Add-on&style=for-the-badge&color=orange&logo=firefox&logoColor=white" />
   </a>
 </p>
+
+安装后打开设置，添加 LLM Provider，设为默认 Provider，然后刷新当前网页。
+
+## 桌面端划词扩展
+
+详情见 [桌面端划词扩展](./CLIP-EXTENSIONS-CN.md)。
+
+## 开发
+
+安装依赖：
+
+```sh
+pnpm install
+```
+
+常用命令：
+
+-   `pnpm dev-chromium`：启动 Chromium 扩展开发构建。
+-   `pnpm dev-tauri`：启动 Tauri 桌面端。
+-   `pnpm build-browser-extension`：构建 Chromium 与 Firefox 扩展。
+-   `pnpm build-tauri`：构建桌面端。
+-   `pnpm lint`：运行 ESLint。
+-   `pnpm exec vitest run`：单次运行单元测试。
+-   `pnpm test:e2e`：运行 Playwright 测试。
+
+## License
+
+[LICENSE](./LICENSE)

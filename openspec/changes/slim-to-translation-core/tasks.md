@@ -46,9 +46,9 @@
 - [x] 5.2 删除写作助手相关 UI、状态、热键监听(`writingHotkey` / `writingNewlineHotkey`)
 - [x] 5.3 删除画词面板入口、`vocabularyType` 状态、`'vocabulary'` 类型分支、与 `vocabularyService` 的交互调用
 - [x] 5.4 删除 ActionManager / Action 选择器入口与 `'big-bang'` / `'polishing'` 等模式按钮
-- [ ] 5.5 替换"Provider 选择"控件:把原来按 `provider` 枚举画的下拉,改为渲染 `settings.providers` 列表的下拉(显示 `name`,选中后写入运行时状态,不修改 `defaultProviderId`)
-- [ ] 5.6 翻译触发逻辑改为传入运行时选定的 `providerId` 给 `translate(...)`(若未临时切换则等于 `defaultProviderId`)
-- [ ] 5.7 为"无可用 Provider"场景渲染禁用态 + 引导文案(链接到设置页)
+- [x] 5.5 替换"Provider 选择"控件:把原来按 `provider` 枚举画的下拉,改为渲染 `settings.providers` 列表的下拉(显示 `name`,选中后写入运行时状态,不修改 `defaultProviderId`)
+- [x] 5.6 翻译触发逻辑改为传入运行时选定的 `providerId` 给 `translate(...)`(若未临时切换则等于 `defaultProviderId`)
+- [x] 5.7 为"无可用 Provider"场景渲染禁用态 + 引导文案(链接到设置页)
 - [ ] 5.8 验证 `SpeakerIcon` / `SpeakerMotion` 仍能朗读源文与译文,且不依赖任何已删模块
 
 ## 6. Settings.tsx 重构
@@ -107,7 +107,7 @@
 
 - [ ] 9.1 在所有 `src/common/i18n/locales/*/translation.json` 中删除"Upload an image for OCR translation"、"OCR Hotkey"、"Writing"、"Vocabulary"、"Polishing"、"Summarize"、"Analyze"、"Explain Code"、"Action"等已无引用的键
 - [ ] 9.2 新增 LLM Provider 列表 / 表单相关 i18n 键(中英为主,其它语言保留 fallback 到英文即可)
-- [ ] 9.3 新增"无可用 Provider"引导文案 i18n 键
+- [x] 9.3 新增"无可用 Provider"引导文案 i18n 键
 - [ ] 9.4 新增 OpenAI TTS 相关 i18n 键(关联 Provider、模型、voice、音频格式、错误提示)
 - [x] 9.5 删除 Promotion 相关文案、样式与测试 fixture;确认 UI 不再出现 promotion、推广、公告、API Key 提示点等旧文案
 

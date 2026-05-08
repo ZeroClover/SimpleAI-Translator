@@ -137,6 +137,8 @@
     "Advanced": "Advanced",
     "About": "About",
     "Provider": "Provider",
+    "No LLM Provider": "No LLM Provider",
+    "Please add an LLM Provider in settings first.": "Please add an LLM Provider in settings first.",
     "Rate": "Rate",
     "Volume": "Volume",
     "Voice": "Voice",

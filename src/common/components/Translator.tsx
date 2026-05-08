@@ -43,7 +43,6 @@ import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useDeepCompareCallback } from 'use-deep-compare'
 import { useTranslatorStore } from '../store'
 import { SpeakerIcon } from './SpeakerIcon'
-import { Provider, engineIcons, getEngine, providerToEngine } from '../engines'
 import color from 'color'
 import { useAtom } from 'jotai'
 import { showSettingsAtom } from '../store/setting'
@@ -70,10 +69,6 @@ function genLangOptions(langs: [LangCode, string][]): Value {
 }
 const sourceLangOptions = genLangOptions(sourceLanguages)
 const targetLangOptions = genLangOptions(targetLanguages)
-
-const isProviderValue = (value: unknown): value is Provider => {
-    return typeof value === 'string' && Object.prototype.hasOwnProperty.call(providerToEngine, value)
-}
 
 const useStyles = createUseStyles({
     'popupCard': {
@@ -514,6 +509,30 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const highlightRef = useRef<HighlightInTextarea | null>(null)
     const { t, i18n } = useTranslation()
     const { settings } = useSettings()
+    const providerOptions = useMemo(
+        () =>
+            settings.providers.map((provider) => ({
+                id: provider.id,
+                label: provider.name,
+            })),
+        [settings.providers]
+    )
+    const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
+        settings.defaultProviderId ?? settings.providers[0]?.id ?? null
+    )
+    const selectedProvider = useMemo(
+        () => settings.providers.find((provider) => provider.id === selectedProviderId),
+        [selectedProviderId, settings.providers]
+    )
+
+    useEffect(() => {
+        setSelectedProviderId((currentProviderId) => {
+            if (currentProviderId && settings.providers.some((provider) => provider.id === currentProviderId)) {
+                return currentProviderId
+            }
+            return settings.defaultProviderId ?? settings.providers[0]?.id ?? null
+        })
+    }, [settings.defaultProviderId, settings.providers])
 
     useEffect(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -522,22 +541,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             ;(i18n as any).changeLanguage(settings?.i18n)
         }
     }, [i18n, settings.i18n])
-
-    useEffect(() => {
-        if (!settings) {
-            return
-        }
-        const engine = getEngine(settings.provider)
-        engine.getModel().then((model) => {
-            setTranslateDeps((prev) => {
-                return {
-                    ...prev,
-                    provider: settings.provider,
-                    engineModel: model,
-                }
-            })
-        })
-    }, [settings])
 
     const [autoFocus, setAutoFocus] = useState(false)
 
@@ -673,16 +676,24 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         targetLang?: LangCode
         text: string
         action: Action
-        provider?: Provider
+        providerId?: string
         engineModel?: string
     }>({
         sourceLang: undefined,
         targetLang: undefined,
         text: '',
         action: translateAction,
-        provider: undefined,
+        providerId: undefined,
         engineModel: undefined,
     })
+
+    useEffect(() => {
+        setTranslateDeps((prev) => ({
+            ...prev,
+            providerId: selectedProvider?.id,
+            engineModel: selectedProvider?.model,
+        }))
+    }, [selectedProvider?.id, selectedProvider?.model])
 
     const getTranslateDeps = useCallback(
         async function (text: string): Promise<typeof translateDeps> {
@@ -713,6 +724,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             targetLang: newTargetLang,
                             text,
                             action: translateAction,
+                            providerId: selectedProvider?.id,
+                            engineModel: selectedProvider?.model,
                         }
                         resolve(newV)
                         return oldV
@@ -721,7 +734,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 })
             })
         },
-        [settings.defaultTargetLanguage]
+        [selectedProvider?.id, selectedProvider?.model, settings.defaultTargetLanguage]
     )
 
     const { externalOriginalText } = useTranslatorStore()
@@ -825,8 +838,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         }
     }, [showSettings])
 
-    const [isNotLogin, setIsNotLogin] = useState(false)
-
     const translateText = useDeepCompareCallback(
         async (selectedWord: string, signal: AbortSignal) => {
             if (skipNextTranslateRef.current) {
@@ -838,7 +849,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 translationIDRef.current = 0
             }
             const translationID = translationIDRef.current
-            const { text, sourceLang, targetLang, action } = translateDeps
+            const { text, sourceLang, targetLang } = translateDeps
             if (!text || !sourceLang || !targetLang) {
                 return
             }
@@ -851,7 +862,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 }
                 const dedupeKey = `${translateDeps.text}__${resultText}__${translateDeps.sourceLang}__${
                     translateDeps.targetLang
-                }__${translateDeps.action.id ?? translateDeps.action.mode ?? ''}`
+                }__${translateDeps.providerId ?? ''}__${translateDeps.engineModel ?? ''}`
                 if (lastHistoryKeyRef.current === dedupeKey) {
                     return
                 }
@@ -870,8 +881,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             actionId: translateDeps.action.id,
                             actionName: translateDeps.action.name,
                             actionMode: translateDeps.action.mode,
-                            provider: translateDeps.provider ?? settings.provider,
-                            engineModel: translateDeps.engineModel ?? settings.apiModel,
+                            provider: translateDeps.providerId ?? selectedProvider?.id,
+                            engineModel: translateDeps.engineModel ?? selectedProvider?.model,
                             wordMode: isWordModeRef.current,
                             tokenCount,
                         })
@@ -913,10 +924,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 }
             }
             beforeTranslate()
-            const cachedKey = `translate:${translateDeps.provider ?? ''}:${translateDeps.engineModel ?? ''}:${
-                action.id
-            }:${action.rolePrompt}:${action.commandPrompt}:${
-                action.outputRenderingFormat
+            const cachedKey = `translate:${translateDeps.providerId ?? ''}:${
+                translateDeps.engineModel ?? ''
             }:${sourceLang}:${targetLang}:${text}:${selectedWord}:${translationFlag}`
             const cachedValue = cache.get(cachedKey)
             if (cachedValue) {
@@ -935,10 +944,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     selectedWord,
                     detectFrom: sourceLang,
                     detectTo: targetLang,
-                    providerId: settings.defaultProviderId ?? undefined,
-                    onStatusCode: (statusCode) => {
-                        setIsNotLogin(statusCode === 401 || statusCode === 403 || statusCode === 422)
-                    },
+                    providerId: translateDeps.providerId ?? selectedProvider?.id,
+                    onStatusCode: () => {},
                     onMessage: async (message) => {
                         if (!message.content) {
                             return
@@ -981,7 +988,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 }
             }
         },
-        [translateDeps, translationFlag, startLoading, stopLoading, t]
+        [selectedProvider?.id, selectedProvider?.model, translateDeps, translationFlag, startLoading, stopLoading, t]
     )
 
     const translateControllerRef = useRef<AbortController | null>(null)
@@ -1007,19 +1014,24 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             setErrorMessage('')
             setSelectedWord('')
             setTranslateDeps((prev) => {
-                const providerFromHistory = isProviderValue(item.provider) ? item.provider : undefined
+                const providerIdFromHistory = settings.providers.some((provider) => provider.id === item.provider)
+                    ? item.provider
+                    : undefined
+                if (providerIdFromHistory) {
+                    setSelectedProviderId(providerIdFromHistory)
+                }
                 return {
                     ...prev,
                     text: item.text,
                     sourceLang: item.sourceLang,
                     targetLang: item.targetLang,
                     action: translateAction,
-                    provider: providerFromHistory ?? prev.provider ?? settings.provider,
+                    providerId: providerIdFromHistory ?? prev.providerId ?? selectedProviderId ?? undefined,
                     engineModel: item.engineModel ?? prev.engineModel,
                 }
             })
         },
-        [settings.provider]
+        [selectedProviderId, settings.providers]
     )
 
     useEffect(() => {
@@ -1044,29 +1056,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         if (!settings) {
             return
         }
-        if (settings.provider === 'OpenAI' && !settings.apiKeys) {
+        if (settings.providers.length === 0) {
             setShowSettings(true)
-            return
-        }
-        if (settings.provider === 'Azure' && !settings.azureAPIKeys) {
-            setShowSettings(true)
-            return
-        }
-        if (settings.provider === 'ChatGPT' && !settings.chatgptModel) {
-            setShowSettings(true)
-            return
-        }
-        if (settings.provider === 'MiniMax' && !settings.miniMaxAPIKey) {
-            setShowSettings(true)
-            return
-        }
-        if (settings.provider === 'Moonshot' && !settings.moonshotAPIKey) {
-            setShowSettings(true)
-            return
-        }
-        if (settings.provider === 'Groq' && !settings.groqAPIKey) {
-            setShowSettings(true)
-            return
         }
     }, [props.defaultShowSettings, setShowSettings, settings])
 
@@ -1151,6 +1142,10 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             return false
         }
 
+        if (!selectedProvider) {
+            return false
+        }
+
         if (editableText !== translateDeps.text) {
             return true
         }
@@ -1162,12 +1157,17 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         (e: React.SyntheticEvent<HTMLButtonElement> | React.KeyboardEvent<HTMLTextAreaElement>) => {
             e.preventDefault()
             e.stopPropagation()
+            if (!selectedProvider) {
+                setActionStr('Error')
+                setErrorMessage(t('Please add an LLM Provider in settings first.'))
+                return
+            }
             const text = editorRef.current?.value ?? ''
             getTranslateDeps(text).then((v) => {
                 setTranslateDeps(v)
             })
         },
-        [getTranslateDeps]
+        [getTranslateDeps, selectedProvider, t]
     )
 
     const getFooterBackgroundColor = useCallback(() => {
@@ -1290,6 +1290,31 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                     }}
                                 />
                             </div>
+                            {providerOptions.length > 0 && (
+                                <div className={styles.to}>
+                                    <Select
+                                        size='mini'
+                                        clearable={false}
+                                        options={providerOptions}
+                                        value={
+                                            selectedProvider
+                                                ? [{ id: selectedProvider.id, label: selectedProvider.name }]
+                                                : []
+                                        }
+                                        overrides={{
+                                            Root: {
+                                                style: {
+                                                    minWidth: '130px',
+                                                },
+                                            },
+                                        }}
+                                        onChange={({ value }) => {
+                                            const providerId = value.length > 0 ? value[0].id : providerOptions[0].id
+                                            setSelectedProviderId(providerId as string)
+                                        }}
+                                    />
+                                </div>
+                            )}
                         </div>
                     </div>
                     <div
@@ -1301,6 +1326,42 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         {settings?.apiURL === defaultAPIURL && (
                             <div>
                                 <IpLocationNotification showSettings={showSettings} />
+                            </div>
+                        )}
+                        {providerOptions.length === 0 && (
+                            <div
+                                style={{
+                                    margin: '0 0 10px',
+                                    padding: '8px 10px',
+                                    borderRadius: 8,
+                                    color: theme.colors.contentPrimary,
+                                    background: theme.colors.backgroundSecondary,
+                                    fontSize: 12,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: 8,
+                                }}
+                            >
+                                <span>{t('Please add an LLM Provider in settings first.')}</span>
+                                <Button
+                                    size='mini'
+                                    kind='secondary'
+                                    onClick={async (event) => {
+                                        event.stopPropagation()
+                                        event.preventDefault()
+                                        if (isBrowserExtensionContentScript()) {
+                                            const browser = (await import('webextension-polyfill')).default
+                                            await browser.runtime.sendMessage({
+                                                type: 'openOptionsPage',
+                                            })
+                                            return
+                                        }
+                                        setShowSettings(true)
+                                    }}
+                                >
+                                    {t('Settings')}
+                                </Button>
                             </div>
                         )}
                         <div ref={editorContainerRef} className={styles.popupCardEditorContainer}>
@@ -1515,30 +1576,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                                 </div>
                                             </Tooltip>
                                         </div>
-                                        {settings.provider === 'ChatGPT' && (
-                                            <div
-                                                style={{
-                                                    color: theme.colors.contentPrimary,
-                                                }}
-                                            >
-                                                {t('Go to the')}{' '}
-                                                <a
-                                                    target='_blank'
-                                                    href={
-                                                        settings?.i18n?.toLowerCase().includes('zh')
-                                                            ? 'https://github.com/nextai-translator/nextai-translator/blob/main/docs/chatgpt-cn.md'
-                                                            : 'https://github.com/nextai-translator/nextai-translator/blob/main/docs/chatgpt.md'
-                                                    }
-                                                    rel='noreferrer'
-                                                    style={{
-                                                        color: theme.colors.contentSecondary,
-                                                    }}
-                                                >
-                                                    FAQ Page
-                                                </a>{' '}
-                                                {t('to get the solutions.')}
-                                            </div>
-                                        )}
                                     </>
                                 ) : (
                                     <div
@@ -1614,112 +1651,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                         )}
                                     </div>
                                 )}
-                                {isNotLogin && settings?.provider === 'ChatGPT' && (
-                                    <div
-                                        style={{
-                                            fontSize: '12px',
-                                            color: theme.colors.contentPrimary,
-                                        }}
-                                    >
-                                        <span>{t('Please login to ChatGPT Web')}: </span>
-                                        <a
-                                            href='https://chat.openai.com'
-                                            target='_blank'
-                                            rel='noreferrer'
-                                            style={{
-                                                color: theme.colors.contentSecondary,
-                                            }}
-                                        >
-                                            Login
-                                        </a>
-                                    </div>
-                                )}
-                                {isNotLogin && settings?.provider === 'Kimi' && (
-                                    <div
-                                        style={{
-                                            fontSize: '12px',
-                                            color: theme.colors.contentPrimary,
-                                        }}
-                                    >
-                                        {isDesktopApp() ? (
-                                            <>
-                                                {t('Go to the')}{' '}
-                                                <a
-                                                    target='_blank'
-                                                    href={
-                                                        settings?.i18n?.toLowerCase().includes('zh')
-                                                            ? 'https://github.com/nextai-translator/nextai-translator/blob/main/docs/kimi-cn.md'
-                                                            : 'https://github.com/nextai-translator/nextai-translator/blob/main/docs/kimi.md'
-                                                    }
-                                                    rel='noreferrer'
-                                                    style={{
-                                                        color: theme.colors.contentSecondary,
-                                                    }}
-                                                >
-                                                    Tutorial
-                                                </a>{' '}
-                                                {t('to get your API Key.')}
-                                            </>
-                                        ) : (
-                                            <>
-                                                <span>{t('Please login to Kimi Web')}: </span>
-                                                <a
-                                                    href='https://kimi.moonshot.cn/'
-                                                    target='_blank'
-                                                    rel='noreferrer'
-                                                    style={{
-                                                        color: theme.colors.contentSecondary,
-                                                    }}
-                                                >
-                                                    Login
-                                                </a>
-                                            </>
-                                        )}
-                                    </div>
-                                )}
-                                {isNotLogin && settings?.provider === 'ChatGLM' && (
-                                    <div
-                                        style={{
-                                            fontSize: '12px',
-                                            color: theme.colors.contentPrimary,
-                                        }}
-                                    >
-                                        {isDesktopApp() ? (
-                                            <>
-                                                {t('Go to the')}{' '}
-                                                <a
-                                                    target='_blank'
-                                                    href={
-                                                        settings?.i18n?.toLowerCase().includes('zh')
-                                                            ? 'https://github.com/nextai-translator/nextai-translator/blob/main/docs/chatglm-cn.md'
-                                                            : 'https://github.com/nextai-translator/nextai-translator/blob/main/docs/chatglm.md'
-                                                    }
-                                                    rel='noreferrer'
-                                                    style={{
-                                                        color: theme.colors.contentSecondary,
-                                                    }}
-                                                >
-                                                    Tutorial
-                                                </a>{' '}
-                                                {t('to get your API Key.')}
-                                            </>
-                                        ) : (
-                                            <>
-                                                <span>{t('Please login to ChatGLM Web')}: </span>
-                                                <a
-                                                    href='https://chatglm.cn/'
-                                                    target='_blank'
-                                                    rel='noreferrer'
-                                                    style={{
-                                                        color: theme.colors.contentSecondary,
-                                                    }}
-                                                >
-                                                    Login
-                                                </a>
-                                            </>
-                                        )}
-                                    </div>
-                                )}
                             </div>
                         )}
                     </div>
@@ -1788,15 +1719,9 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     </Tooltip>
                     {!showSettings && (
                         <div className={styles.poweredBy}>
-                            Powered by{' '}
-                            <div className={styles.brand}>
-                                {React.createElement(engineIcons[settings.provider], {
-                                    size: 10,
-                                })}
-                                {settings.provider}
-                            </div>
-                            {translateDeps.engineModel && ` ${translateDeps.engineModel}`}
-                            {settings.provider === 'Claude' && settings.claudeThinking && ' · Thinking Mode'}
+                            {selectedProvider
+                                ? `${t('Provider')}: ${selectedProvider.name} · ${selectedProvider.model}`
+                                : t('No LLM Provider')}
                         </div>
                     )}
                     {!showSettings && (

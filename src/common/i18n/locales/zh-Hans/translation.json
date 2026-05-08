@@ -137,6 +137,8 @@
     "Advanced": "高级",
     "About": "关于",
     "Provider": "提供者",
+    "No LLM Provider": "未配置 LLM Provider",
+    "Please add an LLM Provider in settings first.": "请先在设置中添加 LLM Provider。",
     "Rate": "速率",
     "Volume": "音量",
     "Voice": "声音",

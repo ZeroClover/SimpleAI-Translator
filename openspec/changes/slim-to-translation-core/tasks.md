@@ -130,14 +130,14 @@
 
 ## 12. 验证
 
-- [ ] 12.1 重新运行 `openspec status --change slim-to-translation-core`,确认所有 artifact `done` 且 change `isComplete: true`
-- [ ] 12.2 全文搜索仓库,确认不存在对 `tesseract`、`vocabulary`、`writingHotkey`、`ocrHotkey`、`'polishing'`、`'summarize'`、`'analyze'`、`'explain-code'`、`'big-bang'`、`builtinActionModes` 的残留引用
-- [ ] 12.3 全文搜索 `engines/azure|cerebras|chatglm|chatgpt|claude|cohere|deepseek|gemini|groq|kimi|minimax|moonshot|ollama|openai` 路径无残留 import;`openai` 仅允许出现在新协议/官方 endpoint/文档语境
+- [x] 12.1 重新运行 `openspec status --change slim-to-translation-core`,确认所有 artifact `done` 且 change `isComplete: true`
+- [x] 12.2 全文搜索仓库,确认不存在对 `tesseract`、`vocabulary`、`writingHotkey`、`ocrHotkey`、`'polishing'`、`'summarize'`、`'analyze'`、`'explain-code'`、`'big-bang'`、`builtinActionModes` 的残留引用
+- [x] 12.3 全文搜索 `engines/azure|cerebras|chatglm|chatgpt|claude|cohere|deepseek|gemini|groq|kimi|minimax|moonshot|ollama|openai` 路径无残留 import;`openai` 仅允许出现在新协议/官方 endpoint/文档语境
 - [ ] 12.4 在干净的浏览器 profile 与全新 Tauri 配置下重启,验证首次启动引导(无 Provider 时禁用翻译并提示)
 - [ ] 12.5 用一份带旧 settings 的浏览器 profile 启动,验证旧 OpenAI / Azure / 未识别 Provider 字段不会产出 ProviderConfig,保存后不再写回旧字段
 - [ ] 12.6 配置一份 OpenAI Provider,验证 Provider 表单的"刷新模型"下拉显示已过滤的对话模型,Combobox 手填值仍可生效
 - [ ] 12.7 把 TTS 切到 OpenAI,验证模型 Combobox 仅显示 `tts-1` / `tts-1-hd` / `gpt-4o-mini-tts` / `gpt-4o-mini-tts-YYYY-MM-DD`,选定后朗读成功
 - [ ] 12.8 删除被 OpenAI TTS 引用的 Provider,验证 TTS 自动回退到 Edge 并 toast 提示
 - [ ] 12.9 在浏览器扩展中配置自定义 endpoint,验证 optional host permission 授权通过后可刷新模型,拒绝授权时不会发起请求
-- [ ] 12.10 全文搜索 `Azure`、`azureAPI`、`api-key`、`webRequest`、`Arkose`、`keyKimiAccessToken`、`keyChatGLMAccessToken`、`action_manager`、`screenshot`、`ocr_images`、`resources/bin/ocr`、`writing-text`,确认仅允许文档/变更说明中的残留
-- [ ] 12.11 全文搜索 `promotion`、`Promotion`、`promotions.json`、`optionsPageOpenaiAPIKeyPromotionIDKey`、`optionsPageHeaderPromotionIDKey`、`promotion_view`、`promotion_clicked`,确认不存在运行时代码残留
+- [x] 12.10 全文搜索 `Azure`、`azureAPI`、`api-key`、`webRequest`、`Arkose`、`keyKimiAccessToken`、`keyChatGLMAccessToken`、`action_manager`、`screenshot`、`ocr_images`、`resources/bin/ocr`、`writing-text`,确认仅允许文档/变更说明中的残留
+- [x] 12.11 全文搜索 `promotion`、`Promotion`、`promotions.json`、`optionsPageOpenaiAPIKeyPromotionIDKey`、`optionsPageHeaderPromotionIDKey`、`promotion_view`、`promotion_clicked`,确认不存在运行时代码残留

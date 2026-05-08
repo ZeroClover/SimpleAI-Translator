@@ -85,7 +85,7 @@ describe('settings schema normalization', () => {
             provider: 'Azure',
             apiKeys: 'sk-legacy',
             azureAPIKeys: 'azure-key',
-            defaultTranslateMode: 'summarize',
+            defaultTranslateMode: 'legacy-mode',
         })
 
         expect(sanitized).toEqual({

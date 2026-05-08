@@ -117,7 +117,7 @@
 - [x] 10.2 运行 `pnpm lint` 与 `tsc --noEmit`,修复因删除产生的 import / type 报错
 - [x] 10.3 运行 `pnpm test`(vitest)使所有单元测试绿
 - [x] 10.4 运行 `pnpm test:e2e`(playwright)修复或删除已不可达的 e2e 用例(OCR / 写作 / 画词 / Action 相关)
-- [ ] 10.5 在浏览器扩展中(Chromium 或 Firefox)启动 `pnpm dev-chromium` 手测翻译 + 朗读(三种 backend) + Provider 切换 + 模型刷新
+- [x] 10.5 在浏览器扩展中(Chromium 或 Firefox)启动 `pnpm dev-chromium` 手测翻译 + 朗读(三种 backend) + Provider 切换 + 模型刷新
 - [ ] 10.6 在桌面端运行 `pnpm dev-tauri` 手测同上 + 主热键 + 显示窗口热键
 
 ## 11. 文档与发布

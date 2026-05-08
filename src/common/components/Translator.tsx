@@ -2680,8 +2680,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                     const browser = (await import('webextension-polyfill')).default
                                     await browser.runtime.sendMessage({
                                         type: 'openOptionsPage',
-                                        openaiAPIKeyPromotionID: openaiAPIKeyPromotion?.id,
-                                        headerPromotionID: settingsHeaderPromotion?.id,
                                     })
                                 } else {
                                     setShowSettings((s: boolean) => !s)

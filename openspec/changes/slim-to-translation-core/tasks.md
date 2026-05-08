@@ -70,15 +70,15 @@
 
 ## 7. OpenAI TTS Backend
 
-- [ ] 7.1 在 `src/common/types.ts` 扩展 `TTSProvider` 联合为 `'edge' | 'system' | 'openai'`
-- [ ] 7.2 在 `ISettings.tts` 中新增可选字段 `openai?: { providerId: string; model: string; voice: string | { id: string }; format?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'; instructions?: string }`
-- [ ] 7.3 新建 `src/common/tts/openai-tts.ts`:实现 `speak({ text, lang, signal })`,内部读取 `settings.tts.openai`,从 `settings.providers` 找到对应 ProviderConfig,组装 `POST {endpoint}/audio/speech` 请求(`Authorization: Bearer <apiKey>` + `extraHeaders`),请求体 `{ model, voice, input, response_format, speed?, instructions? }`,响应转 `Blob` 并通过 `<audio>` 播放
-- [ ] 7.4 在 `src/common/tts/index.ts` 中按 `settings.tts.provider` 分派到 edge / system / openai 三个 backend
-- [ ] 7.5 endpoint 路径归一化复用 `openai-api-path` 工具,确保自定义 endpoint 与官方 endpoint 在 `/audio/speech` 拼接上一致
-- [ ] 7.6 错误处理:401 / 4xx / 5xx / 网络错误 → toast 可读消息,按钮恢复非播放态;不自动 fallback 到 edge / system
-- [ ] 7.7 实现长文本分段:OpenAI TTS 单次 `input` 不超过 4096 字符,超长文本按句子/段落拆分并顺序播放
-- [ ] 7.8 将全局 `rate` 映射为 OpenAI `speed` 并 clamp 到 `0.25..4.0`;仅在 `gpt-4o-mini-tts` 同系列模型上发送 `instructions`
-- [ ] 7.9 单元测试:成功播放、401 鉴权失败、404 路径未实现、引用 Provider 不存在自动回退 edge、长文本分段、`tts-1` 不发送 instructions 六类场景
+- [x] 7.1 在 `src/common/types.ts` 扩展 `TTSProvider` 联合为 `'edge' | 'system' | 'openai'`
+- [x] 7.2 在 `ISettings.tts` 中新增可选字段 `openai?: { providerId: string; model: string; voice: string | { id: string }; format?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'; instructions?: string }`
+- [x] 7.3 新建 `src/common/tts/openai-tts.ts`:实现 `speak({ text, lang, signal })`,内部读取 `settings.tts.openai`,从 `settings.providers` 找到对应 ProviderConfig,组装 `POST {endpoint}/audio/speech` 请求(`Authorization: Bearer <apiKey>` + `extraHeaders`),请求体 `{ model, voice, input, response_format, speed?, instructions? }`,响应转 `Blob` 并通过 `<audio>` 播放
+- [x] 7.4 在 `src/common/tts/index.ts` 中按 `settings.tts.provider` 分派到 edge / system / openai 三个 backend
+- [x] 7.5 endpoint 路径归一化复用 `openai-api-path` 工具,确保自定义 endpoint 与官方 endpoint 在 `/audio/speech` 拼接上一致
+- [x] 7.6 错误处理:401 / 4xx / 5xx / 网络错误 → toast 可读消息,按钮恢复非播放态;不自动 fallback 到 edge / system
+- [x] 7.7 实现长文本分段:OpenAI TTS 单次 `input` 不超过 4096 字符,超长文本按句子/段落拆分并顺序播放
+- [x] 7.8 将全局 `rate` 映射为 OpenAI `speed` 并 clamp 到 `0.25..4.0`;仅在 `gpt-4o-mini-tts` 同系列模型上发送 `instructions`
+- [x] 7.9 单元测试:成功播放、401 鉴权失败、404 路径未实现、引用 Provider 不存在自动回退 edge、长文本分段、`tts-1` 不发送 instructions 六类场景
 
 ## 8. 删除已废弃模块与文件
 

@@ -129,6 +129,23 @@ function normalizeProviderList(providers: unknown): ProviderConfig[] {
     return Array.isArray(providers) ? (providers as ProviderConfig[]) : []
 }
 
+function normalizeTTSSettings(tts: unknown): ISettings['tts'] {
+    if (!tts || typeof tts !== 'object') {
+        return { provider: 'edge' }
+    }
+
+    const settings = tts as ISettings['tts'] & { provider?: unknown }
+    const provider =
+        settings.provider === 'edge' || settings.provider === 'system' || settings.provider === 'openai'
+            ? settings.provider
+            : 'edge'
+
+    return {
+        ...settings,
+        provider,
+    }
+}
+
 export function normalizeSettings(rawSettings: RawSettings): ISettings {
     const providers = normalizeProviderList(rawSettings.providers)
     const defaultProviderId =
@@ -162,7 +179,7 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
         displayWindowHotkey: rawSettings.displayWindowHotkey,
         themeType: rawSettings.themeType || 'followTheSystem',
         i18n: rawSettings.i18n || defaulti18n,
-        tts: rawSettings.tts,
+        tts: normalizeTTSSettings(rawSettings.tts),
         restorePreviousPosition: rawSettings.restorePreviousPosition,
         runAtStartup: rawSettings.runAtStartup,
         selectInputElementsText:

@@ -8,7 +8,17 @@ export interface SpeakOptions {
     onStartSpeaking?: () => void
 }
 
-export type TTSProvider = 'WebSpeech' | 'EdgeTTS'
+export type TTSProvider = 'edge' | 'system' | 'openai'
+
+export type OpenAITTSFormat = 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'
+
+export interface OpenAITTSSettings {
+    providerId: string
+    model: string
+    voice: string | { id: string }
+    format?: OpenAITTSFormat
+    instructions?: string
+}
 
 export interface DoSpeakOptions extends SpeakOptions {
     lang: LangCode

@@ -1,6 +1,6 @@
 import { Theme } from 'baseui-sd/theme'
 import { TranslateMode } from './translate'
-import { TTSProvider } from './tts/types'
+import { OpenAITTSSettings, TTSProvider } from './tts/types'
 import { Provider } from './engines'
 import { LangCode } from './lang'
 
@@ -109,6 +109,7 @@ export interface ISettings {
         provider?: TTSProvider
         volume?: number
         rate?: number
+        openai?: OpenAITTSSettings
     }
     restorePreviousPosition?: boolean
     selectInputElementsText?: boolean

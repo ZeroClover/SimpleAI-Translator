@@ -340,8 +340,8 @@ const ttsProviderOptions: {
     label: string
     id: TTSProvider
 }[] = [
-    { label: 'Edge TTS', id: 'EdgeTTS' },
-    { label: 'System Default', id: 'WebSpeech' },
+    { label: 'Edge TTS', id: 'edge' },
+    { label: 'System Default', id: 'system' },
 ]
 
 function TTSVoicesSettings({ value, onChange, onBlur }: ITTSVoicesSettingsProps) {
@@ -359,12 +359,12 @@ function TTSVoicesSettings({ value, onChange, onBlur }: ITTSVoicesSettingsProps)
     const provider = value?.provider ?? defaultTTSProvider
 
     const { data: edgeVoices, isLoading: isEdgeVoicesLoading } = useSWR(
-        provider === 'EdgeTTS' ? 'edgeVoices' : null,
+        provider === 'edge' ? 'edgeVoices' : null,
         fetchEdgeVoices
     )
 
     const { data: webSpeechVoices, isLoading: isWebSpeechVoicesLoading } = useSWR(
-        provider === 'WebSpeech' ? 'webSpeechVoices' : null,
+        provider === 'system' ? 'webSpeechVoices' : null,
         async () => {
             return speechSynthesis.getVoices()
         }
@@ -374,10 +374,10 @@ function TTSVoicesSettings({ value, onChange, onBlur }: ITTSVoicesSettingsProps)
 
     useEffect(() => {
         switch (provider) {
-            case 'EdgeTTS':
+            case 'edge':
                 setSupportedVoices(edgeVoices ?? [])
                 break
-            case 'WebSpeech':
+            case 'system':
                 setSupportedVoices(webSpeechVoices ?? [])
                 break
             default:
@@ -543,7 +543,7 @@ function TTSVoicesSettings({ value, onChange, onBlur }: ITTSVoicesSettingsProps)
                     clearable={false}
                     searchable={false}
                     options={ttsProviderOptions}
-                    value={[{ id: value?.provider ?? 'EdgeTTS' }]}
+                    value={[{ id: value?.provider ?? defaultTTSProvider }]}
                     onChange={({ option }) => handleChangeProvider(option?.id as TTSProvider)}
                     onBlur={onBlur}
                 />

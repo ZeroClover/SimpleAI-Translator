@@ -1,9 +1,10 @@
-import { DoSpeakOptions, SpeakOptions } from './types'
+import { DoSpeakOptions, SpeakOptions, TTSProvider } from './types'
 import { getSettings } from '../utils'
 import { speak as edgeSpeak } from './edge-tts'
 import { LangCode } from '../lang'
+import { speak as openAISpeak } from './openai-tts'
 
-export const defaultTTSProvider = 'EdgeTTS'
+export const defaultTTSProvider: TTSProvider = 'edge'
 
 export const langCode2TTSLang: Partial<Record<LangCode, string>> = {
     'en': 'en-US',
@@ -106,7 +107,7 @@ export async function doSpeak({
 }: DoSpeakOptions) {
     const rate = (rate_ ?? 10) / 10
 
-    if (provider === 'EdgeTTS') {
+    if (provider === 'edge') {
         return edgeSpeak({
             text,
             lang,
@@ -114,6 +115,16 @@ export async function doSpeak({
             voice: voice,
             rate,
             volume: volume ?? 100,
+            signal,
+            onStartSpeaking,
+        })
+    }
+
+    if (provider === 'openai') {
+        return openAISpeak({
+            text,
+            lang,
+            onFinish,
             signal,
             onStartSpeaking,
         })

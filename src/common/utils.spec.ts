@@ -8,6 +8,7 @@ describe('settings schema normalization', () => {
         expect(settings.providers).toEqual([])
         expect(settings.defaultProviderId).toBeNull()
         expect(settings.languageDetectionEngine).toBe('local')
+        expect(settings.tts?.provider).toBe('edge')
     })
 
     it('does not migrate legacy OpenAI fields', () => {
@@ -91,5 +92,15 @@ describe('settings schema normalization', () => {
             providers: [provider],
             defaultProviderId: provider.id,
         })
+    })
+
+    it('normalizes legacy TTS provider enum values', () => {
+        const settings = normalizeSettings({
+            tts: {
+                provider: 'WebSpeech',
+            },
+        } as Record<string, unknown>)
+
+        expect(settings.tts?.provider).toBe('edge')
     })
 })

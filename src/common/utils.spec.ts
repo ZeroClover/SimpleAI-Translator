@@ -1,0 +1,95 @@
+import { describe, expect, it } from 'vitest'
+import { normalizeSettings, sanitizeSettingsForStorage } from './utils'
+
+describe('settings schema normalization', () => {
+    it('initializes a fresh install with empty providers', () => {
+        const settings = normalizeSettings({})
+
+        expect(settings.providers).toEqual([])
+        expect(settings.defaultProviderId).toBeNull()
+        expect(settings.languageDetectionEngine).toBe('local')
+    })
+
+    it('does not migrate legacy OpenAI fields', () => {
+        const settings = normalizeSettings({
+            provider: 'OpenAI',
+            apiKeys: 'sk-legacy',
+            apiModel: 'gpt-4o',
+        })
+
+        expect(settings.providers).toEqual([])
+        expect(settings.defaultProviderId).toBeNull()
+        expect(settings).not.toHaveProperty('provider')
+        expect(settings).not.toHaveProperty('apiKeys')
+        expect(settings).not.toHaveProperty('apiModel')
+    })
+
+    it('does not migrate legacy Azure fields', () => {
+        const settings = normalizeSettings({
+            provider: 'Azure',
+            azureAPIKeys: 'azure-key',
+            azureAPIURL: 'https://example.openai.azure.com',
+            azureAPIModel: 'gpt-4o',
+        })
+
+        expect(settings.providers).toEqual([])
+        expect(settings.defaultProviderId).toBeNull()
+        expect(settings).not.toHaveProperty('azureAPIKeys')
+        expect(settings).not.toHaveProperty('azureAPIURL')
+        expect(settings).not.toHaveProperty('azureAPIModel')
+    })
+
+    it('does not fall back unknown legacy providers to ProviderConfig', () => {
+        const settings = normalizeSettings({
+            provider: 'SomeLegacyProvider',
+            apiKeys: 'sk-legacy',
+            apiModel: 'some-model',
+        } as Record<string, unknown>)
+
+        expect(settings.providers).toEqual([])
+        expect(settings.defaultProviderId).toBeNull()
+    })
+
+    it('keeps an existing new schema unchanged', () => {
+        const provider = {
+            id: 'provider-1',
+            name: 'Primary',
+            protocol: 'openai-chat' as const,
+            apiKey: 'sk-test',
+            endpoint: 'https://api.example.com/v1',
+            model: 'gpt-4o-mini',
+        }
+        const settings = normalizeSettings({
+            providers: [provider],
+            defaultProviderId: provider.id,
+            provider: 'OpenAI',
+            apiKeys: 'sk-legacy',
+        })
+
+        expect(settings.providers).toEqual([provider])
+        expect(settings.defaultProviderId).toBe(provider.id)
+    })
+
+    it('sanitizes writes to the new settings schema', () => {
+        const provider = {
+            id: 'provider-1',
+            name: 'Primary',
+            protocol: 'anthropic' as const,
+            apiKey: 'sk-ant',
+            model: 'claude-sonnet-4-5',
+        }
+        const sanitized = sanitizeSettingsForStorage({
+            providers: [provider],
+            defaultProviderId: provider.id,
+            provider: 'Azure',
+            apiKeys: 'sk-legacy',
+            azureAPIKeys: 'azure-key',
+            defaultTranslateMode: 'summarize',
+        })
+
+        expect(sanitized).toEqual({
+            providers: [provider],
+            defaultProviderId: provider.id,
+        })
+    })
+})

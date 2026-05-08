@@ -16,6 +16,15 @@ class BrowserStorageSync {
         }, {})
         return await (window['electronAPI' as any]['storeSets' as any] as any)(newItems)
     }
+
+    async remove(keys: string[]): Promise<void> {
+        const storeDeletes = (window['electronAPI' as any] as any)['storeDeletes'] as
+            | ((keys: string[]) => Promise<void>)
+            | undefined
+        if (storeDeletes) {
+            await storeDeletes(keys)
+        }
+    }
 }
 
 class BrowserStorage {

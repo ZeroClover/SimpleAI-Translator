@@ -16,6 +16,10 @@ class BrowserStorageSync {
             value && (await GM.setValue(key, value))
         })
     }
+
+    async remove(keys: string[]): Promise<void> {
+        await Promise.all(keys.map((key) => GM.deleteValue(key)))
+    }
 }
 
 class BrowserStorage {

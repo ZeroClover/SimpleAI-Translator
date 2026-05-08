@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createParser } from 'eventsource-parser'
-import { IBrowser, ISettings } from './types'
+import { IBrowser, ISettings, ProviderConfig } from './types'
 import { getUniversalFetch } from './universal-fetch'
 import { v4 as uuidv4 } from 'uuid'
 import { listen, Event, emit } from '@tauri-apps/api/event'
@@ -25,6 +25,8 @@ export const defaultSelectInputElementsText = true
 export const defaultReadSelectedWordsFromInputElementsText = false
 export const defaulti18n = 'en'
 
+type RawSettings = Partial<ISettings> & Record<string, unknown>
+
 export async function getApiKey(): Promise<string> {
     const settings = await getSettings()
     const apiKeys = (settings.apiKeys ?? '').split(',').map((s) => s.trim())
@@ -37,42 +39,17 @@ export async function getAzureApiKey(): Promise<string> {
     return apiKeys[Math.floor(Math.random() * apiKeys.length)] ?? ''
 }
 
-// In order to let the type system remind you that all keys have been passed to browser.storage.sync.get(keys)
-const settingKeys: Record<keyof ISettings, number> = {
+const settingKeys = {
     automaticCheckForUpdates: 1,
     providers: 1,
     defaultProviderId: 1,
-    apiKeys: 1,
-    apiURL: 1,
-    apiURLPath: 1,
-    apiModel: 1,
-    provider: 1,
-    chatgptModel: 1,
-    azureAPIKeys: 1,
-    azureAPIURL: 1,
-    azureAPIURLPath: 1,
-    azureAPIModel: 1,
-    azMaxWords: 1,
     enableMica: 1,
     enableBackgroundBlur: 1,
-    miniMaxGroupID: 1,
-    miniMaxAPIKey: 1,
-    miniMaxAPIModel: 1,
-    moonshotAPIKey: 1,
-    moonshotAPIModel: 1,
-    geminiAPIURL: 1,
-    geminiAPIKey: 1,
-    geminiAPIModel: 1,
     autoTranslate: 1,
-    defaultTranslateMode: 1,
     defaultTargetLanguage: 1,
     alwaysShowIcons: 1,
     hotkey: 1,
     displayWindowHotkey: 1,
-    ocrHotkey: 1,
-    writingTargetLanguage: 1,
-    writingHotkey: 1,
-    writingNewlineHotkey: 1,
     themeType: 1,
     i18n: 1,
     tts: 1,
@@ -83,140 +60,130 @@ const settingKeys: Record<keyof ISettings, number> = {
     disableCollectingStatistics: 1,
     allowUsingClipboardWhenSelectedTextNotAvailable: 1,
     pinned: 1,
-    autoCollect: 1,
     hideTheIconInTheDock: 1,
     languageDetectionEngine: 1,
     autoHideWindowWhenOutOfFocus: 1,
     proxy: 1,
-    customModelName: 1,
-    ollamaAPIURL: 1,
-    ollamaAPIModel: 1,
-    ollamaCustomModelName: 1,
-    ollamaModelLifetimeInMemory: 1,
-    groqAPIURL: 1,
-    groqAPIURLPath: 1,
-    groqAPIModel: 1,
-    groqAPIKey: 1,
-    groqCustomModelName: 1,
-    claudeAPIURL: 1,
-    claudeAPIURLPath: 1,
-    claudeAPIModel: 1,
-    claudeAPIKey: 1,
-    claudeCustomModelName: 1,
-    kimiRefreshToken: 1,
-    kimiAccessToken: 1,
-    chatglmAccessToken: 1,
-    chatglmRefreshToken: 1,
-    cohereAPIKey: 1,
-    cohereAPIModel: 1,
-    deepSeekAPIKey: 1,
-    deepSeekAPIModel: 1,
-    cerebrasAPIKey: 1,
-    cerebrasAPIModel: 1,
     fontSize: 1,
     uiFontSize: 1,
     iconSize: 1,
-    noModelsAPISupport: 1,
-    claudeThinking: 1,
-    claudeThinkingLevel: 1,
+} satisfies Partial<Record<keyof ISettings, number>>
+
+const legacySettingKeys = [
+    'apiKeys',
+    'apiURL',
+    'apiURLPath',
+    'apiModel',
+    'provider',
+    'chatgptModel',
+    'azureAPIKeys',
+    'azureAPIURL',
+    'azureAPIURLPath',
+    'azureAPIModel',
+    'azMaxWords',
+    'miniMaxGroupID',
+    'miniMaxAPIKey',
+    'miniMaxAPIModel',
+    'geminiAPIURL',
+    'geminiAPIKey',
+    'geminiAPIModel',
+    'moonshotAPIKey',
+    'moonshotAPIModel',
+    'deepSeekAPIKey',
+    'deepSeekAPIModel',
+    'defaultTranslateMode',
+    'writingTargetLanguage',
+    'writingHotkey',
+    'writingNewlineHotkey',
+    'ocrHotkey',
+    'autoCollect',
+    'customModelName',
+    'ollamaAPIURL',
+    'ollamaAPIModel',
+    'ollamaCustomModelName',
+    'ollamaModelLifetimeInMemory',
+    'groqAPIURL',
+    'groqAPIURLPath',
+    'groqAPIModel',
+    'groqAPIKey',
+    'groqCustomModelName',
+    'claudeAPIURL',
+    'claudeAPIURLPath',
+    'claudeAPIModel',
+    'claudeAPIKey',
+    'claudeCustomModelName',
+    'kimiAccessToken',
+    'kimiRefreshToken',
+    'chatglmAccessToken',
+    'chatglmRefreshToken',
+    'cohereAPIKey',
+    'cohereAPIModel',
+    'cerebrasAPIKey',
+    'cerebrasAPIModel',
+    'noModelsAPISupport',
+    'claudeThinking',
+    'claudeThinkingLevel',
+] as const
+
+function normalizeProviderList(providers: unknown): ProviderConfig[] {
+    return Array.isArray(providers) ? (providers as ProviderConfig[]) : []
 }
 
-export async function getSettings(): Promise<ISettings> {
-    const browser = await getBrowser()
-    const items = await browser.storage.sync.get(Object.keys(settingKeys))
+export function normalizeSettings(rawSettings: RawSettings): ISettings {
+    const providers = normalizeProviderList(rawSettings.providers)
+    const defaultProviderId =
+        typeof rawSettings.defaultProviderId === 'string' &&
+        providers.some((provider) => provider.id === rawSettings.defaultProviderId)
+            ? rawSettings.defaultProviderId
+            : providers[0]?.id ?? null
 
-    const settings = items as ISettings
-    if (!Array.isArray(settings.providers)) {
-        settings.providers = []
-    }
-    if (
-        !settings.defaultProviderId ||
-        !settings.providers.some((provider) => provider.id === settings.defaultProviderId)
-    ) {
-        settings.defaultProviderId = settings.providers[0]?.id ?? null
-    }
-    if (!settings.apiKeys) {
-        settings.apiKeys = ''
-    }
-    if (!settings.apiURL) {
-        settings.apiURL = defaultAPIURL
-    }
-    if (!settings.apiURLPath) {
-        settings.apiURLPath = defaultAPIURLPath
-    }
-    if (!settings.apiModel) {
-        settings.apiModel = defaultAPIModel
-    }
-    if (!settings.provider) {
-        settings.provider = defaultProvider
-    }
-    if (settings.autoTranslate === undefined || settings.autoTranslate === null) {
-        settings.autoTranslate = defaultAutoTranslate
-    }
-    if (!settings.defaultTranslateMode) {
-        settings.defaultTranslateMode = 'translate'
-    }
-    if (!settings.defaultTargetLanguage) {
-        settings.defaultTargetLanguage = defaultTargetLanguage
-    }
-    if (!settings.writingTargetLanguage) {
-        settings.writingTargetLanguage = defaultWritingTargetLanguage
-    }
-    if (settings.alwaysShowIcons === undefined || settings.alwaysShowIcons === null) {
-        settings.alwaysShowIcons = !isTauri()
-    }
-    if (!settings.i18n) {
-        settings.i18n = defaulti18n
-    }
-    if (!settings.disableCollectingStatistics) {
-        settings.disableCollectingStatistics = false
-    }
-    if (settings.selectInputElementsText === undefined || settings.selectInputElementsText === null) {
-        settings.selectInputElementsText = defaultSelectInputElementsText
-    }
-    if (
-        settings.readSelectedWordsFromInputElementsText === undefined ||
-        settings.readSelectedWordsFromInputElementsText === null
-    ) {
-        settings.readSelectedWordsFromInputElementsText = defaultReadSelectedWordsFromInputElementsText
-    }
-    if (!settings.themeType) {
-        settings.themeType = 'followTheSystem'
-    }
-    if (settings.provider === 'Azure') {
-        if (!settings.azureAPIKeys) {
-            settings.azureAPIKeys = settings.apiKeys
-        }
-        if (!settings.azureAPIURL) {
-            settings.azureAPIURL = settings.apiURL
-        }
-        if (!settings.azureAPIURLPath) {
-            settings.azureAPIURLPath = settings.apiURLPath
-        }
-        if (!settings.azureAPIModel) {
-            settings.azureAPIModel = settings.apiModel
-        }
-    }
-    if (settings.provider === 'ChatGPT') {
-        if (!settings.chatgptModel) {
-            settings.chatgptModel = settings.apiModel
-        }
-    }
-    if (settings.automaticCheckForUpdates === undefined || settings.automaticCheckForUpdates === null) {
-        settings.automaticCheckForUpdates = true
-    }
-    if (settings.enableBackgroundBlur === undefined || settings.enableBackgroundBlur === null) {
-        if (settings.enableMica !== undefined && settings.enableMica !== null) {
-            settings.enableBackgroundBlur = settings.enableMica
-        } else {
-            settings.enableBackgroundBlur = false
-        }
-    }
-    if (!settings.languageDetectionEngine) {
-        settings.languageDetectionEngine = 'baidu'
-    }
-    if (!settings.proxy) {
-        settings.proxy = {
+    return {
+        automaticCheckForUpdates:
+            rawSettings.automaticCheckForUpdates === undefined || rawSettings.automaticCheckForUpdates === null
+                ? true
+                : rawSettings.automaticCheckForUpdates,
+        providers,
+        defaultProviderId,
+        enableMica: rawSettings.enableMica ?? false,
+        enableBackgroundBlur:
+            rawSettings.enableBackgroundBlur === undefined || rawSettings.enableBackgroundBlur === null
+                ? rawSettings.enableMica ?? false
+                : rawSettings.enableBackgroundBlur,
+        autoTranslate:
+            rawSettings.autoTranslate === undefined || rawSettings.autoTranslate === null
+                ? defaultAutoTranslate
+                : rawSettings.autoTranslate,
+        defaultTargetLanguage: rawSettings.defaultTargetLanguage || defaultTargetLanguage,
+        alwaysShowIcons:
+            rawSettings.alwaysShowIcons === undefined || rawSettings.alwaysShowIcons === null
+                ? !isTauri()
+                : rawSettings.alwaysShowIcons,
+        hotkey: rawSettings.hotkey,
+        displayWindowHotkey: rawSettings.displayWindowHotkey,
+        themeType: rawSettings.themeType || 'followTheSystem',
+        i18n: rawSettings.i18n || defaulti18n,
+        tts: rawSettings.tts,
+        restorePreviousPosition: rawSettings.restorePreviousPosition,
+        runAtStartup: rawSettings.runAtStartup,
+        selectInputElementsText:
+            rawSettings.selectInputElementsText === undefined || rawSettings.selectInputElementsText === null
+                ? defaultSelectInputElementsText
+                : rawSettings.selectInputElementsText,
+        readSelectedWordsFromInputElementsText:
+            rawSettings.readSelectedWordsFromInputElementsText === undefined ||
+            rawSettings.readSelectedWordsFromInputElementsText === null
+                ? defaultReadSelectedWordsFromInputElementsText
+                : rawSettings.readSelectedWordsFromInputElementsText,
+        disableCollectingStatistics: rawSettings.disableCollectingStatistics ?? false,
+        allowUsingClipboardWhenSelectedTextNotAvailable: rawSettings.allowUsingClipboardWhenSelectedTextNotAvailable,
+        pinned: rawSettings.pinned,
+        hideTheIconInTheDock:
+            rawSettings.hideTheIconInTheDock === undefined || rawSettings.hideTheIconInTheDock === null
+                ? true
+                : rawSettings.hideTheIconInTheDock,
+        languageDetectionEngine: rawSettings.languageDetectionEngine || 'local',
+        autoHideWindowWhenOutOfFocus: rawSettings.autoHideWindowWhenOutOfFocus,
+        proxy: rawSettings.proxy ?? {
             enabled: false,
             protocol: 'HTTP',
             server: '127.0.0.1',
@@ -226,53 +193,43 @@ export async function getSettings(): Promise<ISettings> {
                 password: '',
             },
             noProxy: 'localhost,127.0.0.1',
+        },
+        fontSize: rawSettings.fontSize ?? 15,
+        uiFontSize: rawSettings.uiFontSize ?? 12,
+        iconSize: rawSettings.iconSize ?? 15,
+    } as ISettings
+}
+
+export function sanitizeSettingsForStorage(settings: RawSettings): Partial<ISettings> {
+    const normalized = normalizeSettings(settings)
+    const sanitized: Record<string, unknown> = {
+        providers: normalized.providers,
+        defaultProviderId: normalized.defaultProviderId,
+    }
+
+    for (const key of Object.keys(settingKeys) as Array<keyof typeof settingKeys>) {
+        if (key === 'providers' || key === 'defaultProviderId') {
+            continue
+        }
+        if (Object.prototype.hasOwnProperty.call(settings, key)) {
+            sanitized[key] = normalized[key]
         }
     }
-    if (!settings.ollamaAPIURL) {
-        settings.ollamaAPIURL = 'http://127.0.0.1:11434'
-    }
-    if (!settings.miniMaxAPIModel) {
-        settings.miniMaxAPIModel = 'MiniMax-M2.7'
-    }
-    if (!settings.groqAPIURL) {
-        settings.groqAPIURL = 'https://api.groq.com'
-    }
-    if (!settings.groqAPIURLPath) {
-        settings.groqAPIURLPath = '/openai/v1/chat/completions'
-    }
-    if (!settings.claudeAPIURL) {
-        settings.claudeAPIURL = 'https://api.anthropic.com'
-    }
-    if (!settings.claudeAPIURLPath) {
-        settings.claudeAPIURLPath = '/v1/messages'
-    }
-    if (settings.geminiAPIURL === undefined || settings.geminiAPIURL === null) {
-        settings.geminiAPIURL = defaultGeminiAPIURL
-    }
-    if (settings.fontSize === undefined || settings.fontSize === null) {
-        settings.fontSize = 15
-    }
-    if (settings.uiFontSize === undefined || settings.uiFontSize === null) {
-        settings.uiFontSize = 12
-    }
-    if (settings.iconSize === undefined || settings.iconSize === null) {
-        settings.iconSize = 15
-    }
-    if (settings.azMaxWords === undefined || settings.azMaxWords === null) {
-        settings.azMaxWords = 1024
-    }
-    if (settings.hideTheIconInTheDock === undefined || settings.hideTheIconInTheDock === null) {
-        settings.hideTheIconInTheDock = true
-    }
-    if (settings.ollamaModelLifetimeInMemory === undefined || settings.ollamaModelLifetimeInMemory === null) {
-        settings.ollamaModelLifetimeInMemory = '5m'
-    }
-    return settings
+
+    return sanitized as Partial<ISettings>
+}
+
+export async function getSettings(): Promise<ISettings> {
+    const browser = await getBrowser()
+    const items = await browser.storage.sync.get(Object.keys(settingKeys))
+
+    return normalizeSettings(items)
 }
 
 export async function setSettings(settings: Partial<ISettings>) {
     const browser = await getBrowser()
-    await browser.storage.sync.set(settings)
+    await browser.storage.sync.set(sanitizeSettingsForStorage(settings))
+    await browser.storage.sync.remove?.([...legacySettingKeys])
 }
 
 export async function getBrowser(): Promise<IBrowser> {

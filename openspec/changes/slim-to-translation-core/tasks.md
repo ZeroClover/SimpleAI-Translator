@@ -12,9 +12,9 @@
 - [ ] 2.4 从 `ISettings` 删除旧 Provider 字段(`apiKeys` / `apiURL` / `apiModel` / `provider` / `chatgptModel` / `azure*` / `miniMax*` / `gemini*` / `moonshot*` / `deepSeek*` / `customModelName`),不标 deprecated、不保留读取路径
 - [ ] 2.5 删除 `ISettings` 中 `defaultTranslateMode` / `writingTargetLanguage` / `writingHotkey` / `writingNewlineHotkey` / `ocrHotkey` / `autoCollect` 字段
 - [ ] 2.6 删除 `TranslateMode` 类型导出与所有引用,在 `translate.ts` 内仅保留 `'translate'` 单一隐式模式
-- [ ] 2.7 在 `src/common/utils.ts` 中实现新 schema 初始化/规范化:缺省返回 `providers: []`、`defaultProviderId: null`;旧字段只在写回时清理或读取时忽略,不转换为 ProviderConfig
-- [ ] 2.8 在 `getSettings()` / `setSettings()` 周边确保只读写新 schema 字段,不会写回 `provider`、`apiKeys`、`azure*`、`chatgpt*` 等旧字段
-- [ ] 2.9 为 settings 初始化/清理编写单元测试:覆盖新安装为空 Provider、旧 OpenAI 字段不迁移、旧 Azure 字段不迁移、未识别 Provider 不兜底、已是新 schema 保持不变
+- [x] 2.7 在 `src/common/utils.ts` 中实现新 schema 初始化/规范化:缺省返回 `providers: []`、`defaultProviderId: null`;旧字段只在写回时清理或读取时忽略,不转换为 ProviderConfig
+- [x] 2.8 在 `getSettings()` / `setSettings()` 周边确保只读写新 schema 字段,不会写回 `provider`、`apiKeys`、`azure*`、`chatgpt*` 等旧字段
+- [x] 2.9 为 settings 初始化/清理编写单元测试:覆盖新安装为空 Provider、旧 OpenAI 字段不迁移、旧 Azure 字段不迁移、未识别 Provider 不兜底、已是新 schema 保持不变
 
 ## 3. 新 Provider 协议引擎
 

@@ -35,6 +35,16 @@ class BrowserStorageSync {
             baseDir: BaseDirectory.AppConfig,
         })
     }
+
+    async remove(keys: string[]): Promise<void> {
+        const settings = await getSettings()
+        for (const key of keys) {
+            delete settings[key]
+        }
+        await writeTextFile('config.json', JSON.stringify(settings), {
+            baseDir: BaseDirectory.AppConfig,
+        })
+    }
 }
 
 class BrowserStorage {

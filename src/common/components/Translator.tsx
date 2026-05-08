@@ -27,7 +27,6 @@ import {
     exportToCsv,
     isDesktopApp,
     isTauri,
-    getAssetUrl,
     isUserscript,
     setSettings,
     isBrowserExtensionContentScript,
@@ -35,13 +34,8 @@ import {
 } from '../utils'
 import { InnerSettings } from './Settings'
 import { containerID, popupCardInnerContainerId } from '../../browser-extension/content_script/consts'
-import Dropzone from 'react-dropzone'
-import { RecognizeResult, createWorker } from 'tesseract.js'
-import { BsTextareaT } from 'react-icons/bs'
 import { FcIdea } from 'react-icons/fc'
-import rocket from '../assets/images/rocket.gif'
-import partyPopper from '../assets/images/party-popper.gif'
-import { listen, type Event, type UnlistenFn } from '@tauri-apps/api/event'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import IpLocationNotification from '../components/IpLocationNotification'
 import { HighlightInTextarea } from '../highlight-in-textarea'
 import { LRUCache } from 'lru-cache'
@@ -73,7 +67,6 @@ import { GlobalSuspense } from './GlobalSuspense'
 import { useLazyEffect } from '../usehooks'
 import LogoWithText, { type LogoWithTextRef } from './LogoWithText'
 import Toaster from './Toaster'
-import { readFile } from '@tauri-apps/plugin-fs'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useDeepCompareCallback } from 'use-deep-compare'
 import { useTranslatorStore } from '../store'
@@ -449,21 +442,6 @@ const useStyles = createUseStyles({
             borderColor: props.themeType === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
         },
     }),
-    'fileDragArea': (props: IThemedStyleProps) => ({
-        padding: '16px',
-        display: 'flex',
-        justifyContent: 'center',
-        marginBottom: '10px',
-        fontSize: '12px',
-        borderRadius: '12px',
-        border: `2px dashed ${props.themeType === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)'}`,
-        background: props.themeType === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-        color: props.theme.colors.contentSecondary,
-        transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-    }),
-    'OCRStatusBar': (props: IThemedStyleProps) => ({
-        color: props.theme.colors.contentSecondary,
-    }),
     'vocabulary': {
         position: 'fixed',
         width: '100%',
@@ -524,10 +502,6 @@ const actionStrItems: Record<TranslateMode, IActionStrItem> = {
         beforeStr: 'Writing...',
         afterStr: 'Written',
     },
-}
-
-export interface TesseractResult extends RecognizeResult {
-    text: string
 }
 
 export interface MovementXY {
@@ -1433,133 +1407,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         }
     }, [props.defaultShowSettings, setShowSettings, settings])
 
-    const [isOCRProcessing, setIsOCRProcessing] = useState(false)
-    const [showOCRProcessing, setShowOCRProcessing] = useState(false)
-
-    useEffect(() => {
-        if (isOCRProcessing) {
-            setShowOCRProcessing(true)
-            return
-        }
-        const timer = setTimeout(() => {
-            setShowOCRProcessing(false)
-        }, 1500)
-        return () => {
-            clearTimeout(timer)
-        }
-    }, [isOCRProcessing])
-
-    useEffect(() => {
-        if (!isTauri()) {
-            return
-        }
-        let unlisten: (() => void) | undefined = undefined
-        ;(async () => {
-            unlisten = await listen('tauri://file-drop', async (e: Event<string>) => {
-                if (e.payload.length !== 1) {
-                    alert('Only one file can be uploaded at a time.')
-                    return
-                }
-
-                const filePath = e.payload[0]
-
-                if (!filePath) {
-                    return
-                }
-
-                const fileExtension = filePath.split('.').pop()?.toLowerCase() || ''
-                if (!['jpg', 'jpeg', 'png', 'gif'].includes(fileExtension)) {
-                    alert('invalid file type')
-                    return
-                }
-
-                const worker = createWorker()
-
-                const binaryFile = await readFile(filePath)
-
-                const file = new Blob([binaryFile.buffer], {
-                    type: `image/${fileExtension}`,
-                })
-
-                const fileSize = file.size / 1024 / 1024
-                if (fileSize > 1) {
-                    alert('File size must be less than 1MB')
-                    return
-                }
-
-                setTranslateDeps((v) => {
-                    return {
-                        ...v,
-                        text: '',
-                    }
-                })
-                setIsOCRProcessing(true)
-
-                await (await worker).loadLanguage('eng+chi_sim+chi_tra+jpn+rus+kor')
-                await (await worker).initialize('eng+chi_sim+chi_tra+jpn+rus+kor')
-
-                const { data } = await (await worker).recognize(file)
-
-                if (activateAction) {
-                    const newTranslateDeps = await getTranslateDeps(data.text, activateAction)
-
-                    setTranslateDeps(newTranslateDeps)
-                }
-
-                setIsOCRProcessing(false)
-
-                await (await worker).terminate()
-            })
-        })()
-
-        return () => {
-            unlisten?.()
-        }
-    }, [activateAction, getTranslateDeps])
-
-    const onDrop = async (acceptedFiles: File[]) => {
-        const worker = createWorker()
-
-        setTranslateDeps((v) => {
-            return {
-                ...v,
-                text: '',
-            }
-        })
-        setIsOCRProcessing(true)
-
-        if (acceptedFiles.length !== 1) {
-            alert('Only one file can be uploaded at a time.')
-            return
-        }
-
-        const file = acceptedFiles[0]
-        if (!file.type.startsWith('image/')) {
-            alert('invalid file type')
-            return
-        }
-
-        const fileSize = file.size / (1024 * 1024)
-        if (fileSize > 1) {
-            alert('File size must be less than 1MB')
-            return
-        }
-
-        await (await worker).loadLanguage('eng+chi_sim+chi_tra+jpn+rus+kor')
-        await (await worker).initialize('eng+chi_sim+chi_tra+jpn+rus+kor')
-
-        const { data } = await (await worker).recognize(file)
-
-        if (activateAction) {
-            const newTranslateDeps = await getTranslateDeps(data.text, activateAction)
-            setTranslateDeps(newTranslateDeps)
-        }
-
-        setIsOCRProcessing(false)
-
-        await (await worker).terminate()
-    }
-
     const onCsvExport = async () => {
         try {
             const words = await vocabularyService.listItems()
@@ -1946,174 +1793,118 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             >
                                 {editableText}
                             </div>
-                            <Dropzone onDrop={onDrop} noClick={true}>
-                                {({ getRootProps, isDragActive }) => (
-                                    <div {...getRootProps()}>
-                                        {isDragActive ? (
-                                            <div className={styles.fileDragArea}> Drop file below </div>
-                                        ) : (
-                                            <div
-                                                className={styles.OCRStatusBar}
-                                                style={{
-                                                    display: 'flex',
-                                                    flexDirection: 'row',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    gap: 8,
-                                                    opacity: showOCRProcessing ? 1 : 0,
-                                                    marginBottom: showOCRProcessing ? 10 : 0,
-                                                    fontSize: '11px',
-                                                    height: showOCRProcessing ? 26 : 0,
-                                                    transition: 'all 0.3s linear',
-                                                    overflow: 'hidden',
-                                                }}
-                                            >
-                                                <div
-                                                    style={{
-                                                        fontSize: '12px',
-                                                    }}
-                                                >
-                                                    {isOCRProcessing ? 'OCR Processing...' : 'OCR Success'}
-                                                </div>
-                                                {showOCRProcessing && (
-                                                    <div>
-                                                        <img
-                                                            src={
-                                                                isOCRProcessing
-                                                                    ? getAssetUrl(rocket)
-                                                                    : getAssetUrl(partyPopper)
-                                                            }
-                                                            width='20'
-                                                        />{' '}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                        <Textarea
-                                            inputRef={editorRef}
-                                            autoFocus={autoFocus}
-                                            overrides={{
-                                                Root: {
-                                                    style: {
-                                                        fontSize: `${settings.fontSize}px !important`,
-                                                        width: '100%',
-                                                        borderRadius: '8px',
-                                                        background: settings.enableBackgroundBlur
-                                                            ? 'transparent !important'
-                                                            : undefined,
-                                                        borderWidth: settings.enableBackgroundBlur ? '1px' : undefined,
-                                                    },
-                                                },
-                                                InputContainer: {
-                                                    style: settings.enableBackgroundBlur
-                                                        ? ({ $theme, $isFocused }) => ({
-                                                              background:
-                                                                  ($isFocused
-                                                                      ? $theme.colors.backgroundSecondary
-                                                                      : $theme.colors.backgroundTertiary) + '80',
-                                                          })
-                                                        : null,
-                                                },
-                                                Input: {
-                                                    style: {
-                                                        fontSize: `${settings.fontSize}px !important`,
-                                                        padding: '4px 8px',
-                                                        color:
-                                                            themeType === 'dark'
-                                                                ? theme.colors.contentSecondary
-                                                                : theme.colors.contentPrimary,
-                                                        fontFamily:
-                                                            currentTranslateMode === 'explain-code'
-                                                                ? 'monospace'
-                                                                : 'inherit',
-                                                        textalign: 'start',
-                                                    },
-                                                },
-                                            }}
-                                            value={editableText}
+                            <div>
+                                <Textarea
+                                    inputRef={editorRef}
+                                    autoFocus={autoFocus}
+                                    overrides={{
+                                        Root: {
+                                            style: {
+                                                fontSize: `${settings.fontSize}px !important`,
+                                                width: '100%',
+                                                borderRadius: '8px',
+                                                background: settings.enableBackgroundBlur
+                                                    ? 'transparent !important'
+                                                    : undefined,
+                                                borderWidth: settings.enableBackgroundBlur ? '1px' : undefined,
+                                            },
+                                        },
+                                        InputContainer: {
+                                            style: settings.enableBackgroundBlur
+                                                ? ({ $theme, $isFocused }) => ({
+                                                      background:
+                                                          ($isFocused
+                                                              ? $theme.colors.backgroundSecondary
+                                                              : $theme.colors.backgroundTertiary) + '80',
+                                                  })
+                                                : null,
+                                        },
+                                        Input: {
+                                            style: {
+                                                fontSize: `${settings.fontSize}px !important`,
+                                                padding: '4px 8px',
+                                                color:
+                                                    themeType === 'dark'
+                                                        ? theme.colors.contentSecondary
+                                                        : theme.colors.contentPrimary,
+                                                fontFamily:
+                                                    currentTranslateMode === 'explain-code' ? 'monospace' : 'inherit',
+                                                textalign: 'start',
+                                            },
+                                        },
+                                    }}
+                                    value={editableText}
+                                    size='mini'
+                                    resize='vertical'
+                                    rows={
+                                        props.editorRows
+                                            ? props.editorRows
+                                            : Math.min(Math.max(editableText.split('\n').length, 3), 12)
+                                    }
+                                    onChange={(e) => setEditableText(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        e.stopPropagation()
+                                    }}
+                                    onKeyUp={(e) => {
+                                        e.stopPropagation()
+                                    }}
+                                    onKeyPress={(e) => {
+                                        e.stopPropagation()
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            handleSubmit(e)
+                                        }
+                                    }}
+                                />
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        paddingTop: showSubmitButton() ? 8 : 0,
+                                        height: showSubmitButton() ? 28 : 0,
+                                        transition: 'all 0.3s linear',
+                                        overflow: 'hidden',
+                                    }}
+                                >
+                                    <div className={styles.tokenCount}> {tokenCount} </div>
+                                    <div className={styles.flexPlaceHolder} />
+                                    <div
+                                        style={{
+                                            display: 'flex',
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            gap: 10,
+                                        }}
+                                    >
+                                        <div className={styles.enterHint}>
+                                            {'Press <Enter> to submit, <Shift+Enter> for a new line.'}
+                                        </div>
+                                        <Button
                                             size='mini'
-                                            resize='vertical'
-                                            rows={
-                                                props.editorRows
-                                                    ? props.editorRows
-                                                    : Math.min(Math.max(editableText.split('\n').length, 3), 12)
-                                            }
-                                            onChange={(e) => setEditableText(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                e.stopPropagation()
-                                            }}
-                                            onKeyUp={(e) => {
-                                                e.stopPropagation()
-                                            }}
-                                            onKeyPress={(e) => {
-                                                e.stopPropagation()
-                                                if (e.key === 'Enter' && !e.shiftKey) {
-                                                    handleSubmit(e)
-                                                }
-                                            }}
-                                        />
-                                        <div
-                                            style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'center',
-                                                paddingTop: showSubmitButton() ? 8 : 0,
-                                                height: showSubmitButton() ? 28 : 0,
-                                                transition: 'all 0.3s linear',
-                                                overflow: 'hidden',
+                                            onClick={handleSubmit}
+                                            startEnhancer={<IoIosRocket size={13} />}
+                                            overrides={{
+                                                StartEnhancer: {
+                                                    style: {
+                                                        marginRight: '6px',
+                                                    },
+                                                },
+                                                BaseButton: {
+                                                    style: {
+                                                        fontWeight: 'normal',
+                                                        fontSize: '12px',
+                                                        padding: '4px 8px',
+                                                    },
+                                                },
                                             }}
                                         >
-                                            <div className={styles.tokenCount}> {tokenCount} </div>
-                                            <div className={styles.flexPlaceHolder} />
-                                            <div
-                                                style={{
-                                                    display: 'flex',
-                                                    flexDirection: 'row',
-                                                    alignItems: 'center',
-                                                    gap: 10,
-                                                }}
-                                            >
-                                                <div className={styles.enterHint}>
-                                                    {'Press <Enter> to submit, <Shift+Enter> for a new line.'}
-                                                </div>
-                                                <Button
-                                                    size='mini'
-                                                    onClick={handleSubmit}
-                                                    startEnhancer={<IoIosRocket size={13} />}
-                                                    overrides={{
-                                                        StartEnhancer: {
-                                                            style: {
-                                                                marginRight: '6px',
-                                                            },
-                                                        },
-                                                        BaseButton: {
-                                                            style: {
-                                                                fontWeight: 'normal',
-                                                                fontSize: '12px',
-                                                                padding: '4px 8px',
-                                                            },
-                                                        },
-                                                    }}
-                                                >
-                                                    {t('Submit')}
-                                                </Button>
-                                            </div>
-                                        </div>
+                                            {t('Submit')}
+                                        </Button>
                                     </div>
-                                )}
-                            </Dropzone>
+                                </div>
+                            </div>
                             <div className={styles.actionButtonsContainer}>
                                 <>
-                                    <Tooltip content={t('Upload an image for OCR translation')} placement='bottom'>
-                                        <Dropzone onDrop={onDrop}>
-                                            {({ getRootProps, getInputProps }) => (
-                                                <div {...getRootProps()} className={styles.actionButton}>
-                                                    <input {...getInputProps({ multiple: false })} />
-                                                    <BsTextareaT size={15} />
-                                                </div>
-                                            )}
-                                        </Dropzone>
-                                    </Tooltip>
                                     {enableVocabulary && (
                                         <StatefulTooltip
                                             content={

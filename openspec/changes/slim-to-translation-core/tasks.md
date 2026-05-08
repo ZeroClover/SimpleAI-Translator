@@ -42,7 +42,7 @@
 
 ## 5. 主界面 Translator.tsx 瘦身
 
-- [ ] 5.1 删除 `Translator.tsx` 中 OCR 相关 import(`tesseract.js`、`createWorker`、`RecognizeResult`)、状态(`isOCRProcessing`、worker)、UI(上传图片按钮、OCR 提示、OCR 进度)与处理函数
+- [x] 5.1 删除 `Translator.tsx` 中 OCR 相关 import(`tesseract.js`、`createWorker`、`RecognizeResult`)、状态(`isOCRProcessing`、worker)、UI(上传图片按钮、OCR 提示、OCR 进度)与处理函数
 - [ ] 5.2 删除写作助手相关 UI、状态、热键监听(`writingHotkey` / `writingNewlineHotkey`)
 - [ ] 5.3 删除画词面板入口、`vocabularyType` 状态、`'vocabulary'` 类型分支、与 `vocabularyService` 的交互调用
 - [ ] 5.4 删除 ActionManager / Action 选择器入口与 `'big-bang'` / `'polishing'` 等模式按钮

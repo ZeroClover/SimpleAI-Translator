@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import _ from 'underscore'
 import { Tabs, Tab, StyledTabList, StyledTabPanel } from 'baseui-sd/tabs-motion'
 import icon from '../assets/images/icon-large.png'
@@ -35,7 +35,7 @@ import { useSettings } from '../hooks/useSettings'
 import { defaultTTSProvider, langCode2TTSLang, ttsLangTestTextMap } from '../tts'
 import { RiDeleteBin5Line } from 'react-icons/ri'
 import { IoIosSave, IoMdAdd } from 'react-icons/io'
-import { TTSProvider } from '../tts/types'
+import { OpenAITTSFormat, OpenAITTSSettings, TTSProvider } from '../tts/types'
 import { fetchEdgeVoices } from '../tts/edge-tts'
 import { useThemeType } from '../hooks/useThemeType'
 import { Slider } from 'baseui-sd/slider'
@@ -54,6 +54,8 @@ import { isMacOS } from '../utils'
 import NumberInput from './NumberInput'
 import { ProviderForm, ProviderFormValue } from './ProviderForm'
 import { v4 as uuidv4 } from 'uuid'
+import { filterTTSModels } from '../engines/model-filter'
+import { getEngine } from '../engines'
 
 const langOptions: Value = supportedLanguages.reduce((acc, [id, label]) => {
     return [
@@ -242,19 +244,50 @@ function SpeakerButton({
 
 interface ITTSVoicesSettingsProps {
     value?: ISettings['tts']
+    providers: ProviderConfig[]
     onChange?: (value: ISettings['tts']) => void
     onBlur?: () => void
 }
 
 const ttsProviderOptions: {
-    label: string
+    labelKey: string
     id: TTSProvider
 }[] = [
-    { label: 'Edge TTS', id: 'edge' },
-    { label: 'System Default', id: 'system' },
+    { labelKey: 'Edge TTS', id: 'edge' },
+    { labelKey: 'System Default', id: 'system' },
+    { labelKey: 'OpenAI TTS', id: 'openai' },
 ]
 
-function TTSVoicesSettings({ value, onChange, onBlur }: ITTSVoicesSettingsProps) {
+const openAITTSVoiceOptions = [
+    'alloy',
+    'ash',
+    'ballad',
+    'coral',
+    'echo',
+    'fable',
+    'onyx',
+    'nova',
+    'sage',
+    'shimmer',
+    'verse',
+    'marin',
+    'cedar',
+]
+
+const openAITTSFormatOptions: OpenAITTSFormat[] = ['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm']
+
+function getOpenAITTSVoiceId(voice: OpenAITTSSettings['voice'] | undefined): string {
+    if (!voice) {
+        return 'alloy'
+    }
+    return typeof voice === 'string' ? voice : voice.id
+}
+
+function toOpenAITTSVoice(value: string): OpenAITTSSettings['voice'] {
+    return value.startsWith('voice_') ? { id: value } : value
+}
+
+function TTSVoicesSettings({ value, providers, onChange, onBlur }: ITTSVoicesSettingsProps) {
     console.debug('render tts voices settings')
 
     const { t } = useTranslation()
@@ -267,6 +300,49 @@ function TTSVoicesSettings({ value, onChange, onBlur }: ITTSVoicesSettingsProps)
     const [supportedVoices, setSupportedVoices] = useState<SpeechSynthesisVoice[]>([])
 
     const provider = value?.provider ?? defaultTTSProvider
+    const ttsProviderSelectOptions = useMemo(
+        () => ttsProviderOptions.map((option) => ({ id: option.id, label: t(option.labelKey) })),
+        [t]
+    )
+    const openAIProviders = useMemo(
+        () =>
+            providers.filter(
+                (provider) => provider.protocol === 'openai-chat' || provider.protocol === 'openai-responses'
+            ),
+        [providers]
+    )
+    const openAIConfig = value?.openai
+    const openAIProviderId = openAIConfig?.providerId ?? openAIProviders[0]?.id ?? ''
+    const openAIModel = openAIConfig?.model ?? ''
+    const openAIVoice = getOpenAITTSVoiceId(openAIConfig?.voice)
+    const openAIFormat = openAIConfig?.format ?? 'mp3'
+    const [openAITTSModelOptions, setOpenAITTSModelOptions] = useState<string[]>(openAIModel ? [openAIModel] : [])
+    const [isRefreshingOpenAITTSModels, setIsRefreshingOpenAITTSModels] = useState(false)
+
+    const openAIProviderOptions = useMemo(
+        () =>
+            openAIProviders.map((provider) => ({
+                id: provider.id,
+                label: `${provider.name} · ${provider.protocol}`,
+            })),
+        [openAIProviders]
+    )
+    const openAIModelOptions = useMemo(
+        () =>
+            Array.from(new Set([openAIModel, ...openAITTSModelOptions].filter(Boolean))).map((model) => ({
+                id: model,
+                label: model,
+            })),
+        [openAIModel, openAITTSModelOptions]
+    )
+    const openAIVoiceOptions = useMemo(
+        () =>
+            Array.from(new Set([openAIVoice, ...openAITTSVoiceOptions].filter(Boolean))).map((voice) => ({
+                id: voice,
+                label: voice,
+            })),
+        [openAIVoice]
+    )
 
     const { data: edgeVoices, isLoading: isEdgeVoicesLoading } = useSWR(
         provider === 'edge' ? 'edgeVoices' : null,
@@ -290,11 +366,61 @@ function TTSVoicesSettings({ value, onChange, onBlur }: ITTSVoicesSettingsProps)
             case 'system':
                 setSupportedVoices(webSpeechVoices ?? [])
                 break
+            case 'openai':
+                setSupportedVoices([])
+                break
             default:
                 setSupportedVoices(edgeVoices ?? [])
                 break
         }
     }, [edgeVoices, provider, webSpeechVoices])
+
+    const getNextOpenAISettings = useCallback(
+        (changes: Partial<OpenAITTSSettings> = {}): OpenAITTSSettings => ({
+            providerId: openAIProviderId,
+            model: openAIModel,
+            voice: openAIVoice,
+            format: openAIFormat,
+            ...openAIConfig,
+            ...changes,
+        }),
+        [openAIConfig, openAIFormat, openAIModel, openAIProviderId, openAIVoice]
+    )
+
+    const handleChangeOpenAISettings = useCallback(
+        (changes: Partial<OpenAITTSSettings>) => {
+            onChange?.({
+                ...value,
+                openai: getNextOpenAISettings(changes),
+            })
+        },
+        [getNextOpenAISettings, onChange, value]
+    )
+
+    const refreshOpenAITTSModels = useCallback(async () => {
+        const providerConfig = openAIProviders.find((provider) => provider.id === openAIProviderId)
+        if (!providerConfig) {
+            toast(t('Please select an OpenAI-compatible Provider first.'))
+            return
+        }
+
+        setIsRefreshingOpenAITTSModels(true)
+        try {
+            const models = await getEngine(providerConfig).listModels(undefined)
+            const ids = filterTTSModels(models.map((model) => model.id))
+            setOpenAITTSModelOptions(ids)
+            if (!openAIModel && ids[0]) {
+                handleChangeOpenAISettings({ model: ids[0] })
+            }
+            if (ids.length === 0) {
+                toast(t('No TTS model was found for this Provider. You can enter a model manually.'))
+            }
+        } catch {
+            toast(t('Unable to fetch TTS model list. Please enter the model name manually.'))
+        } finally {
+            setIsRefreshingOpenAITTSModels(false)
+        }
+    }, [handleChangeOpenAISettings, openAIModel, openAIProviderId, openAIProviders, t])
 
     const getLangOptions = useCallback(
         (lang: string) => {
@@ -431,10 +557,20 @@ function TTSVoicesSettings({ value, onChange, onBlur }: ITTSVoicesSettingsProps)
 
     const handleChangeProvider = useCallback(
         (provider: TTSProvider) => {
+            if (provider === 'openai') {
+                onChange?.({
+                    ...value,
+                    provider,
+                    openai: getNextOpenAISettings({
+                        providerId: openAIProviderId,
+                    }),
+                })
+                return
+            }
             onChange?.({ ...value, provider })
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [value]
+        [getNextOpenAISettings, openAIProviderId, value]
     )
 
     return (
@@ -452,7 +588,7 @@ function TTSVoicesSettings({ value, onChange, onBlur }: ITTSVoicesSettingsProps)
                     size='compact'
                     clearable={false}
                     searchable={false}
-                    options={ttsProviderOptions}
+                    options={ttsProviderSelectOptions}
                     value={[{ id: value?.provider ?? defaultTTSProvider }]}
                     onChange={({ option }) => handleChangeProvider(option?.id as TTSProvider)}
                     onBlur={onBlur}
@@ -498,119 +634,193 @@ function TTSVoicesSettings({ value, onChange, onBlur }: ITTSVoicesSettingsProps)
                     }}
                 />
             </div>
-            <div className={styles.formControl}>
-                <label className={styles.label}>{t('Voice')}</label>
-                <div
-                    style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 10,
-                    }}
-                >
-                    {isVoicesLoading && <Skeleton rows={6} height='300px' width='100%' animation />}
-                    {!isVoicesLoading &&
-                        (value?.voices ?? []).map(({ lang, voice }) => {
-                            const langOptions = getLangOptions(lang)
-                            const selectedLang = langOptions.find((opt) => opt.id === lang)
-                            const voiceOptions = getVoiceOptions(lang)
-                            const selectedVoice = voiceOptions.find((opt) => opt.id === voice)
-                            return (
-                                <div className={styles.voiceSelector} key={lang}>
-                                    <Select
-                                        key={`lang-${lang}`}
-                                        size='mini'
-                                        clearable={false}
-                                        options={langOptions}
-                                        placeholder={t('Please select a language')}
-                                        overrides={{
-                                            Root: {
-                                                style: {
-                                                    width: '115px',
-                                                    flexShrink: 0,
-                                                },
-                                            },
-                                        }}
-                                        onChange={({ option }) => handleChangeLang(lang, option?.id as LangCode)}
-                                        value={selectedLang ? [{ id: selectedLang.id }] : undefined}
-                                    />
-                                    <Select
-                                        size='mini'
-                                        options={voiceOptions}
-                                        placeholder={t('Please select a voice')}
-                                        overrides={{
-                                            Root: {
-                                                style: {
-                                                    flexShrink: 1,
-                                                    minWidth: '215px',
-                                                },
-                                            },
-                                        }}
-                                        value={selectedVoice ? [{ id: selectedVoice.id }] : undefined}
-                                        onChange={({ option }) => handleChangeVoice(lang, option?.id as string)}
-                                        clearable={false}
-                                        onBlur={onBlur}
-                                        autoFocus={!selectedVoice}
-                                    />
-                                    <Button
-                                        shape='circle'
-                                        size='mini'
-                                        overrides={{
-                                            Root: {
-                                                style: {
-                                                    flexShrink: 0,
-                                                },
-                                            },
-                                        }}
-                                        onClick={(e) => {
-                                            e.preventDefault()
-                                            e.stopPropagation()
-                                            handleDeleteLang(lang)
-                                        }}
-                                    >
-                                        <RiDeleteBin5Line size={12} />
-                                    </Button>
-                                </div>
-                            )
-                        })}
-                </div>
-                <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        marginTop: 10,
-                    }}
-                >
-                    {showLangSelector && (
-                        <Select
-                            size='mini'
-                            placeholder={t('Please select a language')}
-                            clearable={false}
-                            options={getLangOptions('')}
-                            onChange={({ option }) => handleAddLang(option?.id as LangCode)}
-                            autoFocus
-                        />
-                    )}
-                    <Button
-                        size='mini'
-                        overrides={{
-                            Root: {
-                                style: {
-                                    flexShrink: 0,
-                                },
-                            },
+            {provider === 'openai' && (
+                <div className={styles.formControl}>
+                    <label className={styles.label}>{t('OpenAI TTS')}</label>
+                    <Select
+                        size='compact'
+                        clearable={false}
+                        searchable={false}
+                        options={openAIProviderOptions}
+                        value={openAIProviderId ? [{ id: openAIProviderId }] : []}
+                        placeholder={t('Associated Provider')}
+                        onChange={({ option }) =>
+                            handleChangeOpenAISettings({ providerId: (option?.id as string) ?? '' })
+                        }
+                        onBlur={onBlur}
+                    />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <div style={{ flex: 1 }}>
+                            <Select
+                                size='compact'
+                                creatable
+                                options={openAIModelOptions}
+                                value={openAIModel ? [{ id: openAIModel, label: openAIModel }] : []}
+                                placeholder={t('TTS Model')}
+                                onChange={({ value }) => {
+                                    const nextModel = value[0]?.id
+                                    handleChangeOpenAISettings({
+                                        model: typeof nextModel === 'string' ? nextModel : '',
+                                    })
+                                }}
+                                onBlur={onBlur}
+                            />
+                        </div>
+                        <Button
+                            type='button'
+                            size='compact'
+                            isLoading={isRefreshingOpenAITTSModels}
+                            onClick={() => void refreshOpenAITTSModels()}
+                        >
+                            {t('Refresh')}
+                        </Button>
+                    </div>
+                    <Select
+                        size='compact'
+                        creatable
+                        options={openAIVoiceOptions}
+                        value={openAIVoice ? [{ id: openAIVoice, label: openAIVoice }] : []}
+                        placeholder={t('Voice')}
+                        onChange={({ value }) => {
+                            const nextVoice = value[0]?.id
+                            handleChangeOpenAISettings({
+                                voice: toOpenAITTSVoice(typeof nextVoice === 'string' ? nextVoice : 'alloy'),
+                            })
                         }}
-                        startEnhancer={() => <IoMdAdd size={12} />}
-                        onClick={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            setShowLangSelector(true)
+                        onBlur={onBlur}
+                    />
+                    <Select
+                        size='compact'
+                        clearable={false}
+                        searchable={false}
+                        options={openAITTSFormatOptions.map((format) => ({ id: format, label: format }))}
+                        value={[{ id: openAIFormat, label: openAIFormat }]}
+                        placeholder={t('Audio format')}
+                        onChange={({ option }) => handleChangeOpenAISettings({ format: option?.id as OpenAITTSFormat })}
+                        onBlur={onBlur}
+                    />
+                    {(!openAIProviderId || !openAIModel) && (
+                        <div style={{ color: theme.colors.negative, fontSize: 12 }}>
+                            {t('Please select an associated LLM Provider and TTS model.')}
+                        </div>
+                    )}
+                </div>
+            )}
+            {provider !== 'openai' && (
+                <div className={styles.formControl}>
+                    <label className={styles.label}>{t('Voice')}</label>
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 10,
                         }}
                     >
-                        {t('Add')}
-                    </Button>
+                        {isVoicesLoading && <Skeleton rows={6} height='300px' width='100%' animation />}
+                        {!isVoicesLoading &&
+                            (value?.voices ?? []).map(({ lang, voice }) => {
+                                const langOptions = getLangOptions(lang)
+                                const selectedLang = langOptions.find((opt) => opt.id === lang)
+                                const voiceOptions = getVoiceOptions(lang)
+                                const selectedVoice = voiceOptions.find((opt) => opt.id === voice)
+                                return (
+                                    <div className={styles.voiceSelector} key={lang}>
+                                        <Select
+                                            key={`lang-${lang}`}
+                                            size='mini'
+                                            clearable={false}
+                                            options={langOptions}
+                                            placeholder={t('Please select a language')}
+                                            overrides={{
+                                                Root: {
+                                                    style: {
+                                                        width: '115px',
+                                                        flexShrink: 0,
+                                                    },
+                                                },
+                                            }}
+                                            onChange={({ option }) => handleChangeLang(lang, option?.id as LangCode)}
+                                            value={selectedLang ? [{ id: selectedLang.id }] : undefined}
+                                        />
+                                        <Select
+                                            size='mini'
+                                            options={voiceOptions}
+                                            placeholder={t('Please select a voice')}
+                                            overrides={{
+                                                Root: {
+                                                    style: {
+                                                        flexShrink: 1,
+                                                        minWidth: '215px',
+                                                    },
+                                                },
+                                            }}
+                                            value={selectedVoice ? [{ id: selectedVoice.id }] : undefined}
+                                            onChange={({ option }) => handleChangeVoice(lang, option?.id as string)}
+                                            clearable={false}
+                                            onBlur={onBlur}
+                                            autoFocus={!selectedVoice}
+                                        />
+                                        <Button
+                                            shape='circle'
+                                            size='mini'
+                                            overrides={{
+                                                Root: {
+                                                    style: {
+                                                        flexShrink: 0,
+                                                    },
+                                                },
+                                            }}
+                                            onClick={(e) => {
+                                                e.preventDefault()
+                                                e.stopPropagation()
+                                                handleDeleteLang(lang)
+                                            }}
+                                        >
+                                            <RiDeleteBin5Line size={12} />
+                                        </Button>
+                                    </div>
+                                )
+                            })}
+                    </div>
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            marginTop: 10,
+                        }}
+                    >
+                        {showLangSelector && (
+                            <Select
+                                size='mini'
+                                placeholder={t('Please select a language')}
+                                clearable={false}
+                                options={getLangOptions('')}
+                                onChange={({ option }) => handleAddLang(option?.id as LangCode)}
+                                autoFocus
+                            />
+                        )}
+                        <Button
+                            size='mini'
+                            overrides={{
+                                Root: {
+                                    style: {
+                                        flexShrink: 0,
+                                    },
+                                },
+                            }}
+                            startEnhancer={() => <IoMdAdd size={12} />}
+                            onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                setShowLangSelector(true)
+                            }}
+                        >
+                            {t('Add')}
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     )
 }
@@ -1697,7 +1907,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                             <ReadSelectedWordsFromInputElementsCheckbox onBlur={onBlur} />
                         </FormItem>
                         <FormItem name='tts' label={t('TTS')}>
-                            <TTSVoicesSettings onBlur={onBlur} />
+                            <TTSVoicesSettings providers={values.providers ?? []} onBlur={onBlur} />
                         </FormItem>
                     </div>
                     <div

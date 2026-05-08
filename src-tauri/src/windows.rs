@@ -8,25 +8,19 @@ use active_win_pos_rs::get_active_window;
 #[cfg(target_os = "macos")]
 use cocoa::appkit::NSWindow;
 use debug_print::debug_println;
-use enigo::*;
 use get_selected_text::get_selected_text;
 use mouse_position::mouse_position::Mouse;
 use serde_json::json;
 use std::sync::atomic::Ordering;
-use std::time::Duration;
 use tauri::{Emitter, Listener, LogicalPosition, Manager, PhysicalPosition};
 use tauri_plugin_updater::UpdaterExt;
 use tauri_specta::Event;
-use tokio::time::sleep;
 
 pub const TRANSLATOR_WIN_NAME: &str = "translator";
 pub const SETTINGS_WIN_NAME: &str = "settings";
-pub const ACTION_MANAGER_WIN_NAME: &str = "action_manager";
 pub const UPDATER_WIN_NAME: &str = "updater";
 pub const THUMB_WIN_NAME: &str = "thumb";
 pub const HISTORY_WIN_NAME: &str = "history";
-#[cfg(target_os = "windows")]
-pub const SCREENSHOT_WIN_NAME: &str = "screenshot";
 
 fn get_dummy_window() -> tauri::WebviewWindow {
     let app_handle = APP_HANDLE.get().unwrap();
@@ -544,43 +538,6 @@ pub fn get_translator_window(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn show_action_manager_window() {
-    let window = get_action_manager_window();
-    window.center().unwrap();
-    window.show().unwrap();
-}
-
-pub fn get_action_manager_window() -> tauri::WebviewWindow {
-    let handle = APP_HANDLE.get().unwrap();
-    let window = match handle.get_webview_window(ACTION_MANAGER_WIN_NAME) {
-        Some(window) => {
-            window.unminimize().unwrap();
-            window.set_focus().unwrap();
-            window
-        }
-        None => {
-            let builder = tauri::WebviewWindowBuilder::new(
-                handle,
-                ACTION_MANAGER_WIN_NAME,
-                tauri::WebviewUrl::App("src/tauri/index.html".into()),
-            )
-            .title("NextAI Translator Action Manager")
-            .fullscreen(false)
-            .inner_size(700.0, 700.0)
-            .min_inner_size(660.0, 600.0)
-            .resizable(true)
-            .skip_taskbar(true)
-            .focused(true);
-
-            return build_window(builder);
-        }
-    };
-
-    window
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn show_history_window() {
     let window = get_history_window();
     window.center().unwrap();
@@ -721,58 +678,6 @@ pub fn get_updater_window() -> tauri::WebviewWindow {
             return build_window(builder);
         }
     };
-
-    window
-}
-
-#[cfg(target_os = "windows")]
-pub fn show_screenshot_window() {
-    let _ = get_screenshot_window();
-    // window.show().unwrap();
-}
-
-#[cfg(target_os = "windows")]
-pub fn get_screenshot_window() -> tauri::WebviewWindow {
-    let handle = APP_HANDLE.get().unwrap();
-    let current_monitor = get_current_monitor();
-    let dpi = current_monitor.scale_factor();
-    let physical_position = current_monitor.position();
-    let position: tauri::LogicalPosition<f64> = physical_position.to_logical(dpi);
-
-    let window = match handle.get_webview_window(SCREENSHOT_WIN_NAME) {
-        Some(window) => {
-            window.set_focus().unwrap();
-            window
-        }
-        None => {
-            let builder = tauri::WebviewWindowBuilder::new(
-                handle,
-                SCREENSHOT_WIN_NAME,
-                tauri::WebviewUrl::App("src/tauri/index.html".into()),
-            )
-            .title("NextAI Translator Screenshot")
-            .position(position.x, position.y)
-            .visible(false)
-            .focused(true);
-
-            let window = build_window(builder);
-            window
-        }
-    };
-
-    window.set_resizable(false).unwrap();
-    window.set_skip_taskbar(true).unwrap();
-    #[cfg(target_os = "macos")]
-    {
-        let size = current_monitor.size();
-        window.set_decorations(false).unwrap();
-        window.set_size(*size).unwrap();
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    window.set_fullscreen(true).unwrap();
-
-    window.set_always_on_top(true).unwrap();
 
     window
 }

@@ -2,7 +2,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::config::get_config;
 use crate::insertion::remember_active_window;
-use crate::ocr::ocr;
 use crate::windows::{
     set_translator_window_always_on_top, show_settings_window, show_updater_window,
     TRANSLATOR_WIN_NAME,
@@ -50,7 +49,6 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
             .unwrap();
     }
     let settings_i = MenuItem::with_id(app, "settings", "Settings", true, Some("CmdOrCtrl+,"))?;
-    let ocr_i = MenuItem::with_id(app, "ocr", "OCR", true, config.ocr_hotkey)?;
     let show_i = MenuItem::with_id(app, "show", "Show", true, config.display_window_hotkey)?;
     let hide_i = PredefinedMenuItem::hide(app, Some("Hide"))?;
     let pin_i = MenuItem::with_id(app, "pin", "Pin", true, None::<String>)?;
@@ -64,7 +62,6 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
         &[
             &check_for_updates_i,
             &settings_i,
-            &ocr_i,
             &show_i,
             &hide_i,
             &pin_i,
@@ -85,9 +82,6 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
         }
         "settings" => {
             show_settings_window();
-        }
-        "ocr" => {
-            ocr();
         }
         "show" => {
             remember_active_window();

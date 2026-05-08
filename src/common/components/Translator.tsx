@@ -51,20 +51,18 @@ import { Tooltip } from './Tooltip'
 import { useSettings } from '../hooks/useSettings'
 import Vocabulary from './Vocabulary'
 import { useCollectedWordTotal } from '../hooks/useCollectedWordTotal'
-import { Modal, ModalBody, ModalHeader } from 'baseui-sd/modal'
+import { Modal } from 'baseui-sd/modal'
 import { vocabularyService } from '../services/vocabulary'
 import { Action, VocabularyItem, HistoryItem } from '../internal-services/db'
 import { CopyButton } from './CopyButton'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { actionService } from '../services/action'
 import { historyService } from '../services/history'
-import { ActionManager } from './ActionManager'
 import { TranslationHistory } from './TranslationHistory'
 import { GrMoreVertical } from 'react-icons/gr'
 import { StatefulPopover } from 'baseui-sd/popover'
 import { StatefulMenu } from 'baseui-sd/menu'
 import { IconType } from 'react-icons'
-import { GiPlatform } from 'react-icons/gi'
 import { IoIosRocket } from 'react-icons/io'
 import 'katex/dist/katex.min.css'
 import Latex from 'react-latex-next'
@@ -614,7 +612,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         }
     }, [])
 
-    const [showActionManager, setShowActionManager] = useState(false)
     const [isHistoryOpen, setIsHistoryOpen] = useState(false)
 
     const [translationFlag, forceTranslate] = useReducer((x: number) => x + 1, 0)
@@ -1966,7 +1963,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                 )
                             })}
                         </div>
-                        {props.showSettingsIcon && (
+                        {props.showSettingsIcon && hiddenActions.length > 0 && (
                             <div className={styles.popupCardHeaderMoreActionsContainer}>
                                 <StatefulPopover
                                     autoFocus={false}
@@ -1980,17 +1977,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                                     (action) => action.id === activateAction?.id
                                                 ),
                                             }}
-                                            onItemSelect={async ({ item }) => {
+                                            onItemSelect={({ item }) => {
                                                 const actionID = item.id
-                                                if (actionID === '__manager__') {
-                                                    if (isTauri()) {
-                                                        const { commands } = await import('@/tauri/bindings')
-                                                        await commands.showActionManagerWindow()
-                                                    } else {
-                                                        setShowActionManager(true)
-                                                    }
-                                                    return
-                                                }
                                                 setActivateAction(actions?.find((a) => a.id === (actionID as number)))
                                             }}
                                             items={[
@@ -2019,24 +2007,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                                         ),
                                                     }
                                                 }),
-                                                { divider: true },
-                                                {
-                                                    id: '__manager__',
-                                                    label: (
-                                                        <div
-                                                            style={{
-                                                                display: 'flex',
-                                                                flexDirection: 'row',
-                                                                alignItems: 'center',
-                                                                gap: 6,
-                                                                fontWeight: 500,
-                                                            }}
-                                                        >
-                                                            <GiPlatform />
-                                                            {t('Action Manager')}
-                                                        </div>
-                                                    ),
-                                                },
                                             ]}
                                         />
                                     }
@@ -2818,29 +2788,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     />
                 </Modal>
             )}
-            <Modal
-                isOpen={!isDesktopApp() && showActionManager}
-                onClose={() => {
-                    setShowActionManager(false)
-                    refreshActions()
-                }}
-                closeable
-                size='auto'
-                autoFocus
-                animate
-                role='dialog'
-            >
-                <ModalHeader>
-                    <div
-                        style={{
-                            padding: 5,
-                        }}
-                    />
-                </ModalHeader>
-                <ModalBody>
-                    <ActionManager draggable={props.showSettingsIcon} />
-                </ModalBody>
-            </Modal>
             {isHistoryOpen ? (
                 <TranslationHistory
                     isOpen

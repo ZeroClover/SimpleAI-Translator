@@ -7,11 +7,9 @@ mod config;
 mod fetch;
 mod insertion;
 mod lang;
-mod ocr;
 mod tray;
 mod utils;
 mod windows;
-mod writing;
 
 use config::get_config;
 use debug_print::debug_println;
@@ -35,13 +33,11 @@ use windows::{get_translator_window, CheckUpdateEvent, CheckUpdateResultEvent};
 use crate::config::{clear_config_cache, get_config_content, ConfigUpdatedEvent};
 use crate::fetch::fetch_stream;
 use crate::lang::detect_lang;
-use crate::ocr::{cut_image, finish_ocr, screenshot, start_ocr};
 use crate::windows::{
-    get_translator_window_always_on_top, hide_translator_window, show_action_manager_window,
-    show_history_window, show_translator_window_command,
+    get_translator_window_always_on_top, hide_translator_window, show_history_window,
+    show_translator_window_command,
     show_translator_window_with_selected_text_command, show_updater_window, TRANSLATOR_WIN_NAME,
 };
-use crate::writing::{finish_writing, write_to_input, writing_command};
 
 use mouce::{Mouse, MouseActions};
 use once_cell::sync::OnceCell;
@@ -332,21 +328,13 @@ fn main() {
             clear_config_cache,
             show_translator_window_command,
             show_translator_window_with_selected_text_command,
-            show_action_manager_window,
             show_history_window,
             get_translator_window_always_on_top,
             fetch_stream,
-            writing_command,
-            write_to_input,
-            finish_writing,
             insert_translation_into_previous_input,
             remember_active_window_command,
             detect_lang,
-            screenshot,
             hide_translator_window,
-            start_ocr,
-            finish_ocr,
-            cut_image,
         ])
         .events(tauri_specta::collect_events![
             CheckUpdateEvent,

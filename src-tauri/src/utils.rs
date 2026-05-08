@@ -419,13 +419,6 @@ pub fn send_text(text: String) {
     }
 }
 
-pub fn writing_text(text: String) {
-    match APP_HANDLE.get() {
-        Some(handle) => handle.emit("writing-text", text).unwrap_or_default(),
-        None => {}
-    }
-}
-
 pub fn show() {
     match APP_HANDLE.get() {
         Some(handle) => handle.emit("show", "").unwrap_or_default(),

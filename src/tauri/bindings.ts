@@ -18,9 +18,6 @@ export const commands = {
     async showTranslatorWindowWithSelectedTextCommand(): Promise<void> {
         await TAURI_INVOKE('show_translator_window_with_selected_text_command')
     },
-    async showActionManagerWindow(): Promise<void> {
-        await TAURI_INVOKE('show_action_manager_window')
-    },
     async showHistoryWindow(): Promise<void> {
         await TAURI_INVOKE('show_history_window')
     },
@@ -34,15 +31,6 @@ export const commands = {
             if (e instanceof Error) throw e
             else return { status: 'error', error: e as any }
         }
-    },
-    async writingCommand(): Promise<void> {
-        await TAURI_INVOKE('writing_command')
-    },
-    async writeToInput(text: string): Promise<void> {
-        await TAURI_INVOKE('write_to_input', { text })
-    },
-    async finishWriting(): Promise<void> {
-        await TAURI_INVOKE('finish_writing')
     },
     async insertTranslationIntoPreviousInput(text: string): Promise<Result<null, string>> {
         try {
@@ -58,20 +46,8 @@ export const commands = {
     async detectLang(text: string): Promise<string> {
         return await TAURI_INVOKE('detect_lang', { text })
     },
-    async screenshot(x: number, y: number): Promise<void> {
-        await TAURI_INVOKE('screenshot', { x, y })
-    },
     async hideTranslatorWindow(): Promise<void> {
         await TAURI_INVOKE('hide_translator_window')
-    },
-    async startOcr(): Promise<void> {
-        await TAURI_INVOKE('start_ocr')
-    },
-    async finishOcr(): Promise<void> {
-        await TAURI_INVOKE('finish_ocr')
-    },
-    async cutImage(left: number, top: number, width: number, height: number): Promise<void> {
-        await TAURI_INVOKE('cut_image', { left, top, width, height })
     },
 }
 

@@ -100,7 +100,7 @@ export function ProviderForm({ initialValue, onCancel, onSave }: ProviderFormPro
                 model: model.trim() || 'model',
                 extraHeaders: parseExtraHeaders(extraHeaders),
             })
-            const models = await engine.listModels(undefined)
+            const models = await engine.listModels()
             const ids = filterChatModels(models.map((item) => item.id))
             setModelOptions(ids)
             if (!model && ids[0]) {

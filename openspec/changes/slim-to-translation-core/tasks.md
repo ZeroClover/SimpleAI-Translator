@@ -9,7 +9,7 @@
 - [x] 2.1 在 `src/common/types.ts` 新增 `ProviderProtocol = 'openai-chat' | 'openai-responses' | 'anthropic'` 联合类型
 - [x] 2.2 在 `src/common/types.ts` 新增 `ProviderConfig` 接口(`id / name / protocol / apiKey / endpoint? / model / extraHeaders?`)
 - [x] 2.3 在 `ISettings` 中新增 `providers: ProviderConfig[]` 与 `defaultProviderId: string | null`
-- [ ] 2.4 从 `ISettings` 删除旧 Provider 字段(`apiKeys` / `apiURL` / `apiModel` / `provider` / `chatgptModel` / `azure*` / `miniMax*` / `gemini*` / `moonshot*` / `deepSeek*` / `customModelName`),不标 deprecated、不保留读取路径
+- [x] 2.4 从 `ISettings` 删除旧 Provider 字段(`apiKeys` / `apiURL` / `apiModel` / `provider` / `chatgptModel` / `azure*` / `miniMax*` / `gemini*` / `moonshot*` / `deepSeek*` / `customModelName`),不标 deprecated、不保留读取路径
 - [x] 2.5 删除 `ISettings` 中 `defaultTranslateMode` / `writingTargetLanguage` / `writingHotkey` / `writingNewlineHotkey` / `ocrHotkey` / `autoCollect` 字段
 - [x] 2.6 删除 `TranslateMode` 类型导出与所有引用,在 `translate.ts` 内仅保留 `'translate'` 单一隐式模式
 - [x] 2.7 在 `src/common/utils.ts` 中实现新 schema 初始化/规范化:缺省返回 `providers: []`、`defaultProviderId: null`;旧字段只在写回时清理或读取时忽略,不转换为 ProviderConfig
@@ -18,7 +18,7 @@
 
 ## 3. 新 Provider 协议引擎
 
-- [ ] 3.1 在 `src/common/engines/interfaces.ts` 中改写 `IEngine` 与导出 `getEngine(providerConfig: ProviderConfig): IEngine`
+- [x] 3.1 在 `src/common/engines/interfaces.ts` 中改写 `IEngine` 与导出 `getEngine(providerConfig: ProviderConfig): IEngine`
 - [x] 3.2 新建 `src/common/engines/protocols/openai-chat.ts`,实现 OpenAI Chat Completions SSE 流式翻译(从原 `abstract-openai.ts` 与 `openai.ts` 提炼,删除 polishing/summarize/analyze/explain-code/big-bang 分支)
 - [x] 3.3 新建 `src/common/engines/protocols/openai-responses.ts`,实现 OpenAI Responses API(`/v1/responses`)流式翻译
 - [x] 3.4 新建 `src/common/engines/protocols/anthropic.ts`,实现 Anthropic Messages API SSE 流式翻译(从原 `claude.ts` 提炼)
@@ -89,9 +89,9 @@
 - [x] 8.5 删除 `src/common/services/action.ts`、`vocabulary.ts`
 - [x] 8.6 完全删除 Promotion 系统:`src/common/services/promotion.ts`、`src/common/hooks/usePromotionShowed.ts`、`src/common/hooks/usePromotionNeverDisplay.ts`;从 `src/common/hooks/global.ts` 删除 `promotionShowedMap` / `promotionNeverDisplayMap`
 - [x] 8.7 删除 `src/common/constants.ts` 中 `builtinActionModes` 数组及其类型
-- [ ] 8.8 删除 `src/common/engines/{azure,cerebras,chatglm,chatgpt,claude,cohere,deepseek,gemini,groq,kimi,minimax,moonshot,ollama,openai}.ts`
-- [ ] 8.9 删除 `src/common/engines/abstract-openai.ts` + `abstract-openai.spec.ts`(逻辑已迁入 `protocols/openai-chat.ts`),或就地改名简化
-- [ ] 8.10 删除 `src/common/engines/abstract-engine.ts`(若新接口完全替代)
+- [x] 8.8 删除 `src/common/engines/{azure,cerebras,chatglm,chatgpt,claude,cohere,deepseek,gemini,groq,kimi,minimax,moonshot,ollama,openai}.ts`
+- [x] 8.9 删除 `src/common/engines/abstract-openai.ts` + `abstract-openai.spec.ts`(逻辑已迁入 `protocols/openai-chat.ts`),或就地改名简化
+- [x] 8.10 删除 `src/common/engines/abstract-engine.ts`(若新接口完全替代)
 - [ ] 8.11 删除 IndexedDB 中 `Action` 表,简化 `HistoryItem` schema(`id / createdAt / fromLang / toLang / sourceText / translatedText / providerId / model`),旧 history 表 drop & recreate
 - [x] 8.12 在 `src/tauri/utils.ts` 移除 OCR 全局热键注册 + 写作热键注册
 - [x] 8.13 删除 Rust OCR/写作模块与命令:`src-tauri/src/ocr.rs`、`src-tauri/src/writing.rs`;从 `src-tauri/src/main.rs` 移除 `mod ocr` / `mod writing` 与 `cut_image` / `screenshot` / `start_ocr` / `finish_ocr` / `writing_command` / `finish_writing` / `write_to_input` invoke handlers

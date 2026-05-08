@@ -406,7 +406,7 @@ function TTSVoicesSettings({ value, providers, onChange, onBlur }: ITTSVoicesSet
 
         setIsRefreshingOpenAITTSModels(true)
         try {
-            const models = await getEngine(providerConfig).listModels(undefined)
+            const models = await getEngine(providerConfig).listModels()
             const ids = filterTTSModels(models.map((model) => model.id))
             setOpenAITTSModelOptions(ids)
             if (!openAIModel && ids[0]) {

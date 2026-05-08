@@ -64,22 +64,6 @@ export async function listModels(providerConfig: ProviderConfig): Promise<string
 export class AnthropicEngine implements IEngine {
     constructor(private readonly providerConfig: ProviderConfig) {}
 
-    async checkLogin(): Promise<boolean> {
-        return Boolean(this.providerConfig.apiKey)
-    }
-
-    isLocal(): boolean {
-        return false
-    }
-
-    supportCustomModel(): boolean {
-        return true
-    }
-
-    async getModel(): Promise<string> {
-        return this.providerConfig.model
-    }
-
     async listModels(): Promise<IModel[]> {
         return (await listModels(this.providerConfig)).map((id) => ({ id, name: id }))
     }

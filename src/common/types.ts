@@ -1,6 +1,5 @@
 import { Theme } from 'baseui-sd/theme'
 import { OpenAITTSSettings, TTSProvider } from './tts/types'
-import { Provider } from './engines'
 import { LangCode } from './lang'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -65,29 +64,8 @@ export interface ISettings {
     automaticCheckForUpdates: boolean
     providers: ProviderConfig[]
     defaultProviderId: string | null
-    apiKeys: string
-    apiURL: string
-    apiURLPath: string
-    apiModel: string
-    provider: Provider
-    chatgptModel: string
-    azureAPIKeys: string
-    azureAPIURL: string
-    azureAPIURLPath: string
-    azureAPIModel: string
-    azMaxWords: number
     enableBackgroundBlur: boolean
     enableMica: boolean // deprecated, please use enableBackgroundBlur
-    miniMaxGroupID: string
-    miniMaxAPIKey: string
-    miniMaxAPIModel: string
-    geminiAPIURL: string
-    geminiAPIKey: string
-    geminiAPIModel: string
-    moonshotAPIKey: string
-    moonshotAPIModel: string
-    deepSeekAPIKey: string
-    deepSeekAPIModel: string
     autoTranslate: boolean
     defaultTargetLanguage: string
     alwaysShowIcons: boolean
@@ -126,33 +104,7 @@ export interface ISettings {
         }
         noProxy?: string
     }
-    customModelName?: string
-    ollamaAPIURL: string
-    ollamaAPIModel: string
-    ollamaCustomModelName: string
-    ollamaModelLifetimeInMemory: string
-    groqAPIURL: string
-    groqAPIURLPath: string
-    groqAPIModel: string
-    groqAPIKey: string
-    groqCustomModelName: string
-    claudeAPIURL: string
-    claudeAPIURLPath: string
-    claudeAPIModel: string
-    claudeAPIKey: string
-    claudeCustomModelName: string
-    kimiAccessToken: string
-    kimiRefreshToken: string
-    chatglmAccessToken: string
-    chatglmRefreshToken: string
-    cohereAPIKey: string
-    cohereAPIModel: string
-    cerebrasAPIKey: string
-    cerebrasAPIModel: string
     fontSize: number
     uiFontSize: number
     iconSize: number
-    noModelsAPISupport: boolean
-    claudeThinking: boolean
-    claudeThinkingLevel: 'low' | 'medium' | 'high'
 }

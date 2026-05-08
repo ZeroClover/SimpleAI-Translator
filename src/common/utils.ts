@@ -6,40 +6,16 @@ import { v4 as uuidv4 } from 'uuid'
 import { listen, Event, emit } from '@tauri-apps/api/event'
 import { parse as bestEffortJSONParse } from 'best-effort-json-parser'
 import { commands } from '@/tauri/bindings'
-import { OPENAI_CHAT_COMPLETIONS_API_PATH, OPENAI_PREFERRED_DEFAULT_MODEL } from './openai-api-path'
 import toast from 'react-hot-toast/headless'
-
-export const defaultAPIURL = 'https://api.openai.com'
-export const defaultAPIURLPath = OPENAI_CHAT_COMPLETIONS_API_PATH
-export const defaultProvider = 'OpenAI'
-export const defaultAPIModel = OPENAI_PREFERRED_DEFAULT_MODEL
-
-export const defaultChatGPTAPIAuthSessionAPIURL = 'https://chat.openai.com/api/auth/session'
-export const defaultChatGPTWebAPI = 'https://chat.openai.com/backend-api'
-export const defaultGeminiAPIURL = 'https://generativelanguage.googleapis.com'
-export const defaultChatGPTModel = 'text-davinci-002-render-sha'
 
 export const defaultAutoTranslate = false
 export const defaultTargetLanguage = 'zh-Hans'
-export const defaultWritingTargetLanguage = 'en'
 export const defaultSelectInputElementsText = true
 export const defaultReadSelectedWordsFromInputElementsText = false
 export const defaulti18n = 'en'
 
 type RawSettings = Partial<ISettings> & Record<string, unknown>
 const openAITTSDanglingProviderMessage = '原 OpenAI TTS 关联的 Provider 已被删除，已回退到 Edge TTS'
-
-export async function getApiKey(): Promise<string> {
-    const settings = await getSettings()
-    const apiKeys = (settings.apiKeys ?? '').split(',').map((s) => s.trim())
-    return apiKeys[Math.floor(Math.random() * apiKeys.length)] ?? ''
-}
-
-export async function getAzureApiKey(): Promise<string> {
-    const settings = await getSettings()
-    const apiKeys = (settings.azureAPIKeys ?? '').split(',').map((s) => s.trim())
-    return apiKeys[Math.floor(Math.random() * apiKeys.length)] ?? ''
-}
 
 const settingKeys = {
     automaticCheckForUpdates: 1,
@@ -329,14 +305,19 @@ export const isDarkMode = async () => {
 
 export const isFirefox = () => /firefox/i.test(navigator.userAgent)
 
-export const isUsingOpenAIOfficialAPIEndpoint = async () => {
-    const settings = await getSettings()
-    return settings.provider === defaultProvider && settings.apiURL === defaultAPIURL
+export function isOpenAIOfficialProvider(provider: ProviderConfig | undefined): boolean {
+    return Boolean(
+        provider &&
+            (provider.protocol === 'openai-chat' || provider.protocol === 'openai-responses') &&
+            !provider.endpoint?.trim()
+    )
 }
 
 export const isUsingOpenAIOfficial = async () => {
     const settings = await getSettings()
-    return settings.provider === 'ChatGPT' || (await isUsingOpenAIOfficialAPIEndpoint())
+    const provider =
+        settings.providers.find((provider) => provider.id === settings.defaultProviderId) ?? settings.providers[0]
+    return isOpenAIOfficialProvider(provider)
 }
 
 // js to csv
@@ -567,38 +548,3 @@ export function getAssetUrl(asset: string) {
 }
 export const isMacOS = navigator.userAgent.includes('Mac OS X')
 export const isWindows = navigator.userAgent.includes('Windows')
-
-/** Maps a provider name to its API key field in ISettings. */
-export function getAPIKeyForProvider(provider: string, settings: ISettings): string | undefined {
-    switch (provider) {
-        case 'OpenAI':
-            return settings.apiKeys
-        case 'Azure':
-            return settings.azureAPIKeys
-        case 'Claude':
-            return settings.claudeAPIKey
-        case 'Gemini':
-            return settings.geminiAPIKey
-        case 'Groq':
-            return settings.groqAPIKey
-        case 'DeepSeek':
-            return settings.deepSeekAPIKey
-        case 'Cerebras':
-            return settings.cerebrasAPIKey
-        case 'Moonshot':
-            return settings.moonshotAPIKey
-        case 'MiniMax':
-            return settings.miniMaxAPIKey
-        case 'Cohere':
-            return settings.cohereAPIKey
-        case 'Kimi':
-            return settings.kimiAccessToken
-        case 'ChatGLM':
-            return settings.chatglmAccessToken
-        case 'ChatGPT':
-        case 'Ollama':
-            return undefined
-        default:
-            return undefined
-    }
-}

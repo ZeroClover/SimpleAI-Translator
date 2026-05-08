@@ -18,7 +18,7 @@ import { clsx } from 'clsx'
 import { Button } from 'baseui-sd/button'
 import { ErrorBoundary } from 'react-error-boundary'
 import { ErrorFallback } from '../components/ErrorFallback'
-import { defaultAPIURL, isDesktopApp, isTauri, isBrowserExtensionContentScript, isMacOS } from '../utils'
+import { isOpenAIOfficialProvider, isDesktopApp, isTauri, isBrowserExtensionContentScript, isMacOS } from '../utils'
 import { InnerSettings } from './Settings'
 import { containerID, popupCardInnerContainerId } from '../../browser-extension/content_script/consts'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -759,7 +759,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             ;(async () => {
                 // use dynamic import to reduce bundle size
                 const { countTokens } = await import('../token')
-                setTokenCount(countTokens(editableText, settings?.apiModel))
+                setTokenCount(countTokens(editableText, selectedProvider?.model))
             })()
         },
         [editableText],
@@ -1323,7 +1323,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             settings.enableBackgroundBlur && styles.popupCardContentContainerBackgroundBlur
                         )}
                     >
-                        {settings?.apiURL === defaultAPIURL && (
+                        {isOpenAIOfficialProvider(selectedProvider) && (
                             <div>
                                 <IpLocationNotification showSettings={showSettings} />
                             </div>

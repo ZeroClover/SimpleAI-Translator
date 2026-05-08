@@ -33,10 +33,6 @@ function createTranslateQuery(overrides: Partial<TranslateQuery> = {}) {
 
 function createMockEngine(sendMessage: IEngine['sendMessage']): IEngine {
     return {
-        checkLogin: vi.fn().mockResolvedValue(true),
-        isLocal: vi.fn().mockReturnValue(false),
-        supportCustomModel: vi.fn().mockReturnValue(true),
-        getModel: vi.fn().mockResolvedValue(provider.model),
         listModels: vi.fn().mockResolvedValue([]),
         sendMessage,
     }

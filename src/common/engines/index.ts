@@ -27,6 +27,10 @@ import { DeepSeekIcon } from '@/common/components/icons/DeepSeekIcon'
 import { DeepSeek } from './deepseek'
 import { CerebrasIcon } from '@/common/components/icons/CerebrasIcon'
 import { Cerebras } from './cerebras'
+import { ProviderConfig } from '../types'
+import { OpenAIChatEngine } from './protocols/openai-chat'
+import { OpenAIResponsesEngine } from './protocols/openai-responses'
+import { AnthropicEngine } from './protocols/anthropic'
 
 export type Provider =
     | 'OpenAI'
@@ -78,7 +82,20 @@ export const providerToEngine: Record<Provider, { new (): IEngine }> = {
     Cerebras: Cerebras,
 }
 
-export function getEngine(provider: Provider): IEngine {
-    const cls = providerToEngine[provider]
+export function getEngine(providerConfig: ProviderConfig): IEngine
+export function getEngine(provider: Provider): IEngine
+export function getEngine(providerOrConfig: Provider | ProviderConfig): IEngine {
+    if (typeof providerOrConfig !== 'string') {
+        switch (providerOrConfig.protocol) {
+            case 'openai-chat':
+                return new OpenAIChatEngine(providerOrConfig)
+            case 'openai-responses':
+                return new OpenAIResponsesEngine(providerOrConfig)
+            case 'anthropic':
+                return new AnthropicEngine(providerOrConfig)
+        }
+    }
+
+    const cls = providerToEngine[providerOrConfig]
     return new cls()
 }

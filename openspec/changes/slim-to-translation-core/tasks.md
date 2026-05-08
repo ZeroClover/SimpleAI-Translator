@@ -23,7 +23,7 @@
 - [x] 3.3 新建 `src/common/engines/protocols/openai-responses.ts`,实现 OpenAI Responses API(`/v1/responses`)流式翻译
 - [x] 3.4 新建 `src/common/engines/protocols/anthropic.ts`,实现 Anthropic Messages API SSE 流式翻译(从原 `claude.ts` 提炼)
 - [x] 3.5 在 `src/common/openai-api-path.ts` 中扩展 endpoint 归一化函数,使其能处理 base URL 与含 `/chat/completions`、`/responses`、`/messages`、`/audio/speech` 完整路径两种输入
-- [ ] 3.6 在 `src/common/engines/index.ts` 中实现新 `getEngine(providerConfig)` 工厂,根据 `protocol` 返回对应实现
+- [x] 3.6 在 `src/common/engines/index.ts` 中实现新 `getEngine(providerConfig)` 工厂,根据 `protocol` 返回对应实现
 - [x] 3.7 为三种协议各写一份单元测试:成功流、4xx、5xx、网络中断、`signal.abort()` 行为;覆盖 Chat Completions `choices[].delta.content` + `[DONE]`,Responses `response.output_text.delta` + `response.completed`,Anthropic `content_block_delta(text_delta)` + `message_stop`
 - [x] 3.8 为 `openai-api-path` 的归一化新增 case 并通过 `openai-api-path.spec.ts`
 - [x] 3.9 在每个协议实现中暴露 `listModels(providerConfig): Promise<string[]>`:`openai-chat` / `openai-responses` 调用 `GET {endpoint}/models`(`Authorization: Bearer ...`);`anthropic` 调用 `GET {endpoint}/v1/models`(`x-api-key` + `anthropic-version: 2023-06-01`)

@@ -98,7 +98,7 @@
 - [x] 8.14 从 `src-tauri/src/tray.rs` 删除 OCR 菜单与 `ocr()` 调用;从 `src-tauri/src/windows.rs` 删除 `ACTION_MANAGER_WIN_NAME` / `SCREENSHOT_WIN_NAME` 及对应 show/get 函数
 - [x] 8.15 删除 Tauri 前端窗口与绑定:`src/tauri/windows/ActionManagerWindow.tsx`、`ScreenshotWindow.tsx`;从 `src/tauri/App.tsx`、`src/tauri/bindings.ts`、`src/tauri/windows/TranslatorWindow.tsx` 移除 action_manager / screenshot / OCR / writing 入口
 - [x] 8.16 从 `src-tauri/capabilities/migrated.json` 删除 `action_manager` / `screenshot`;删除 `src-tauri/resources/bin/ocr_apple` 与 `src-tauri/resources/bin/ocr_intel`
-- [ ] 8.17 在 `src/browser-extension/` 与 `src-safari/` background 脚本中移除 OCR、写作、画词相关消息处理与上下文菜单条目
+- [x] 8.17 在 `src/browser-extension/` 与 `src-safari/` background 脚本中移除 OCR、写作、画词相关消息处理与上下文菜单条目
 - [x] 8.18 移除浏览器扩展 `webRequest` permission 与 ChatGPT Arkose / Kimi / ChatGLM token 捕获 listener;删除旧厂商固定 `host_permissions`,实现自定义 endpoint 的 optional host permission 请求/拒绝处理
 - [x] 8.19 从 `Translator.tsx` 删除 promotion 拉取/定时刷新/focus 刷新/设置入口提示点/`headerPromotionID` 与 `openaiAPIKeyPromotionID` 传递;从 `Settings.tsx` 删除 header promotion、OpenAI API Key promotion、disclaimer promotion modal、promotion 相关统计事件
 - [x] 8.20 删除浏览器扩展 promotion id 传递:`src/browser-extension/common.ts` 中的 `optionsPageOpenaiAPIKeyPromotionIDKey` / `optionsPageHeaderPromotionIDKey`,options page 读取逻辑,background `openOptionsPage` 对 promotion id 的 storage 写入

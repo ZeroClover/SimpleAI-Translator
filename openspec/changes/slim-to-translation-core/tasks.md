@@ -54,7 +54,7 @@
 ## 6. Settings.tsx 重构
 
 - [ ] 6.1 删除 OCR 热键、写作热键、写作语言等设置项 UI
-- [ ] 6.2 删除画词、Action、生词本相关设置项 UI
+- [x] 6.2 删除画词、Action、生词本相关设置项 UI
 - [ ] 6.3 删除按厂商列出的 API Key / API URL / Model 表单(OpenAI、Azure、Gemini、MiniMax、DeepSeek、Moonshot 等独立块)
 - [ ] 6.4 新增 "LLM Providers" 区块:列表 + 新增按钮 + 编辑/删除/设为默认
 - [ ] 6.5 新增 "添加/编辑 Provider" 表单组件 `ProviderForm.tsx`(在 `components/Form/` 内或独立文件):字段 `name / protocol(下拉) / apiKey / endpoint(可选) / model(Combobox) / extraHeaders(可选高级折叠)`

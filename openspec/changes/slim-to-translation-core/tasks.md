@@ -19,17 +19,17 @@
 ## 3. 新 Provider 协议引擎
 
 - [ ] 3.1 在 `src/common/engines/interfaces.ts` 中改写 `IEngine` 与导出 `getEngine(providerConfig: ProviderConfig): IEngine`
-- [ ] 3.2 新建 `src/common/engines/protocols/openai-chat.ts`,实现 OpenAI Chat Completions SSE 流式翻译(从原 `abstract-openai.ts` 与 `openai.ts` 提炼,删除 polishing/summarize/analyze/explain-code/big-bang 分支)
-- [ ] 3.3 新建 `src/common/engines/protocols/openai-responses.ts`,实现 OpenAI Responses API(`/v1/responses`)流式翻译
-- [ ] 3.4 新建 `src/common/engines/protocols/anthropic.ts`,实现 Anthropic Messages API SSE 流式翻译(从原 `claude.ts` 提炼)
+- [x] 3.2 新建 `src/common/engines/protocols/openai-chat.ts`,实现 OpenAI Chat Completions SSE 流式翻译(从原 `abstract-openai.ts` 与 `openai.ts` 提炼,删除 polishing/summarize/analyze/explain-code/big-bang 分支)
+- [x] 3.3 新建 `src/common/engines/protocols/openai-responses.ts`,实现 OpenAI Responses API(`/v1/responses`)流式翻译
+- [x] 3.4 新建 `src/common/engines/protocols/anthropic.ts`,实现 Anthropic Messages API SSE 流式翻译(从原 `claude.ts` 提炼)
 - [x] 3.5 在 `src/common/openai-api-path.ts` 中扩展 endpoint 归一化函数,使其能处理 base URL 与含 `/chat/completions`、`/responses`、`/messages`、`/audio/speech` 完整路径两种输入
 - [ ] 3.6 在 `src/common/engines/index.ts` 中实现新 `getEngine(providerConfig)` 工厂,根据 `protocol` 返回对应实现
-- [ ] 3.7 为三种协议各写一份单元测试:成功流、4xx、5xx、网络中断、`signal.abort()` 行为;覆盖 Chat Completions `choices[].delta.content` + `[DONE]`,Responses `response.output_text.delta` + `response.completed`,Anthropic `content_block_delta(text_delta)` + `message_stop`
+- [x] 3.7 为三种协议各写一份单元测试:成功流、4xx、5xx、网络中断、`signal.abort()` 行为;覆盖 Chat Completions `choices[].delta.content` + `[DONE]`,Responses `response.output_text.delta` + `response.completed`,Anthropic `content_block_delta(text_delta)` + `message_stop`
 - [x] 3.8 为 `openai-api-path` 的归一化新增 case 并通过 `openai-api-path.spec.ts`
-- [ ] 3.9 在每个协议实现中暴露 `listModels(providerConfig): Promise<string[]>`:`openai-chat` / `openai-responses` 调用 `GET {endpoint}/models`(`Authorization: Bearer ...`);`anthropic` 调用 `GET {endpoint}/v1/models`(`x-api-key` + `anthropic-version: 2023-06-01`)
+- [x] 3.9 在每个协议实现中暴露 `listModels(providerConfig): Promise<string[]>`:`openai-chat` / `openai-responses` 调用 `GET {endpoint}/models`(`Authorization: Bearer ...`);`anthropic` 调用 `GET {endpoint}/v1/models`(`x-api-key` + `anthropic-version: 2023-06-01`)
 - [x] 3.10 新建 `src/common/engines/model-filter.ts`,导出 `filterChatModels(ids)`(黑名单:embedding / realtime / audio / whisper / transcribe / moderation / tts / dall-e / gpt-image / image / sora / search-preview)与 `filterTTSModels(ids)`(白名单:`/^tts-1(-hd)?$/i`、`/^gpt-4o-mini-tts(?:-[0-9]{4}-[0-9]{2}-[0-9]{2})?$/i`)
 - [x] 3.11 为 `model-filter.ts` 编写单元测试:覆盖 spec 中"标准 OpenAI 列表过滤"、"未知前缀的新模型保留"、"大小写不敏感"三类场景,以及 `filterTTSModels` 接受 `gpt-4o-mini-tts-YYYY-MM-DD` 但不接受 `gpt-4o-tts`
-- [ ] 3.12 为 `listModels` 编写单元测试:覆盖成功、404/405、超时、响应缺 `data` 字段四类降级路径
+- [x] 3.12 为 `listModels` 编写单元测试:覆盖成功、404/405、超时、响应缺 `data` 字段四类降级路径
 
 ## 4. translate.ts 重写
 

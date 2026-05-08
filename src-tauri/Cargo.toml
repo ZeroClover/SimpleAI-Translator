@@ -41,16 +41,12 @@ tauri-plugin-os = "2.3.1"
 whatlang = "0.16.2"
 arboard = "3.2.0"
 tiny_http = "0.12.0"
-text-diff = "0.4.0"
-similar = "2.2.1"
 debug_print = "1.0.0"
 active-win-pos-rs = "0.8"
 reqwest = { version = "0.11.24", features = [ "json", "stream" ] }
 tokio = { version = "1", features = [ "full" ] }
 futures-util = "0.3.29"
 tauri-plugin-aptabase = "1.0.0"
-screenshots = "0.7.2"
-image = "0.24.7"
 get-selected-text = "0.1.6"
 specta = { version = "=2.0.0-rc.22", features = ["derive", "export"] }
 specta-typescript = "0.0.9"

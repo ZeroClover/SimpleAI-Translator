@@ -113,7 +113,7 @@
 
 ## 10. 依赖与构建
 
-- [ ] 10.1 从 `package.json` 移除 `tesseract.js` 与其它经核查仅供已删模块使用的依赖;从 `src-tauri/Cargo.toml` 移除仅供 OCR/写作用的 `screenshots`、`image`、`text-diff`、`similar`;运行 `pnpm install` 更新 lockfile
+- [x] 10.1 从 `package.json` 移除 `tesseract.js` 与其它经核查仅供已删模块使用的依赖;从 `src-tauri/Cargo.toml` 移除仅供 OCR/写作用的 `screenshots`、`image`、`text-diff`、`similar`;运行 `pnpm install` 更新 lockfile
 - [ ] 10.2 运行 `pnpm lint` 与 `tsc --noEmit`,修复因删除产生的 import / type 报错
 - [ ] 10.3 运行 `pnpm test`(vitest)使所有单元测试绿
 - [ ] 10.4 运行 `pnpm test:e2e`(playwright)修复或删除已不可达的 e2e 用例(OCR / 写作 / 画词 / Action 相关)

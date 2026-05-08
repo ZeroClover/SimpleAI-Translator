@@ -93,7 +93,7 @@
 - [ ] 8.9 删除 `src/common/engines/abstract-openai.ts` + `abstract-openai.spec.ts`(逻辑已迁入 `protocols/openai-chat.ts`),或就地改名简化
 - [ ] 8.10 删除 `src/common/engines/abstract-engine.ts`(若新接口完全替代)
 - [ ] 8.11 删除 IndexedDB 中 `Action` 表,简化 `HistoryItem` schema(`id / createdAt / fromLang / toLang / sourceText / translatedText / providerId / model`),旧 history 表 drop & recreate
-- [ ] 8.12 在 `src/tauri/utils.ts` 移除 OCR 全局热键注册 + 写作热键注册
+- [x] 8.12 在 `src/tauri/utils.ts` 移除 OCR 全局热键注册 + 写作热键注册
 - [ ] 8.13 删除 Rust OCR/写作模块与命令:`src-tauri/src/ocr.rs`、`src-tauri/src/writing.rs`;从 `src-tauri/src/main.rs` 移除 `mod ocr` / `mod writing` 与 `cut_image` / `screenshot` / `start_ocr` / `finish_ocr` / `writing_command` / `finish_writing` / `write_to_input` invoke handlers
 - [ ] 8.14 从 `src-tauri/src/tray.rs` 删除 OCR 菜单与 `ocr()` 调用;从 `src-tauri/src/windows.rs` 删除 `ACTION_MANAGER_WIN_NAME` / `SCREENSHOT_WIN_NAME` 及对应 show/get 函数
 - [ ] 8.15 删除 Tauri 前端窗口与绑定:`src/tauri/windows/ActionManagerWindow.tsx`、`ScreenshotWindow.tsx`;从 `src/tauri/App.tsx`、`src/tauri/bindings.ts`、`src/tauri/windows/TranslatorWindow.tsx` 移除 action_manager / screenshot / OCR / writing 入口

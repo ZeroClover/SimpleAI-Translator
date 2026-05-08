@@ -7,6 +7,7 @@ import { listen, Event, emit } from '@tauri-apps/api/event'
 import { parse as bestEffortJSONParse } from 'best-effort-json-parser'
 import { commands } from '@/tauri/bindings'
 import { OPENAI_CHAT_COMPLETIONS_API_PATH, OPENAI_PREFERRED_DEFAULT_MODEL } from './openai-api-path'
+import toast from 'react-hot-toast/headless'
 
 export const defaultAPIURL = 'https://api.openai.com'
 export const defaultAPIURLPath = OPENAI_CHAT_COMPLETIONS_API_PATH
@@ -26,6 +27,7 @@ export const defaultReadSelectedWordsFromInputElementsText = false
 export const defaulti18n = 'en'
 
 type RawSettings = Partial<ISettings> & Record<string, unknown>
+const openAITTSDanglingProviderMessage = '原 OpenAI TTS 关联的 Provider 已被删除，已回退到 Edge TTS'
 
 export async function getApiKey(): Promise<string> {
     const settings = await getSettings()
@@ -129,7 +131,15 @@ function normalizeProviderList(providers: unknown): ProviderConfig[] {
     return Array.isArray(providers) ? (providers as ProviderConfig[]) : []
 }
 
-function normalizeTTSSettings(tts: unknown): ISettings['tts'] {
+function hasDanglingOpenAITTSProvider(tts: ISettings['tts'] | undefined, providers: ProviderConfig[]): boolean {
+    if (tts?.provider !== 'openai' || typeof tts.openai?.providerId !== 'string') {
+        return false
+    }
+    const provider = providers.find((item) => item.id === tts.openai?.providerId)
+    return !provider || provider.protocol === 'anthropic'
+}
+
+function normalizeTTSSettings(tts: unknown, providers: ProviderConfig[]): ISettings['tts'] {
     if (!tts || typeof tts !== 'object') {
         return { provider: 'edge' }
     }
@@ -140,10 +150,19 @@ function normalizeTTSSettings(tts: unknown): ISettings['tts'] {
             ? settings.provider
             : 'edge'
 
-    return {
+    const normalized = {
         ...settings,
         provider,
     }
+
+    if (hasDanglingOpenAITTSProvider(normalized, providers)) {
+        return {
+            ...normalized,
+            provider: 'edge',
+        }
+    }
+
+    return normalized
 }
 
 export function normalizeSettings(rawSettings: RawSettings): ISettings {
@@ -179,7 +198,7 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
         displayWindowHotkey: rawSettings.displayWindowHotkey,
         themeType: rawSettings.themeType || 'followTheSystem',
         i18n: rawSettings.i18n || defaulti18n,
-        tts: normalizeTTSSettings(rawSettings.tts),
+        tts: normalizeTTSSettings(rawSettings.tts, providers),
         restorePreviousPosition: rawSettings.restorePreviousPosition,
         runAtStartup: rawSettings.runAtStartup,
         selectInputElementsText:
@@ -245,8 +264,12 @@ export async function getSettings(): Promise<ISettings> {
 
 export async function setSettings(settings: Partial<ISettings>) {
     const browser = await getBrowser()
-    await browser.storage.sync.set(sanitizeSettingsForStorage(settings))
+    const normalized = sanitizeSettingsForStorage(settings)
+    await browser.storage.sync.set(normalized)
     await browser.storage.sync.remove?.([...legacySettingKeys])
+    if (settings.tts?.provider === 'openai' && normalized.tts?.provider === 'edge') {
+        toast(openAITTSDanglingProviderMessage)
+    }
 }
 
 export async function getBrowser(): Promise<IBrowser> {

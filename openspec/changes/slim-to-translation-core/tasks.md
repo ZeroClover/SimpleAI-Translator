@@ -65,7 +65,7 @@
 - [ ] 6.10 实现"模型 Combobox":apiKey 输入框 blur 后若 endpoint+apiKey 完整则自动调用 `listModels` + `filterChatModels` 渲染下拉;提供"刷新"按钮重新拉取;失败时降级为纯文本输入并 toast;允许任意手填值优先生效
 - [ ] 6.11 保留并完善 TTS provider / voice / volume / rate 设置 UI
 - [ ] 6.12 在 TTS 设置区新增 OpenAI TTS 子区:provider 引用下拉(仅显示 `openai-chat` / `openai-responses`,Anthropic 条目隐藏或禁用)、模型 Combobox(经 `filterTTSModels` 白名单过滤,空时引导手填)、voice 下拉(内置 `alloy / ash / ballad / coral / echo / fable / onyx / nova / sage / shimmer / verse / marin / cedar` + 自定义输入/voice id)、音频格式下拉(默认 mp3,含 pcm)
-- [ ] 6.13 实现"dangling 引用检测":在 `getSettings` 或 settings 写回前检查 `settings.tts.openai.providerId` 是否仍存在于 `settings.providers`,若不存在则把 `settings.tts.provider` 回退为 `'edge'` 并通过 toast 通知
+- [x] 6.13 实现"dangling 引用检测":在 `getSettings` 或 settings 写回前检查 `settings.tts.openai.providerId` 是否仍存在于 `settings.providers`,若不存在则把 `settings.tts.provider` 回退为 `'edge'` 并通过 toast 通知
 - [ ] 6.14 保留 languageDetectionEngine、defaultTargetLanguage、热键(主热键、显示窗口热键)、proxy、theme 等保留设置
 
 ## 7. OpenAI TTS Backend

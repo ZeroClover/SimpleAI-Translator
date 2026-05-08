@@ -103,4 +103,47 @@ describe('settings schema normalization', () => {
 
         expect(settings.tts?.provider).toBe('edge')
     })
+
+    it('falls OpenAI TTS back to edge when the referenced provider is missing', () => {
+        const sanitized = sanitizeSettingsForStorage({
+            providers: [],
+            defaultProviderId: null,
+            tts: {
+                provider: 'openai',
+                openai: {
+                    providerId: 'missing-provider',
+                    model: 'gpt-4o-mini-tts',
+                    voice: 'alloy',
+                },
+            },
+        })
+
+        expect(sanitized.tts?.provider).toBe('edge')
+        expect(sanitized.tts?.openai?.providerId).toBe('missing-provider')
+    })
+
+    it('falls OpenAI TTS back to edge when the referenced provider is Anthropic', () => {
+        const provider = {
+            id: 'provider-1',
+            name: 'Anthropic',
+            protocol: 'anthropic' as const,
+            apiKey: 'sk-ant',
+            model: 'claude-sonnet-4-5',
+        }
+
+        const settings = normalizeSettings({
+            providers: [provider],
+            defaultProviderId: provider.id,
+            tts: {
+                provider: 'openai',
+                openai: {
+                    providerId: provider.id,
+                    model: 'gpt-4o-mini-tts',
+                    voice: 'alloy',
+                },
+            },
+        })
+
+        expect(settings.tts?.provider).toBe('edge')
+    })
 })

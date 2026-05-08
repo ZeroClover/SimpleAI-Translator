@@ -1,40 +1,27 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { useTranslation, Trans } from 'react-i18next'
+import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast/headless'
 import { Client as Styletron } from 'styletron-engine-atomic'
 import { Provider as StyletronProvider } from 'styletron-react'
 import { BaseProvider } from 'baseui-sd'
 import { Textarea } from 'baseui-sd/textarea'
 import { createUseStyles } from 'react-jss'
-import { AiOutlineFileSync } from 'react-icons/ai'
 import { IoSettingsOutline } from 'react-icons/io5'
 import { TiArrowBack } from 'react-icons/ti'
-import { TbArrowsExchange, TbCsv } from 'react-icons/tb'
-import { MdOutlineGrade, MdGrade, MdHistory } from 'react-icons/md'
+import { TbArrowsExchange } from 'react-icons/tb'
+import { MdHistory } from 'react-icons/md'
 import * as mdIcons from 'react-icons/md'
-import { StatefulTooltip } from 'baseui-sd/tooltip'
 import { detectLang, getLangConfig, sourceLanguages, targetLanguages, LangCode } from '../lang'
 import { translate, TranslateMode } from '../translate'
 import { Select, Value, Option } from 'baseui-sd/select'
 import { RxEraser, RxEnter, RxReload, RxStop } from 'react-icons/rx'
-import { LuStar, LuStarOff } from 'react-icons/lu'
 import { clsx } from 'clsx'
 import { Button } from 'baseui-sd/button'
 import { ErrorBoundary } from 'react-error-boundary'
 import { ErrorFallback } from '../components/ErrorFallback'
-import {
-    defaultAPIURL,
-    exportToCsv,
-    isDesktopApp,
-    isTauri,
-    isUserscript,
-    setSettings,
-    isBrowserExtensionContentScript,
-    isMacOS,
-} from '../utils'
+import { defaultAPIURL, isDesktopApp, isTauri, isBrowserExtensionContentScript, isMacOS } from '../utils'
 import { InnerSettings } from './Settings'
 import { containerID, popupCardInnerContainerId } from '../../browser-extension/content_script/consts'
-import { FcIdea } from 'react-icons/fc'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import IpLocationNotification from '../components/IpLocationNotification'
 import { HighlightInTextarea } from '../highlight-in-textarea'
@@ -43,11 +30,7 @@ import { ISettings, IThemedStyleProps } from '../types'
 import { useTheme } from '../hooks/useTheme'
 import { Tooltip } from './Tooltip'
 import { useSettings } from '../hooks/useSettings'
-import Vocabulary from './Vocabulary'
-import { useCollectedWordTotal } from '../hooks/useCollectedWordTotal'
-import { Modal } from 'baseui-sd/modal'
-import { vocabularyService } from '../services/vocabulary'
-import { Action, VocabularyItem, HistoryItem } from '../internal-services/db'
+import { Action, HistoryItem } from '../internal-services/db'
 import { CopyButton } from './CopyButton'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { actionService } from '../services/action'
@@ -442,19 +425,6 @@ const useStyles = createUseStyles({
             borderColor: props.themeType === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
         },
     }),
-    'vocabulary': {
-        position: 'fixed',
-        width: '100%',
-        height: '100%',
-        top: 0,
-        left: 0,
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        background: 'rgba(0,0,0,0.35)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-    },
     'flexPlaceHolder': {
         marginRight: 'auto',
     },
@@ -587,9 +557,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const editorRef = useRef<HTMLTextAreaElement>(null)
     const isCompositing = useRef(false)
     const [selectedWord, setSelectedWord] = useState('')
-    const [vocabularyType, setVocabularyType] = useState<'hide' | 'vocabulary' | 'article'>('hide')
     const highlightRef = useRef<HighlightInTextarea | null>(null)
-    const [showWordbookButtons, setShowWordbookButtons] = useState(false)
     const { t, i18n } = useTranslation()
     const { settings } = useSettings()
 
@@ -670,8 +638,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         }
     }, [])
 
-    const [highlightWords, setHighlightWords] = useState<string[]>([])
-
     useEffect(() => {
         if (!highlightRef.current?.highlight) {
             return
@@ -679,10 +645,10 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         if (selectedWord) {
             highlightRef.current.highlight.highlight = [selectedWord]
         } else {
-            highlightRef.current.highlight.highlight = [...highlightWords]
+            highlightRef.current.highlight.highlight = []
         }
         highlightRef.current.handleInput()
-    }, [selectedWord, highlightWords])
+    }, [selectedWord])
 
     const [activateAction, setActivateAction] = useState<Action>()
 
@@ -838,9 +804,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             }
             const selectedWord_ = editor.value.substring(editor.selectionStart, editor.selectionEnd).trim()
             setSelectedWord(selectedWord_)
-            if (selectedWord_) {
-                setHighlightWords([])
-            }
         }
         const onBlur = onMouseUp
 
@@ -872,11 +835,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const [translatedLines, setTranslatedLines] = useState<string[]>([])
     const [isWordMode, setIsWordMode] = useState(false)
     const isWordModeRef = useRef(false)
-    const [isCollectedWord, setIsCollectedWord] = useState(false)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [isAutoCollectOn, setIsAutoCollectOn] = useState(
-        settings.autoCollect === undefined ? false : settings.autoCollect
-    )
 
     const [translateDeps, setTranslateDeps] = useState<{
         sourceLang?: LangCode
@@ -960,7 +918,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             return action
         })
         setSelectedWord('')
-        setHighlightWords([])
     }, [externalOriginalText, getTranslateDeps, props.uuid])
 
     useEffect(() => {
@@ -978,23 +935,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         [editableText],
         500
     )
-
-    const checkWordCollection = useCallback(async () => {
-        try {
-            const item = await vocabularyService.getItem(editableText.trim())
-            if (item) {
-                await vocabularyService.putItem({
-                    ...item,
-                    reviewCount: item.reviewCount + 1,
-                })
-                setIsCollectedWord(true)
-            } else {
-                setIsCollectedWord(false)
-            }
-        } catch (e) {
-            console.error(e)
-        }
-    }, [editableText])
 
     useEffect(() => {
         setTranslatedLines(translatedText.split('\n'))
@@ -1035,8 +975,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     }, [sourceLang, actionStr])
 
     const translatedLanguageDirection = useMemo(() => getLangConfig(sourceLang).direction, [sourceLang])
-
-    const { collectedWordTotal, setCollectedWordTotal } = useCollectedWordTotal()
 
     useEffect(() => {
         const popupCardInnerContainer: HTMLDivElement | null | undefined = document
@@ -1085,53 +1023,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
 
     const [isNotLogin, setIsNotLogin] = useState(false)
 
-    /**
-     * Add or remove word from collection.
-     * @param remove - Remove word from collection if true, otherwise add it to collection.
-     */
-    const onWordCollection = useCallback(
-        async (remove: boolean) => {
-            try {
-                if (remove) {
-                    const wordInfo = await vocabularyService.getItem(editableText.trim())
-                    await vocabularyService.deleteItem(wordInfo?.word ?? '')
-                    setCollectedWordTotal((t: number) => t - 1)
-                    setIsCollectedWord(false)
-                } else {
-                    await vocabularyService.putItem({
-                        word: editableText,
-                        reviewCount: 1,
-                        description: translatedText.slice(editableText.length + 1), // separate string after first '\n'
-                        updatedAt: new Date().valueOf().toString(),
-                        createdAt: new Date().valueOf().toString(),
-                    })
-                    setCollectedWordTotal((t: number) => t + 1)
-                    setIsCollectedWord(true)
-                }
-            } catch (e) {
-                console.error(e)
-            }
-        },
-        [editableText, setCollectedWordTotal, translatedText]
-    )
-
-    useEffect(() => {
-        setSettings({ autoCollect: isAutoCollectOn })
-    }, [isAutoCollectOn])
-
-    const autoCollect = useCallback(async () => {
-        await checkWordCollection()
-        if (isWordMode && isAutoCollectOn) {
-            onWordCollection(false)
-            console.info(`Auto collecting word: ${editableText}`)
-        }
-    }, [isWordMode, isAutoCollectOn, editableText, onWordCollection, checkWordCollection])
-
-    const autoCollectRef = useRef(autoCollect)
-    useEffect(() => {
-        autoCollectRef.current = autoCollect
-    }, [autoCollect])
-
     const translateText = useDeepCompareCallback(
         async (selectedWord: string, signal: AbortSignal) => {
             if (skipNextTranslateRef.current) {
@@ -1147,7 +1038,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             if (!text || !sourceLang || !targetLang || !action) {
                 return
             }
-            setShowWordbookButtons(false)
             const actionMode = action.mode
             const actionStrItem = actionMode
                 ? actionStrItems[actionMode]
@@ -1236,7 +1126,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         actionStr = 'Polished'
                     }
                     setActionStr(actionStr)
-                    autoCollectRef.current()
                 }
             }
             beforeTranslate()
@@ -1338,9 +1227,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             setTranslatedText(item.translatedText)
             setActionStr('')
             setErrorMessage('')
-            setShowWordbookButtons(false)
             setSelectedWord('')
-            setHighlightWords([])
             setTranslateDeps((prev) => {
                 const nextAction = matchedAction ?? prev.action
                 const providerFromHistory = isProviderValue(item.provider) ? item.provider : undefined
@@ -1406,21 +1293,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         }
     }, [props.defaultShowSettings, setShowSettings, settings])
 
-    const onCsvExport = async () => {
-        try {
-            const words = await vocabularyService.listItems()
-            await exportToCsv<VocabularyItem>(`nextai-translator-collection-${new Date().valueOf()}`, words)
-            if (isDesktopApp()) {
-                toast(t('CSV file saved on Desktop'), {
-                    duration: 5000,
-                    icon: '👏',
-                })
-            }
-        } catch (e) {
-            console.error(e)
-        }
-    }
-
     const editableTextSpeakingIconRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
@@ -1430,8 +1302,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         console.debug('speak selected word', selectedWord)
         editableTextSpeakingIconRef.current?.click()
     }, [selectedWord, settings.readSelectedWordsFromInputElementsText])
-
-    const enableVocabulary = !isUserscript()
 
     const handleStopGenerating = () => {
         translateControllerRef.current?.abort('stop')
@@ -1552,7 +1422,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             })}
             ref={containerRef}
             style={{
-                minHeight: vocabularyType !== 'hide' ? '600px' : undefined,
                 background: isDesktopApp() ? 'transparent' : theme.colors.backgroundPrimary,
                 paddingBottom: showSettings || settings.enableBackgroundBlur ? '0px' : '42px',
             }}
@@ -1903,55 +1772,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                 </div>
                             </div>
                             <div className={styles.actionButtonsContainer}>
-                                <>
-                                    {enableVocabulary && (
-                                        <StatefulTooltip
-                                            content={
-                                                <Trans
-                                                    i18nKey='words are collected'
-                                                    values={{
-                                                        collectTotal: collectedWordTotal,
-                                                    }}
-                                                />
-                                            }
-                                            showArrow
-                                            placement='top'
-                                        >
-                                            <div
-                                                className={styles.actionButton}
-                                                onClick={() => setShowWordbookButtons((e) => !e)}
-                                            >
-                                                <AiOutlineFileSync size={15} />
-                                            </div>
-                                        </StatefulTooltip>
-                                    )}
-                                    {showWordbookButtons && (
-                                        <>
-                                            <StatefulTooltip content={t('Collection Review')} showArrow placement='top'>
-                                                <div className={styles.actionButton}>
-                                                    <MdGrade
-                                                        size={15}
-                                                        onClick={() => setVocabularyType('vocabulary')}
-                                                    />
-                                                </div>
-                                            </StatefulTooltip>
-                                            <StatefulTooltip
-                                                content={t('Export your collection as a csv file')}
-                                                showArrow
-                                                placement='top'
-                                            >
-                                                <div className={styles.actionButton} onClick={onCsvExport}>
-                                                    <TbCsv size={15} />
-                                                </div>
-                                            </StatefulTooltip>
-                                            <StatefulTooltip content='Big Bang' showArrow placement='top'>
-                                                <div className={styles.actionButton}>
-                                                    <FcIdea size={15} onClick={() => setVocabularyType('article')} />
-                                                </div>
-                                            </StatefulTooltip>
-                                        </>
-                                    )}
-                                </>
                                 <div style={{ marginLeft: 'auto' }}></div>
                                 {!!editableText.length && (
                                     <>
@@ -2099,45 +1919,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                                     translatedLines.map((line, i) => {
                                                         return (
                                                             <div className={styles.paragraph} key={`p-${i}`}>
-                                                                {isWordMode && i === 0 ? (
-                                                                    <div
-                                                                        style={{
-                                                                            display: 'flex',
-                                                                            alignItems: 'center',
-                                                                            gap: '5px',
-                                                                        }}
-                                                                    >
-                                                                        {line}
-                                                                        {!isLoading && (
-                                                                            <StatefulTooltip
-                                                                                content={
-                                                                                    isCollectedWord
-                                                                                        ? t('Remove from collection')
-                                                                                        : t('Add to collection')
-                                                                                }
-                                                                                showArrow
-                                                                                placement='right'
-                                                                            >
-                                                                                <div
-                                                                                    className={styles.actionButton}
-                                                                                    onClick={() =>
-                                                                                        onWordCollection(
-                                                                                            isCollectedWord
-                                                                                        )
-                                                                                    }
-                                                                                >
-                                                                                    {isCollectedWord ? (
-                                                                                        <MdGrade size={15} />
-                                                                                    ) : (
-                                                                                        <MdOutlineGrade size={15} />
-                                                                                    )}
-                                                                                </div>
-                                                                            </StatefulTooltip>
-                                                                        )}
-                                                                    </div>
-                                                                ) : (
-                                                                    line
-                                                                )}
+                                                                {line}
                                                                 {isLoading && i === translatedLines.length - 1 && (
                                                                     <span className={styles.caret} />
                                                                 )}
@@ -2177,22 +1959,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                                         />
                                                     </div>
                                                 </Tooltip>
-                                                {isWordMode && (
-                                                    <Tooltip content={t('Auto collect')} placement='bottom'>
-                                                        <div
-                                                            className={styles.actionButton}
-                                                            onClick={() => {
-                                                                setIsAutoCollectOn((prevState) => !prevState)
-                                                            }}
-                                                        >
-                                                            {isAutoCollectOn ? (
-                                                                <LuStar size={15} />
-                                                            ) : (
-                                                                <LuStarOff size={15} />
-                                                            )}
-                                                        </div>
-                                                    </Tooltip>
-                                                )}
                                                 {isTauri() && (
                                                     <Tooltip
                                                         content={t('Insert into previous input')}
@@ -2438,36 +2204,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         </div>
                     )}
                 </div>
-            )}
-            {enableVocabulary && (
-                <Modal
-                    isOpen={vocabularyType !== 'hide'}
-                    onClose={() => setVocabularyType('hide')}
-                    closeable
-                    overrides={{
-                        Close: {
-                            style: {
-                                display: 'none',
-                            },
-                        },
-                    }}
-                    size='auto'
-                    autoFocus
-                    animate
-                    role='dialog'
-                >
-                    <Vocabulary
-                        onCancel={() => setVocabularyType('hide')}
-                        onInsert={(content, highlightWords) => {
-                            setEditableText(content)
-                            setHighlightWords(highlightWords)
-                            setSelectedWord('')
-                            setActivateAction(actions?.find((action) => action.mode === 'translate'))
-                            setVocabularyType('hide')
-                        }}
-                        type={vocabularyType as 'vocabulary' | 'article'}
-                    />
-                </Modal>
             )}
             {isHistoryOpen ? (
                 <TranslationHistory

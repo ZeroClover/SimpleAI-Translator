@@ -930,12 +930,12 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             try {
                 // console.debug('translate', sourceLang, targetLang, text)
                 await translate({
-                    action,
                     signal,
                     text,
                     selectedWord,
                     detectFrom: sourceLang,
                     detectTo: targetLang,
+                    providerId: settings.defaultProviderId ?? undefined,
                     onStatusCode: (statusCode) => {
                         setIsNotLogin(statusCode === 401 || statusCode === 403 || statusCode === 422)
                     },

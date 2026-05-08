@@ -1,5 +1,4 @@
 import Dexie, { Table } from 'dexie'
-import { TranslateMode } from '../translate'
 import { LangCode } from '../lang'
 import { Provider } from '../engines'
 
@@ -13,11 +12,12 @@ export interface VocabularyItem {
 }
 
 export type ActionOutputRenderingFormat = 'text' | 'markdown' | 'latex'
+export type LegacyActionMode = 'translate' | 'polishing' | 'summarize' | 'analyze' | 'explain-code' | 'big-bang'
 
 export interface Action {
     id?: number
     idx: number
-    mode?: TranslateMode
+    mode?: LegacyActionMode
     name: string
     icon?: string
     rolePrompt?: string
@@ -39,7 +39,7 @@ export interface HistoryItem {
     targetLang: LangCode
     actionId?: number
     actionName?: string
-    actionMode?: TranslateMode
+    actionMode?: LegacyActionMode
     provider?: string
     engineModel?: string
     favorite: boolean

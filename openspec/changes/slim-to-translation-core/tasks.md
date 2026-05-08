@@ -10,8 +10,8 @@
 - [x] 2.2 在 `src/common/types.ts` 新增 `ProviderConfig` 接口(`id / name / protocol / apiKey / endpoint? / model / extraHeaders?`)
 - [x] 2.3 在 `ISettings` 中新增 `providers: ProviderConfig[]` 与 `defaultProviderId: string | null`
 - [ ] 2.4 从 `ISettings` 删除旧 Provider 字段(`apiKeys` / `apiURL` / `apiModel` / `provider` / `chatgptModel` / `azure*` / `miniMax*` / `gemini*` / `moonshot*` / `deepSeek*` / `customModelName`),不标 deprecated、不保留读取路径
-- [ ] 2.5 删除 `ISettings` 中 `defaultTranslateMode` / `writingTargetLanguage` / `writingHotkey` / `writingNewlineHotkey` / `ocrHotkey` / `autoCollect` 字段
-- [ ] 2.6 删除 `TranslateMode` 类型导出与所有引用,在 `translate.ts` 内仅保留 `'translate'` 单一隐式模式
+- [x] 2.5 删除 `ISettings` 中 `defaultTranslateMode` / `writingTargetLanguage` / `writingHotkey` / `writingNewlineHotkey` / `ocrHotkey` / `autoCollect` 字段
+- [x] 2.6 删除 `TranslateMode` 类型导出与所有引用,在 `translate.ts` 内仅保留 `'translate'` 单一隐式模式
 - [x] 2.7 在 `src/common/utils.ts` 中实现新 schema 初始化/规范化:缺省返回 `providers: []`、`defaultProviderId: null`;旧字段只在写回时清理或读取时忽略,不转换为 ProviderConfig
 - [x] 2.8 在 `getSettings()` / `setSettings()` 周边确保只读写新 schema 字段,不会写回 `provider`、`apiKeys`、`azure*`、`chatgpt*` 等旧字段
 - [x] 2.9 为 settings 初始化/清理编写单元测试:覆盖新安装为空 Provider、旧 OpenAI 字段不迁移、旧 Azure 字段不迁移、未识别 Provider 不兜底、已是新 schema 保持不变
@@ -33,12 +33,12 @@
 
 ## 4. translate.ts 重写
 
-- [ ] 4.1 删除 `TranslateQuery` 中 `mode / writing / articlePrompt` 字段,保留 `text / detectFrom / detectTo / selectedWord? / signal / onMessage / onError / onFinish / onStatusCode?`
-- [ ] 4.2 删除 `TranslateQueryBigBang` 重载与所有 `mode === 'polishing' | 'summarize' | 'analyze' | 'explain-code' | 'big-bang'` 分支
-- [ ] 4.3 修改 `translate(query)` 内部:从 `getSettings()` 取 `defaultProviderId` 与对应 `ProviderConfig`(若主界面传入了临时 `providerId`,优先使用该值);以新 `getEngine(providerConfig)` 调用
-- [ ] 4.4 保留并简化 `isAWord` + 单词模式 prompt 选择逻辑,确认 `selectedWord` 路径仍工作
-- [ ] 4.5 删除 `translate.ts` 中所有与已删模式相关的 prompt 构造函数
-- [ ] 4.6 更新或新增 `translate.ts` 单元测试,覆盖普通句子翻译、单词模式、`signal.abort` 中止、错误上报路径
+- [x] 4.1 删除 `TranslateQuery` 中 `mode / writing / articlePrompt` 字段,保留 `text / detectFrom / detectTo / selectedWord? / signal / onMessage / onError / onFinish / onStatusCode?`
+- [x] 4.2 删除 `TranslateQueryBigBang` 重载与所有 `mode === 'polishing' | 'summarize' | 'analyze' | 'explain-code' | 'big-bang'` 分支
+- [x] 4.3 修改 `translate(query)` 内部:从 `getSettings()` 取 `defaultProviderId` 与对应 `ProviderConfig`(若主界面传入了临时 `providerId`,优先使用该值);以新 `getEngine(providerConfig)` 调用
+- [x] 4.4 保留并简化 `isAWord` + 单词模式 prompt 选择逻辑,确认 `selectedWord` 路径仍工作
+- [x] 4.5 删除 `translate.ts` 中所有与已删模式相关的 prompt 构造函数
+- [x] 4.6 更新或新增 `translate.ts` 单元测试,覆盖普通句子翻译、单词模式、`signal.abort` 中止、错误上报路径
 
 ## 5. 主界面 Translator.tsx 瘦身
 

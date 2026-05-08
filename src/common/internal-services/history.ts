@@ -1,6 +1,5 @@
-import { getLocalDB, HistoryItem } from './db'
+import { getLocalDB, HistoryItem, LegacyActionMode } from './db'
 import { LangCode } from '../lang'
-import { TranslateMode } from '../translate'
 
 export interface CreateHistoryItem {
     text: string
@@ -9,7 +8,7 @@ export interface CreateHistoryItem {
     targetLang: LangCode
     actionId?: number
     actionName?: string
-    actionMode?: TranslateMode
+    actionMode?: LegacyActionMode
     provider?: string
     engineModel?: string
     favorite?: boolean
@@ -25,7 +24,7 @@ export interface UpdateHistoryPayload {
 export interface HistoryQueryOptions {
     search?: string
     actionId?: number
-    actionMode?: TranslateMode
+    actionMode?: LegacyActionMode
     sourceLang?: LangCode
     targetLang?: LangCode
     favoritesOnly?: boolean

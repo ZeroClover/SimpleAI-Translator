@@ -1,12 +1,10 @@
 /* eslint-disable camelcase */
 import { v4 as uuidv4 } from 'uuid'
 import { getLangConfig, getLangName, LangCode } from '../common/lang'
-import { Action } from './internal-services/db'
 import { codeBlock, oneLine, oneLineTrim } from 'common-tags'
 import { getEngine } from './engines'
 import { getSettings } from './utils'
 
-export type TranslateMode = 'translate' | 'polishing' | 'summarize' | 'analyze' | 'explain-code' | 'big-bang'
 export type APIModel =
     | 'gpt-3.5-turbo-1106'
     | 'gpt-3.5-turbo'
@@ -22,30 +20,18 @@ export type APIModel =
     | 'gpt-4-32k-0613'
     | string
 
-interface BaseTranslateQuery {
+export interface TranslateQuery {
     text: string
-    writing?: boolean
     selectedWord?: string
     detectFrom: LangCode
     detectTo: LangCode
-    mode?: Exclude<TranslateMode, 'big-bang'>
-    action: Action
+    providerId?: string
     onMessage: (message: { content: string; role: string; isWordMode: boolean; isFullText?: boolean }) => Promise<void>
     onError: (error: string) => void
     onFinish: (reason: string) => void
     onStatusCode?: (statusCode: number) => void
     signal: AbortSignal
 }
-
-type TranslateQueryBigBang = Omit<
-    BaseTranslateQuery,
-    'mode' | 'action' | 'selectedWord' | 'detectFrom' | 'detectTo'
-> & {
-    mode: 'big-bang'
-    articlePrompt: string
-}
-
-export type TranslateQuery = BaseTranslateQuery | TranslateQueryBigBang
 
 export interface TranslateResult {
     text?: string
@@ -63,18 +49,6 @@ export const isAWord = (langCode: string, text: string) => {
     const segmenter = new Segmenter(langCode, { granularity: 'word' })
     const iterator = segmenter.segment(text)[Symbol.iterator]()
     return iterator.next().value?.segment === text
-}
-
-function getThinkingBudget(level: string): number {
-    switch (level) {
-        case 'low':
-            return 5000
-        case 'high':
-            return 20000
-        case 'medium':
-        default:
-            return 10000
-    }
 }
 
 export class QuoteProcessor {
@@ -211,59 +185,19 @@ export async function translate(query: TranslateQuery) {
     let contentPrompt = query.text
     let isWordMode = false
 
-    if (query.mode === 'big-bang') {
-        rolePrompt = oneLine`
-        You are a professional writer
-        and you will write ${query.articlePrompt}
-        based on the given words`
-        commandPrompt = oneLine`
-        Write ${query.articlePrompt} of no more than 160 words.
-        The article must contain the words in the following text.
-        The more words you use, the better`
-    } else {
-        const sourceLangCode = query.detectFrom
-        const targetLangCode = query.detectTo
-        const sourceLangName = getLangName(sourceLangCode)
-        const targetLangName = getLangName(targetLangCode)
-        console.debug('sourceLang', sourceLangName)
-        console.debug('targetLang', targetLangName)
-        const toChinese = chineseLangCodes.indexOf(targetLangCode) >= 0
-        const targetLangConfig = getLangConfig(targetLangCode)
-        const sourceLangConfig = getLangConfig(sourceLangCode)
-        console.debug('Source language is', sourceLangConfig)
-        rolePrompt = targetLangConfig.rolePrompt
+    const sourceLangCode = query.detectFrom
+    const targetLangCode = query.detectTo
+    const sourceLangName = getLangName(sourceLangCode)
+    const targetLangName = getLangName(targetLangCode)
+    const toChinese = chineseLangCodes.indexOf(targetLangCode) >= 0
+    const targetLangConfig = getLangConfig(targetLangCode)
+    const sourceLangConfig = getLangConfig(sourceLangCode)
+    rolePrompt = targetLangConfig.rolePrompt
+    commandPrompt = targetLangConfig.genCommandPrompt(sourceLangConfig)
 
-        switch (query.action.mode) {
-            case null:
-            case undefined:
-                if (
-                    (query.action.rolePrompt ?? '').includes('${text}') ||
-                    (query.action.commandPrompt ?? '').includes('${text}')
-                ) {
-                    contentPrompt = ''
-                } else {
-                    contentPrompt = query.text
-                }
-                rolePrompt = (query.action.rolePrompt ?? '')
-                    .replace('${sourceLang}', sourceLangName)
-                    .replace('${targetLang}', targetLangName)
-                    .replace('${text}', query.text)
-                commandPrompt = (query.action.commandPrompt ?? '')
-                    .replace('${sourceLang}', sourceLangName)
-                    .replace('${targetLang}', targetLangName)
-                    .replace('${text}', query.text)
-                if (query.action.outputRenderingFormat) {
-                    commandPrompt =
-                        `(Requirements: The output format must be ${query.action.outputRenderingFormat}) ` +
-                        commandPrompt
-                }
-                break
-            case 'translate':
-                commandPrompt = targetLangConfig.genCommandPrompt(sourceLangConfig)
-                contentPrompt = query.text
-                if (!query.writing && query.text.length < 5 && toChinese) {
-                    // 当用户的默认语言为中文时，查询中文词组（不超过5个字），展示多种翻译结果，并阐述适用语境。
-                    rolePrompt = codeBlock`
+    if (query.text.length < 5 && toChinese) {
+        // 当用户的默认语言为中文时，查询中文词组（不超过5个字），展示多种翻译结果，并阐述适用语境。
+        rolePrompt = codeBlock`
                     ${oneLineTrim`
                     你是一个翻译引擎，
                     请将给到的文本翻译成${targetLangName}。
@@ -276,13 +210,13 @@ export async function translate(query: TranslateQuery) {
                         [<词性缩写>] <适用语境（用中文阐述）>
                         例句：<例句>(例句翻译)
                     `
-                    commandPrompt = ''
-                }
-                if (!query.writing && isAWord(sourceLangCode, query.text.trim())) {
-                    isWordMode = true
-                    if (toChinese) {
-                        // 单词模式，可以更详细的翻译结果，包括：音标、词性、含义、双语示例。
-                        rolePrompt = codeBlock`
+        commandPrompt = ''
+    }
+    if (isAWord(sourceLangCode, query.text.trim())) {
+        isWordMode = true
+        if (toChinese) {
+            // 单词模式，可以更详细的翻译结果，包括：音标、词性、含义、双语示例。
+            rolePrompt = codeBlock`
                         ${oneLineTrim`
                         你是一个翻译引擎，请翻译给出的文本，只需要翻译不需要解释。
                         当且仅当文本只有一个单词时，
@@ -302,11 +236,11 @@ export async function translate(query: TranslateQuery) {
                             词源：
                             <词源>
                         `
-                        commandPrompt = '好的，我明白了，请给我这个单词。'
-                        contentPrompt = `单词是：${query.text}`
-                    } else {
-                        const isSameLanguage = sourceLangCode === targetLangCode
-                        rolePrompt = codeBlock`${oneLine`
+            commandPrompt = '好的，我明白了，请给我这个单词。'
+            contentPrompt = `单词是：${query.text}`
+        } else {
+            const isSameLanguage = sourceLangCode === targetLangCode
+            rolePrompt = codeBlock`${oneLine`
                             You are a professional translation engine.
                             Please translate the text into ${targetLangName} without explanation.
                             When the text has only one word,
@@ -339,12 +273,12 @@ Examples:
 <index>. <sentence>(<sentence translation>)
 Etymology:
 <etymology>`
-                        commandPrompt = 'I understand. Please give me the word.'
-                        contentPrompt = `The word is: ${query.text}`
-                    }
-                }
-                if (!query.writing && query.selectedWord) {
-                    rolePrompt = codeBlock`
+            commandPrompt = 'I understand. Please give me the word.'
+            contentPrompt = `The word is: ${query.text}`
+        }
+    }
+    if (query.selectedWord) {
+        rolePrompt = codeBlock`
 ${oneLine`
 You are an expert in the semantic syntax of the ${sourceLangName} language,
 and you are teaching me the ${sourceLangName} language.
@@ -363,44 +297,8 @@ ${oneLine`<word> · /${sourceLangConfig.phoneticNotation && `<${sourceLangConfig
 ${oneLine`<the remaining part>`}
 
 If you understand, say "yes", and then we will begin.`
-                    commandPrompt = 'Yes, I understand. Please give me the sentence and the word.'
-                    contentPrompt = `the sentence is: ${query.text}\n\nthe word is: ${query.selectedWord}`
-                }
-                break
-            case 'polishing':
-                rolePrompt = 'You are an expert translator, translate directly without explanation.'
-                commandPrompt = `Please edit the following sentences in ${sourceLangName} to improve clarity, conciseness, and coherence, making them match the expression of native speakers.`
-                contentPrompt = query.text
-                break
-            case 'summarize':
-                rolePrompt =
-                    "You are a professional text summarizer, you can only summarize the text, don't interpret it."
-                commandPrompt = oneLine`
-                Please summarize this text in the most concise language
-                and must use ${targetLangName} language!`
-                contentPrompt = query.text
-                break
-            case 'analyze':
-                rolePrompt = 'You are a professional translation engine and grammar analyzer.'
-                commandPrompt = oneLine`
-                Please translate this text to ${targetLangName}
-                and explain the grammar in the original text using ${targetLangName}.`
-                contentPrompt = query.text
-                break
-            case 'explain-code':
-                rolePrompt =
-                    'You are a code explanation engine that can only explain code but not interpret or translate it. Also, please report bugs and errors (if any).'
-                commandPrompt = oneLine`
-                explain the provided code,
-                regex or script in the most concise language
-                and must use ${targetLangName} language!
-                You may use Markdown.
-                If the content is not code,
-                return an error message.
-                If the code has obvious errors, point them out.`
-                contentPrompt = '```\n' + query.text + '\n```'
-                break
-        }
+        commandPrompt = 'Yes, I understand. Please give me the sentence and the word.'
+        contentPrompt = `the sentence is: ${query.text}\n\nthe word is: ${query.selectedWord}`
     }
 
     if (contentPrompt) {
@@ -408,41 +306,39 @@ If you understand, say "yes", and then we will begin.`
     }
 
     const settings = await getSettings()
-
-    // Use per-action provider/model if configured, otherwise fall back to global settings
-    const effectiveProvider = (query.mode !== 'big-bang' && query.action?.provider) || settings.provider
-    const effectiveModel = query.mode !== 'big-bang' ? query.action?.apiModel : undefined
-
-    // Resolve Claude thinking settings
-    let thinkingBudget: number | undefined
-    if (effectiveProvider === 'Claude') {
-        const actionThinking = query.mode !== 'big-bang' ? query.action?.thinking : undefined
-        const actionThinkingLevel = query.mode !== 'big-bang' ? query.action?.thinkingLevel : undefined
-        const isThinking = actionThinking ?? settings.claudeThinking
-        const thinkingLevel = actionThinkingLevel ?? settings.claudeThinkingLevel ?? 'medium'
-        if (isThinking) {
-            thinkingBudget = getThinkingBudget(thinkingLevel)
-        }
+    const providerId = query.providerId ?? settings.defaultProviderId
+    const providerConfig = settings.providers.find((provider) => provider.id === providerId)
+    if (!providerConfig) {
+        query.onError('No LLM Provider configured. Please add a provider in settings.')
+        query.onFinish('error')
+        return
     }
 
-    const engine = getEngine(effectiveProvider)
-    await engine.sendMessage({
-        signal: query.signal,
-        rolePrompt,
-        commandPrompt,
-        modelOverride: effectiveModel,
-        thinkingBudget,
-        onMessage: async (message) => {
-            await query.onMessage({ ...message, isWordMode })
-        },
-        onFinished: (reason) => {
-            query.onFinish(reason)
-        },
-        onError: (error) => {
-            query.onError(error)
-        },
-        onStatusCode: (statusCode) => {
-            query.onStatusCode?.(statusCode)
-        },
-    })
+    try {
+        const engine = getEngine(providerConfig)
+        await engine.sendMessage({
+            signal: query.signal,
+            rolePrompt,
+            commandPrompt,
+            onMessage: async (message) => {
+                await query.onMessage({ ...message, isWordMode })
+            },
+            onFinished: (reason) => {
+                query.onFinish(reason)
+            },
+            onError: (error) => {
+                query.onError(error)
+            },
+            onStatusCode: (statusCode) => {
+                query.onStatusCode?.(statusCode)
+            },
+        })
+    } catch (error) {
+        if (query.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
+            query.onFinish('aborted')
+            return
+        }
+        query.onError(error instanceof Error ? error.message : String(error))
+        query.onFinish('error')
+    }
 }

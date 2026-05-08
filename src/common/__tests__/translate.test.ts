@@ -1,5 +1,114 @@
-import { describe, expect, it } from 'vitest'
-import { QuoteProcessor } from '../translate'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getEngine } from '../engines'
+import { IEngine } from '../engines/interfaces'
+import { ProviderConfig } from '../types'
+import { getSettings } from '../utils'
+import { QuoteProcessor, TranslateQuery, translate } from '../translate'
+
+vi.mock('../engines', () => ({ getEngine: vi.fn() }))
+vi.mock('../utils', () => ({ getSettings: vi.fn() }))
+
+const provider: ProviderConfig = {
+    id: 'provider-1',
+    name: 'Provider',
+    protocol: 'openai-chat',
+    apiKey: 'sk-test',
+    model: 'gpt-4o-mini',
+}
+
+function createTranslateQuery(overrides: Partial<TranslateQuery> = {}) {
+    const controller = new AbortController()
+    return {
+        text: 'hello world',
+        detectFrom: 'en',
+        detectTo: 'zh-Hans',
+        signal: controller.signal,
+        onMessage: vi.fn().mockResolvedValue(undefined),
+        onError: vi.fn(),
+        onFinish: vi.fn(),
+        onStatusCode: vi.fn(),
+        ...overrides,
+    } as TranslateQuery
+}
+
+function createMockEngine(sendMessage: IEngine['sendMessage']): IEngine {
+    return {
+        checkLogin: vi.fn().mockResolvedValue(true),
+        isLocal: vi.fn().mockReturnValue(false),
+        supportCustomModel: vi.fn().mockReturnValue(true),
+        getModel: vi.fn().mockResolvedValue(provider.model),
+        listModels: vi.fn().mockResolvedValue([]),
+        sendMessage,
+    }
+}
+
+describe('translate', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        vi.mocked(getSettings).mockResolvedValue({
+            providers: [provider],
+            defaultProviderId: provider.id,
+        } as Awaited<ReturnType<typeof getSettings>>)
+    })
+
+    it('streams ordinary sentence translation through the default provider', async () => {
+        const sendMessage = vi.fn(async (req) => {
+            expect(req.commandPrompt).toContain('hello world')
+            await req.onMessage({ content: '你好', role: 'assistant' })
+            req.onFinished('stop')
+        })
+        vi.mocked(getEngine).mockReturnValue(createMockEngine(sendMessage))
+        const query = createTranslateQuery()
+
+        await translate(query)
+
+        expect(getEngine).toHaveBeenCalledWith(provider)
+        expect(query.onMessage).toHaveBeenCalledWith({ content: '你好', role: 'assistant', isWordMode: false })
+        expect(query.onFinish).toHaveBeenCalledWith('stop')
+    })
+
+    it('uses word mode for a single word', async () => {
+        const sendMessage = vi.fn(async (req) => {
+            expect(req.commandPrompt).toContain('单词是：hello')
+            await req.onMessage({ content: '你好', role: 'assistant' })
+            req.onFinished('stop')
+        })
+        vi.mocked(getEngine).mockReturnValue(createMockEngine(sendMessage))
+        const query = createTranslateQuery({ text: 'hello' })
+
+        await translate(query)
+
+        expect(query.onMessage).toHaveBeenCalledWith({ content: '你好', role: 'assistant', isWordMode: true })
+    })
+
+    it('finishes as aborted when the request is aborted', async () => {
+        const controller = new AbortController()
+        controller.abort()
+        const sendMessage = vi.fn(async () => {
+            throw new DOMException('Aborted', 'AbortError')
+        })
+        vi.mocked(getEngine).mockReturnValue(createMockEngine(sendMessage))
+        const query = createTranslateQuery({ signal: controller.signal })
+
+        await translate(query)
+
+        expect(query.onError).not.toHaveBeenCalled()
+        expect(query.onFinish).toHaveBeenCalledWith('aborted')
+    })
+
+    it('reports engine errors', async () => {
+        const sendMessage = vi.fn(async () => {
+            throw new Error('network down')
+        })
+        vi.mocked(getEngine).mockReturnValue(createMockEngine(sendMessage))
+        const query = createTranslateQuery()
+
+        await translate(query)
+
+        expect(query.onError).toHaveBeenCalledWith('network down')
+        expect(query.onFinish).toHaveBeenCalledWith('error')
+    })
+})
 
 describe('QuoteProcessor', () => {
     it('should return the string without quote', () => {

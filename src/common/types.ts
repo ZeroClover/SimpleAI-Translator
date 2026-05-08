@@ -1,5 +1,4 @@
 import { Theme } from 'baseui-sd/theme'
-import { TranslateMode } from './translate'
 import { OpenAITTSSettings, TTSProvider } from './tts/types'
 import { Provider } from './engines'
 import { LangCode } from './lang'
@@ -90,15 +89,10 @@ export interface ISettings {
     deepSeekAPIKey: string
     deepSeekAPIModel: string
     autoTranslate: boolean
-    defaultTranslateMode: Exclude<TranslateMode, 'big-bang'> | 'nop'
     defaultTargetLanguage: string
     alwaysShowIcons: boolean
     hotkey?: string
     displayWindowHotkey?: string
-    ocrHotkey?: string
-    writingTargetLanguage: string
-    writingHotkey?: string
-    writingNewlineHotkey?: string
     themeType?: ThemeType
     i18n?: string
     tts?: {
@@ -118,7 +112,6 @@ export interface ISettings {
     disableCollectingStatistics?: boolean
     allowUsingClipboardWhenSelectedTextNotAvailable?: boolean
     pinned?: boolean
-    autoCollect?: boolean
     hideTheIconInTheDock?: boolean
     languageDetectionEngine?: LanguageDetectionEngine
     autoHideWindowWhenOutOfFocus?: boolean

@@ -85,10 +85,10 @@
 - [x] 8.1 删除 `src/common/components/Vocabulary.tsx`
 - [x] 8.2 删除 `src/common/components/ActionManager.tsx`、`ActionForm.tsx`
 - [x] 8.3 若 `IconPicker.tsx` 仅 Action 用,删除;否则核查后保留
-- [ ] 8.4 删除 `src/common/internal-services/action.ts`、`vocabulary.ts`
-- [ ] 8.5 删除 `src/common/services/action.ts`、`vocabulary.ts`
+- [x] 8.4 删除 `src/common/internal-services/action.ts`、`vocabulary.ts`
+- [x] 8.5 删除 `src/common/services/action.ts`、`vocabulary.ts`
 - [x] 8.6 完全删除 Promotion 系统:`src/common/services/promotion.ts`、`src/common/hooks/usePromotionShowed.ts`、`src/common/hooks/usePromotionNeverDisplay.ts`;从 `src/common/hooks/global.ts` 删除 `promotionShowedMap` / `promotionNeverDisplayMap`
-- [ ] 8.7 删除 `src/common/constants.ts` 中 `builtinActionModes` 数组及其类型
+- [x] 8.7 删除 `src/common/constants.ts` 中 `builtinActionModes` 数组及其类型
 - [ ] 8.8 删除 `src/common/engines/{azure,cerebras,chatglm,chatgpt,claude,cohere,deepseek,gemini,groq,kimi,minimax,moonshot,ollama,openai}.ts`
 - [ ] 8.9 删除 `src/common/engines/abstract-openai.ts` + `abstract-openai.spec.ts`(逻辑已迁入 `protocols/openai-chat.ts`),或就地改名简化
 - [ ] 8.10 删除 `src/common/engines/abstract-engine.ts`(若新接口完全替代)

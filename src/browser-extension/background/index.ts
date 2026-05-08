@@ -2,7 +2,6 @@
 import browser from 'webextension-polyfill'
 import { BackgroundEventNames } from '../../common/background/eventnames'
 import { BackgroundFetchRequestMessage, BackgroundFetchResponseMessage } from '../../common/background/fetch'
-import { actionInternalService } from '../../common/internal-services/action'
 import { historyInternalService } from '../../common/internal-services/history'
 
 browser.contextMenus?.create(
@@ -127,8 +126,6 @@ async function callMethod(request: any, service: any): Promise<any> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 browser.runtime.onMessage.addListener(async (request) => {
     switch (request.type) {
-        case BackgroundEventNames.actionService:
-            return await callMethod(request, actionInternalService)
         case BackgroundEventNames.historyService:
             return await callMethod(request, historyInternalService)
         case BackgroundEventNames.getItem:

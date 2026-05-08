@@ -77,15 +77,6 @@ import { readFile } from '@tauri-apps/plugin-fs'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useDeepCompareCallback } from 'use-deep-compare'
 import { useTranslatorStore } from '../store'
-import useSWR from 'swr'
-import {
-    IPromotionResponse,
-    checkShouldShowPromotionNotification,
-    fetchPromotions,
-    choicePromotionItem,
-    IPromotionItem,
-} from '../services/promotion'
-import { usePromotionShowed } from '../hooks/usePromotionShowed'
 import { SpeakerIcon } from './SpeakerIcon'
 import { Provider, engineIcons, getEngine, providerToEngine } from '../engines'
 import color from 'color'
@@ -1701,87 +1692,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         [actions, activateAction, getTranslateDeps]
     )
 
-    const { data: promotions, mutate: refetchPromotions } = useSWR<IPromotionResponse>(
-        ['promotions', showSettings],
-        fetchPromotions
-    )
-
-    useEffect(() => {
-        const timer = setInterval(
-            () => {
-                refetchPromotions()
-            },
-            1000 * 60 * 10
-        )
-        return () => {
-            clearInterval(timer)
-        }
-    }, [refetchPromotions])
-
-    useEffect(() => {
-        if (!isTauri()) {
-            return undefined
-        }
-        let unlisten: UnlistenFn | undefined
-        const appWindow = WebviewWindow.getCurrent()
-        appWindow
-            .listen('tauri://focus', () => {
-                refetchPromotions()
-            })
-            .then((cb: UnlistenFn) => {
-                unlisten = cb
-            })
-        return () => {
-            unlisten?.()
-        }
-    }, [refetchPromotions])
-
-    const [openaiAPIKeyPromotion, setOpenaiAPIKeyPromotion] = useState<IPromotionItem>()
-    const [settingsHeaderPromotion, setSettingsHeaderPromotion] = useState<IPromotionItem>()
-
-    useEffect(() => {
-        choicePromotionItem(promotions?.openai_api_key).then(setOpenaiAPIKeyPromotion)
-        choicePromotionItem(promotions?.settings_header).then(setSettingsHeaderPromotion)
-        if (!isTauri()) {
-            const timer = setInterval(() => {
-                choicePromotionItem(promotions?.openai_api_key).then(setOpenaiAPIKeyPromotion)
-                choicePromotionItem(promotions?.settings_header).then(setSettingsHeaderPromotion)
-            }, 1000 * 60)
-            return () => {
-                clearInterval(timer)
-            }
-        }
-        let unlisten: UnlistenFn | undefined
-        const appWindow = WebviewWindow.getCurrent()
-        appWindow
-            .listen('tauri://focus', () => {
-                choicePromotionItem(promotions?.openai_api_key).then(setOpenaiAPIKeyPromotion)
-                choicePromotionItem(promotions?.settings_header).then(setSettingsHeaderPromotion)
-            })
-            .then((cb: UnlistenFn) => {
-                unlisten = cb
-            })
-        return () => {
-            unlisten?.()
-        }
-    }, [promotions?.openai_api_key, promotions?.settings_header])
-
-    const { promotionShowed: openaiAPIKeyPromotionShowed } = usePromotionShowed(openaiAPIKeyPromotion)
-    const { promotionShowed: settingsHeaderPromotionShowed } = usePromotionShowed(settingsHeaderPromotion)
-
-    const [shouldShowPromotionNotification, setShouldShowPromotionNotification] = useState(false)
-
-    useEffect(() => {
-        checkShouldShowPromotionNotification().then(setShouldShowPromotionNotification)
-        const ms = 1000 * 60 * 5
-        const timer = setInterval(() => {
-            checkShouldShowPromotionNotification().then(setShouldShowPromotionNotification)
-        }, ms)
-        return () => {
-            clearInterval(timer)
-        }
-    }, [showSettings])
-
     const getFooterBackgroundColor = useCallback(() => {
         if (settings.enableBackgroundBlur) {
             return 'transparent !important'
@@ -1806,8 +1716,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     onSave={(oldSettings) => {
                         props.onSettingsSave?.(oldSettings)
                     }}
-                    headerPromotionID={settingsHeaderPromotion?.id}
-                    openaiAPIKeyPromotionID={openaiAPIKeyPromotion?.id}
                 />
             )}
             <div
@@ -2679,23 +2587,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                             }}
                                             size={15}
                                         />
-                                        {shouldShowPromotionNotification &&
-                                            (openaiAPIKeyPromotion || settingsHeaderPromotion) &&
-                                            (!openaiAPIKeyPromotionShowed || !settingsHeaderPromotionShowed) && (
-                                                <div
-                                                    style={{
-                                                        position: 'absolute',
-                                                        width: '0.45rem',
-                                                        height: '0.45rem',
-                                                        top: '-4px',
-                                                        right: '-6px',
-                                                        borderRadius: '50%',
-                                                        backgroundColor: settingsHeaderPromotionShowed
-                                                            ? theme.colors.warning400
-                                                            : theme.colors.accent300,
-                                                    }}
-                                                />
-                                            )}
                                     </div>
                                 )}
                                 {showSettings ? t('Go back') : ''}

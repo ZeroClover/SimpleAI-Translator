@@ -87,7 +87,7 @@
 - [ ] 8.3 若 `IconPicker.tsx` 仅 Action 用,删除;否则核查后保留
 - [ ] 8.4 删除 `src/common/internal-services/action.ts`、`vocabulary.ts`
 - [ ] 8.5 删除 `src/common/services/action.ts`、`vocabulary.ts`
-- [ ] 8.6 完全删除 Promotion 系统:`src/common/services/promotion.ts`、`src/common/hooks/usePromotionShowed.ts`、`src/common/hooks/usePromotionNeverDisplay.ts`;从 `src/common/hooks/global.ts` 删除 `promotionShowedMap` / `promotionNeverDisplayMap`
+- [x] 8.6 完全删除 Promotion 系统:`src/common/services/promotion.ts`、`src/common/hooks/usePromotionShowed.ts`、`src/common/hooks/usePromotionNeverDisplay.ts`;从 `src/common/hooks/global.ts` 删除 `promotionShowedMap` / `promotionNeverDisplayMap`
 - [ ] 8.7 删除 `src/common/constants.ts` 中 `builtinActionModes` 数组及其类型
 - [ ] 8.8 删除 `src/common/engines/{azure,cerebras,chatglm,chatgpt,claude,cohere,deepseek,gemini,groq,kimi,minimax,moonshot,ollama,openai}.ts`
 - [ ] 8.9 删除 `src/common/engines/abstract-openai.ts` + `abstract-openai.spec.ts`(逻辑已迁入 `protocols/openai-chat.ts`),或就地改名简化
@@ -100,7 +100,7 @@
 - [x] 8.16 从 `src-tauri/capabilities/migrated.json` 删除 `action_manager` / `screenshot`;删除 `src-tauri/resources/bin/ocr_apple` 与 `src-tauri/resources/bin/ocr_intel`
 - [ ] 8.17 在 `src/browser-extension/` 与 `src-safari/` background 脚本中移除 OCR、写作、画词相关消息处理与上下文菜单条目
 - [ ] 8.18 移除浏览器扩展 `webRequest` permission 与 ChatGPT Arkose / Kimi / ChatGLM token 捕获 listener;删除旧厂商固定 `host_permissions`,实现自定义 endpoint 的 optional host permission 请求/拒绝处理
-- [ ] 8.19 从 `Translator.tsx` 删除 promotion 拉取/定时刷新/focus 刷新/设置入口提示点/`headerPromotionID` 与 `openaiAPIKeyPromotionID` 传递;从 `Settings.tsx` 删除 header promotion、OpenAI API Key promotion、disclaimer promotion modal、promotion 相关统计事件
+- [x] 8.19 从 `Translator.tsx` 删除 promotion 拉取/定时刷新/focus 刷新/设置入口提示点/`headerPromotionID` 与 `openaiAPIKeyPromotionID` 传递;从 `Settings.tsx` 删除 header promotion、OpenAI API Key promotion、disclaimer promotion modal、promotion 相关统计事件
 - [x] 8.20 删除浏览器扩展 promotion id 传递:`src/browser-extension/common.ts` 中的 `optionsPageOpenaiAPIKeyPromotionIDKey` / `optionsPageHeaderPromotionIDKey`,options page 读取逻辑,background `openOptionsPage` 对 promotion id 的 storage 写入
 
 ## 9. i18n 与文案清理
@@ -109,7 +109,7 @@
 - [ ] 9.2 新增 LLM Provider 列表 / 表单相关 i18n 键(中英为主,其它语言保留 fallback 到英文即可)
 - [ ] 9.3 新增"无可用 Provider"引导文案 i18n 键
 - [ ] 9.4 新增 OpenAI TTS 相关 i18n 键(关联 Provider、模型、voice、音频格式、错误提示)
-- [ ] 9.5 删除 Promotion 相关文案、样式与测试 fixture;确认 UI 不再出现 promotion、推广、公告、API Key 提示点等旧文案
+- [x] 9.5 删除 Promotion 相关文案、样式与测试 fixture;确认 UI 不再出现 promotion、推广、公告、API Key 提示点等旧文案
 
 ## 10. 依赖与构建
 

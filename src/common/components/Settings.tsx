@@ -9,12 +9,12 @@ import toast, { Toaster } from 'react-hot-toast'
 import * as utils from '../utils'
 import { Client as Styletron } from 'styletron-engine-atomic'
 import { Provider as StyletronProvider } from 'styletron-react'
-import { BaseProvider, LightTheme } from 'baseui-sd'
+import { BaseProvider } from 'baseui-sd'
 import { Input } from 'baseui-sd/input'
 import { createForm } from './Form'
 import { Button, ButtonProps } from 'baseui-sd/button'
 import { TranslateMode, APIModel } from '../translate'
-import { Select, Value, Option, SelectProps, Options } from 'baseui-sd/select'
+import { Select, Value, Option, Options } from 'baseui-sd/select'
 import { Checkbox } from 'baseui-sd/checkbox'
 import { LangCode, supportedLanguages } from '../lang'
 import { useRecordHotkeys } from 'react-hotkeys-hook'
@@ -28,7 +28,7 @@ import AppConfig from '../../../package.json'
 import { useSettings } from '../hooks/useSettings'
 import { defaultTTSProvider, langCode2TTSLang, ttsLangTestTextMap } from '../tts'
 import { RiDeleteBin5Line } from 'react-icons/ri'
-import { IoIosHelpCircleOutline, IoIosSave, IoMdAdd } from 'react-icons/io'
+import { IoIosSave, IoMdAdd } from 'react-icons/io'
 import { TTSProvider } from '../tts/types'
 import { fetchEdgeVoices } from '../tts/edge-tts'
 import { useThemeType } from '../hooks/useThemeType'
@@ -37,30 +37,17 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { actionService } from '../services/action'
 import { Action } from '../internal-services/db'
 import { GlobalSuspense } from './GlobalSuspense'
-import { Modal, ModalBody, ModalButton, ModalFooter, ModalHeader } from 'baseui-sd/modal'
+import { Modal, ModalBody, ModalHeader } from 'baseui-sd/modal'
 import { Provider, engineIcons, getEngine } from '../engines'
 import { IModel } from '../engines/interfaces'
 import { PiTextbox } from 'react-icons/pi'
 import { BsKeyboard } from 'react-icons/bs'
 import { TbCloudNetwork } from 'react-icons/tb'
 import { Cell, Grid } from 'baseui-sd/layout-grid'
-import {
-    II18nPromotionContent,
-    IPromotionResponse,
-    fetchPromotions,
-    II18nPromotionContentItem,
-    choicePromotionItem,
-    IPromotionItem,
-} from '../services/promotion'
 import useSWR from 'swr'
-import { Markdown } from './Markdown'
-import type { UnlistenFn } from '@tauri-apps/api/event'
-import { usePromotionShowed } from '../hooks/usePromotionShowed'
 import { Skeleton } from 'baseui-sd/skeleton'
 import { SpeakerIcon } from './SpeakerIcon'
 import { RxSpeakerLoud } from 'react-icons/rx'
-import { Notification } from 'baseui-sd/notification'
-import { usePromotionNeverDisplay } from '../hooks/usePromotionNeverDisplay'
 import { Textarea } from 'baseui-sd/textarea'
 import { ProxyTester } from './ProxyTester'
 import { CUSTOM_MODEL_ID } from '../constants'
@@ -1107,45 +1094,6 @@ function RunAtStartupCheckbox({ value, onChange, onBlur }: RunAtStartupCheckboxP
 }
 
 const useStyles = createUseStyles({
-    headerPromotion: (props: IThemedStyleProps) => {
-        return {
-            '& p': {
-                margin: '1px 0',
-            },
-            '& a': {
-                color: props.theme.colors.contentPrimary,
-                textDecoration: 'underline',
-            },
-        }
-    },
-    promotion: (props: IThemedStyleProps) => {
-        return {
-            'display': 'flex',
-            'flexDirection': 'column',
-            'gap': '4px',
-            'borderRadius': '12px',
-            'padding': '10px 14px',
-            'color': props.themeType === 'dark' ? props.theme.colors.black : props.theme.colors.contentPrimary,
-            'backgroundColor': props.theme.colors.warning100,
-            '& p': {
-                margin: '2px 0',
-            },
-            '& a': {
-                color: props.themeType === 'dark' ? props.theme.colors.black : props.theme.colors.contentPrimary,
-                textDecoration: 'underline',
-            },
-        }
-    },
-    disclaimer: (props: IThemedStyleProps) => {
-        return {
-            'color': props.theme.colors.contentPrimary,
-            'lineHeight': 1.8,
-            '& a': {
-                color: props.theme.colors.contentPrimary,
-                textDecoration: 'underline',
-            },
-        }
-    },
     footer: (props: IThemedStyleProps) =>
         props.isDesktopApp
             ? {
@@ -1317,12 +1265,9 @@ function HotkeyRecorder({ value, onChange, onBlur, testId }: IHotkeyRecorderProp
 
 interface IAddProviderIconsProps {
     options: Options
-    currentProvider?: Provider
-    hasPromotion?: boolean
-    theme: typeof LightTheme
 }
 
-const addProviderIcons = ({ options, currentProvider, hasPromotion, theme }: IAddProviderIconsProps) => {
+const addProviderIcons = ({ options }: IAddProviderIconsProps) => {
     if (!Array.isArray(options)) {
         return options
     }
@@ -1334,7 +1279,7 @@ const addProviderIcons = ({ options, currentProvider, hasPromotion, theme }: IAd
         if (!icon) {
             return item
         }
-        let label = (
+        const label = (
             <div
                 style={{
                     display: 'flex',
@@ -1347,30 +1292,6 @@ const addProviderIcons = ({ options, currentProvider, hasPromotion, theme }: IAd
                 {item.label}
             </div>
         )
-        if (item.id === 'OpenAI') {
-            label = (
-                <div
-                    style={{
-                        display: 'flex',
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 10,
-                    }}
-                >
-                    {label}
-                    {hasPromotion && currentProvider !== 'OpenAI' && (
-                        <div
-                            style={{
-                                width: '0.45rem',
-                                height: '0.45rem',
-                                borderRadius: '50%',
-                                backgroundColor: theme.colors.warning300,
-                            }}
-                        />
-                    )}
-                </div>
-            )
-        }
         return {
             ...item,
             label,
@@ -1381,23 +1302,10 @@ const addProviderIcons = ({ options, currentProvider, hasPromotion, theme }: IAd
 interface IProviderSelectorProps {
     value?: Provider
     onChange?: (value: Provider) => void
-    hasPromotion?: boolean
 }
 
-export function ProviderSelector({ value, onChange, hasPromotion }: IProviderSelectorProps) {
-    const { theme } = useTheme()
+export function ProviderSelector({ value, onChange }: IProviderSelectorProps) {
     const { t } = useTranslation()
-
-    let overrides: SelectProps['overrides'] = undefined
-    if (hasPromotion && value !== 'OpenAI') {
-        overrides = {
-            ControlContainer: {
-                style: {
-                    borderColor: theme.colors.warning300,
-                },
-            },
-        }
-    }
 
     const options = utils.isDesktopApp()
         ? ([
@@ -1440,7 +1348,6 @@ export function ProviderSelector({ value, onChange, hasPromotion }: IProviderSel
 
     return (
         <Select
-            overrides={overrides}
             size='compact'
             searchable={false}
             clearable={false}
@@ -1456,9 +1363,6 @@ export function ProviderSelector({ value, onChange, hasPromotion }: IProviderSel
             }}
             options={addProviderIcons({
                 options,
-                currentProvider: value,
-                hasPromotion,
-                theme,
             })}
         />
     )
@@ -1469,8 +1373,6 @@ const { Form, FormItem, useForm } = createForm<ISettings>()
 interface IInnerSettingsProps {
     showFooter?: boolean
     onSave?: (oldSettings: ISettings) => void
-    headerPromotionID?: string
-    openaiAPIKeyPromotionID?: string
 }
 
 interface ISettingsProps extends IInnerSettingsProps {
@@ -1769,43 +1671,8 @@ function PerActionModelConfig({ settings }: IPerActionModelConfigProps) {
     )
 }
 
-export function InnerSettings({
-    onSave,
-    showFooter = false,
-    openaiAPIKeyPromotionID,
-    headerPromotionID,
-}: IInnerSettingsProps) {
-    const { data: promotions, mutate: refetchPromotions } = useSWR<IPromotionResponse>('promotions', fetchPromotions)
-
-    useEffect(() => {
-        const timer = setInterval(
-            () => {
-                refetchPromotions()
-            },
-            1000 * 60 * 10
-        )
-        return () => {
-            clearInterval(timer)
-        }
-    }, [refetchPromotions])
-
+export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProps) {
     const isTauri = utils.isTauri()
-    const registerFocusListener = useCallback(
-        async (handler: () => void): Promise<UnlistenFn | undefined> => {
-            if (!isTauri) {
-                return undefined
-            }
-            try {
-                const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow')
-                const appWindow = WebviewWindow.getCurrent()
-                return await appWindow.listen('tauri://focus', handler)
-            } catch (error) {
-                console.error('Failed to register Tauri focus listener', error)
-                return undefined
-            }
-        },
-        [isTauri]
-    )
     const trackTauriEvent = useCallback(
         async (eventName: string, payload?: Record<string, string | number>) => {
             if (!isTauri) {
@@ -1820,35 +1687,6 @@ export function InnerSettings({
         },
         [isTauri]
     )
-
-    useEffect(() => {
-        if (!isTauri) {
-            return undefined
-        }
-        let disposed = false
-        let unlisten: UnlistenFn | undefined
-
-        registerFocusListener(() => {
-            refetchPromotions()
-        })
-            .then((cb) => {
-                if (!cb) {
-                    return
-                }
-                if (disposed) {
-                    cb()
-                    return
-                }
-                unlisten = cb
-            })
-            .catch((error) => {
-                console.error('Failed to set promotions focus listener', error)
-            })
-        return () => {
-            disposed = true
-            unlisten?.()
-        }
-    }, [isTauri, refetchPromotions, registerFocusListener])
 
     useEffect(() => {
         void trackTauriEvent('screen_view', { name: 'Settings' })
@@ -2073,160 +1911,6 @@ export function InnerSettings({
         },
     }
 
-    const getI18nPromotionContent = (contentItem: II18nPromotionContentItem) => {
-        let c =
-            contentItem.content[
-                (values.i18n as keyof II18nPromotionContent | undefined) ?? contentItem.fallback_language
-            ]
-        if (!c) {
-            c = contentItem.content[contentItem.fallback_language]
-        }
-        return c
-    }
-
-    const renderI18nPromotionContent = (contentItem: II18nPromotionContentItem) => {
-        if (contentItem.format === 'text') {
-            return <span>{getI18nPromotionContent(contentItem)}</span>
-        }
-
-        if (contentItem.format === 'html') {
-            return (
-                <div
-                    dangerouslySetInnerHTML={{
-                        __html: getI18nPromotionContent(contentItem) ?? '',
-                    }}
-                />
-            )
-        }
-
-        if (contentItem.format === 'markdown') {
-            return <Markdown linkTarget='_blank'>{getI18nPromotionContent(contentItem) ?? ''}</Markdown>
-        }
-
-        return <div />
-    }
-
-    const [disclaimerAgreeLink, setDisclaimerAgreeLink] = useState<string>()
-    const [disclaimerPromotion, setDisclaimerPromotion] = useState<IPromotionItem>()
-
-    const [openaiAPIKeyPromotion, setOpenaiAPIKeyPromotion] = useState<IPromotionItem>()
-
-    useEffect(() => {
-        let disposed = false
-        let unlisten: UnlistenFn | undefined
-        if (openaiAPIKeyPromotionID) {
-            setOpenaiAPIKeyPromotion(promotions?.openai_api_key?.find((item) => item.id === openaiAPIKeyPromotionID))
-        } else {
-            choicePromotionItem(promotions?.openai_api_key).then((item) => {
-                if (!disposed) {
-                    setOpenaiAPIKeyPromotion(item)
-                }
-            })
-            if (isTauri) {
-                registerFocusListener(() => {
-                    choicePromotionItem(promotions?.openai_api_key).then((item) => {
-                        if (!disposed) {
-                            setOpenaiAPIKeyPromotion(item)
-                        }
-                    })
-                })
-                    .then((cb) => {
-                        if (!cb) {
-                            return
-                        }
-                        if (disposed) {
-                            cb()
-                            return
-                        }
-                        unlisten = cb
-                    })
-                    .catch((error) => {
-                        console.error('Failed to set OpenAI promotion focus listener', error)
-                    })
-            }
-        }
-        return () => {
-            disposed = true
-            unlisten?.()
-        }
-    }, [isTauri, openaiAPIKeyPromotionID, promotions?.openai_api_key, registerFocusListener])
-
-    const [headerPromotion, setHeaderPromotion] = useState<IPromotionItem>()
-
-    useEffect(() => {
-        let disposed = false
-        let unlisten: UnlistenFn | undefined
-        if (headerPromotionID) {
-            setHeaderPromotion(promotions?.settings_header?.find((item) => item.id === headerPromotionID))
-        } else {
-            choicePromotionItem(promotions?.settings_header).then((item) => {
-                if (!disposed) {
-                    setHeaderPromotion(item)
-                }
-            })
-            if (isTauri) {
-                registerFocusListener(() => {
-                    choicePromotionItem(promotions?.settings_header).then((item) => {
-                        if (!disposed) {
-                            setHeaderPromotion(item)
-                        }
-                    })
-                })
-                    .then((cb) => {
-                        if (!cb) {
-                            return
-                        }
-                        if (disposed) {
-                            cb()
-                            return
-                        }
-                        unlisten = cb
-                    })
-                    .catch((error) => {
-                        console.error('Failed to set header promotion focus listener', error)
-                    })
-            }
-        }
-        return () => {
-            disposed = true
-            unlisten?.()
-        }
-    }, [headerPromotionID, isTauri, promotions?.settings_header, registerFocusListener])
-
-    const { promotionShowed: openaiAPIKeyPromotionShowed, setPromotionShowed: setOpenaiAPIKeyPromotionShowed } =
-        usePromotionShowed(openaiAPIKeyPromotion)
-
-    const { setPromotionShowed: setHeaderPromotionShowed } = usePromotionShowed(headerPromotion)
-
-    useEffect(() => {
-        setHeaderPromotionShowed(true)
-    }, [setHeaderPromotionShowed])
-
-    const {
-        promotionNeverDisplay: headerPromotionNeverDisplay,
-        setPromotionNeverDisplay: setHeaderPromotionNeverDisplay,
-    } = usePromotionNeverDisplay(headerPromotion)
-
-    const isOpenAI = values.provider === 'OpenAI'
-
-    useEffect(() => {
-        if (isOpenAI) {
-            setOpenaiAPIKeyPromotionShowed(true)
-        }
-    }, [setOpenaiAPIKeyPromotionShowed, isOpenAI])
-
-    useEffect(() => {
-        if (isOpenAI && openaiAPIKeyPromotion) {
-            void trackTauriEvent('promotion_view', { id: openaiAPIKeyPromotion.id })
-        }
-    }, [isOpenAI, openaiAPIKeyPromotion, trackTauriEvent])
-
-    useEffect(() => {
-        if (disclaimerPromotion?.id) {
-            void trackTauriEvent('promotion_disclaimer_view', { id: disclaimerPromotion.id })
-        }
-    }, [disclaimerPromotion?.id, trackTauriEvent])
-
     console.debug('render settings')
 
     return (
@@ -2367,47 +2051,6 @@ export function InnerSettings({
                     />
                 </Tabs>
             </nav>
-            {headerPromotion && !headerPromotionNeverDisplay && (
-                <div
-                    className={styles.headerPromotion}
-                    onClick={(e) => {
-                        if ((e.target as HTMLElement).tagName === 'A') {
-                            const href = (e.target as HTMLAnchorElement).href
-                            if (href && href.startsWith('http')) {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                setDisclaimerPromotion(headerPromotion)
-                                setDisclaimerAgreeLink(href)
-                            }
-                        }
-                    }}
-                >
-                    <Notification
-                        overrides={{
-                            Body: {
-                                style: {
-                                    width: 'auto',
-                                    fontSize: '12px',
-                                    lineHeight: '1.6',
-                                    marginTop: '10px',
-                                    marginBottom: '0px',
-                                    paddingLeft: '14px',
-                                    paddingRight: '8px',
-                                    paddingTop: '6px',
-                                    paddingBottom: '6px',
-                                    color: theme.colors.contentPrimary,
-                                },
-                            },
-                        }}
-                        closeable={headerPromotion.can_never_display}
-                        onClose={() => {
-                            setHeaderPromotionNeverDisplay(true)
-                        }}
-                    >
-                        {renderI18nPromotionContent(headerPromotion.promotion)}
-                    </Notification>
-                </div>
-            )}
             {!isDesktopApp && (
                 <div
                     style={{
@@ -2467,16 +2110,6 @@ export function InnerSettings({
                                     }}
                                 >
                                     {t('Default service provider')}
-                                    {openaiAPIKeyPromotion !== undefined && !openaiAPIKeyPromotionShowed && (
-                                        <div
-                                            style={{
-                                                width: '0.45rem',
-                                                height: '0.45rem',
-                                                borderRadius: '50%',
-                                                backgroundColor: theme.colors.warning300,
-                                            }}
-                                        />
-                                    )}
                                 </div>
                             }
                             required
@@ -2497,9 +2130,7 @@ export function InnerSettings({
                                 ) : undefined
                             }
                         >
-                            <ProviderSelector
-                                hasPromotion={openaiAPIKeyPromotion !== undefined && !openaiAPIKeyPromotionShowed}
-                            />
+                            <ProviderSelector />
                         </FormItem>
                         <div
                             style={{
@@ -2966,54 +2597,10 @@ export function InnerSettings({
                                                 'to get your API Key. You can separate multiple API Keys with English commas to achieve quota doubling and load balancing.'
                                             )}
                                         </div>
-                                        {openaiAPIKeyPromotion && (
-                                            <div className={styles.promotion}>
-                                                <div
-                                                    onClick={(e) => {
-                                                        if ((e.target as HTMLElement).tagName === 'A') {
-                                                            const href = (e.target as HTMLAnchorElement).href
-                                                            if (href && href.startsWith('http')) {
-                                                                e.preventDefault()
-                                                                e.stopPropagation()
-                                                                setDisclaimerPromotion(openaiAPIKeyPromotion)
-                                                                setDisclaimerAgreeLink(href)
-                                                            }
-                                                        }
-                                                    }}
-                                                >
-                                                    {renderI18nPromotionContent(openaiAPIKeyPromotion.promotion)}
-                                                </div>
-                                                {openaiAPIKeyPromotion.configuration_doc_link && (
-                                                    <div
-                                                        style={{
-                                                            display: 'flex',
-                                                            flexDirection: 'row',
-                                                            alignItems: 'center',
-                                                            gap: 3,
-                                                        }}
-                                                    >
-                                                        <IoIosHelpCircleOutline size={12} />
-                                                        <a
-                                                            href={openaiAPIKeyPromotion.configuration_doc_link}
-                                                            target='_blank'
-                                                            rel='noreferrer'
-                                                        >
-                                                            {t('How to Use')}
-                                                        </a>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
                                     </div>
                                 }
                             >
-                                <Input
-                                    autoFocus={!openaiAPIKeyPromotion}
-                                    type='password'
-                                    size='compact'
-                                    name='apiKey'
-                                    onBlur={onBlur}
-                                />
+                                <Input autoFocus type='password' size='compact' name='apiKey' onBlur={onBlur} />
                             </FormItem>
                             <FormItem
                                 name='noModelsAPISupport'
@@ -3527,53 +3114,6 @@ export function InnerSettings({
                         </div>
                     </div>
                 </ModalBody>
-            </Modal>
-            <Modal
-                isOpen={!!disclaimerPromotion}
-                onClose={() => setDisclaimerPromotion(undefined)}
-                closeable
-                size='auto'
-                autoFocus
-                animate
-            >
-                <ModalHeader>{t('Disclaimer')}</ModalHeader>
-                <ModalBody className={styles.disclaimer}>
-                    {disclaimerPromotion ? renderI18nPromotionContent(disclaimerPromotion.disclaimer) : ''}
-                </ModalBody>
-                <ModalFooter>
-                    <ModalButton
-                        size='compact'
-                        kind='tertiary'
-                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            setDisclaimerPromotion(undefined)
-                        }}
-                    >
-                        {t('Disagree')}
-                    </ModalButton>
-                    <ModalButton
-                        size='compact'
-                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                            e.stopPropagation()
-                            e.preventDefault()
-                            if (isTauri) {
-                                void trackTauriEvent('promotion_clicked', { id: openaiAPIKeyPromotion?.id ?? '' })
-                                if (disclaimerAgreeLink) {
-                                    void import('@tauri-apps/plugin-shell')
-                                        .then(({ open }) => open(disclaimerAgreeLink))
-                                        .catch((error) => {
-                                            console.error('Failed to open disclaimer link', error)
-                                        })
-                                }
-                            } else {
-                                window.open(disclaimerAgreeLink)
-                            }
-                        }}
-                    >
-                        {t('Agree and continue')}
-                    </ModalButton>
-                </ModalFooter>
             </Modal>
         </div>
     )

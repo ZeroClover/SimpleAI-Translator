@@ -49,8 +49,22 @@ export type LanguageDetectionEngine = 'google' | 'baidu' | 'bing' | 'local'
 
 export type ProxyProtocol = 'HTTP' | 'HTTPS'
 
+export type ProviderProtocol = 'openai-chat' | 'openai-responses' | 'anthropic'
+
+export interface ProviderConfig {
+    id: string
+    name: string
+    protocol: ProviderProtocol
+    apiKey: string
+    endpoint?: string
+    model: string
+    extraHeaders?: Record<string, string>
+}
+
 export interface ISettings {
     automaticCheckForUpdates: boolean
+    providers: ProviderConfig[]
+    defaultProviderId: string | null
     apiKeys: string
     apiURL: string
     apiURLPath: string

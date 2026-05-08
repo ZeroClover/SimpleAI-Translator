@@ -6,9 +6,9 @@
 
 ## 2. 类型与存储 schema
 
-- [ ] 2.1 在 `src/common/types.ts` 新增 `ProviderProtocol = 'openai-chat' | 'openai-responses' | 'anthropic'` 联合类型
-- [ ] 2.2 在 `src/common/types.ts` 新增 `ProviderConfig` 接口(`id / name / protocol / apiKey / endpoint? / model / extraHeaders?`)
-- [ ] 2.3 在 `ISettings` 中新增 `providers: ProviderConfig[]` 与 `defaultProviderId: string | null`
+- [x] 2.1 在 `src/common/types.ts` 新增 `ProviderProtocol = 'openai-chat' | 'openai-responses' | 'anthropic'` 联合类型
+- [x] 2.2 在 `src/common/types.ts` 新增 `ProviderConfig` 接口(`id / name / protocol / apiKey / endpoint? / model / extraHeaders?`)
+- [x] 2.3 在 `ISettings` 中新增 `providers: ProviderConfig[]` 与 `defaultProviderId: string | null`
 - [ ] 2.4 从 `ISettings` 删除旧 Provider 字段(`apiKeys` / `apiURL` / `apiModel` / `provider` / `chatgptModel` / `azure*` / `miniMax*` / `gemini*` / `moonshot*` / `deepSeek*` / `customModelName`),不标 deprecated、不保留读取路径
 - [ ] 2.5 删除 `ISettings` 中 `defaultTranslateMode` / `writingTargetLanguage` / `writingHotkey` / `writingNewlineHotkey` / `ocrHotkey` / `autoCollect` 字段
 - [ ] 2.6 删除 `TranslateMode` 类型导出与所有引用,在 `translate.ts` 内仅保留 `'translate'` 单一隐式模式

@@ -511,7 +511,6 @@ export interface MovementXY {
 
 export interface IInnerTranslatorProps {
     uuid?: string
-    writing?: boolean
     autoFocus?: boolean
     showSettingsIcon?: boolean
     showSettings?: boolean

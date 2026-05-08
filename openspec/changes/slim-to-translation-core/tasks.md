@@ -82,7 +82,7 @@
 
 ## 8. 删除已废弃模块与文件
 
-- [ ] 8.1 删除 `src/common/components/Vocabulary.tsx`
+- [x] 8.1 删除 `src/common/components/Vocabulary.tsx`
 - [ ] 8.2 删除 `src/common/components/ActionManager.tsx`、`ActionForm.tsx`
 - [ ] 8.3 若 `IconPicker.tsx` 仅 Action 用,删除;否则核查后保留
 - [ ] 8.4 删除 `src/common/internal-services/action.ts`、`vocabulary.ts`

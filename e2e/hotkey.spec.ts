@@ -6,8 +6,6 @@ import { containerID, popupCardID, popupCardInnerContainerId } from '../src/brow
 test('hotkey should work', async ({ page, extensionId }) => {
     await test.step('set hotkey', async () => {
         await page.goto(getOptionsPageUrl(extensionId))
-        const input = page.locator('input[name="apiKey"]')
-        await input.fill('fake-api-key')
         await page.getByTestId('shortcuts').click()
         await page.getByTestId('hotkey-recorder').click()
         await page.keyboard.down('Alt')

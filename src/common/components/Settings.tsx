@@ -1471,7 +1471,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
     )
 
     const onBlur = useCallback(async () => {
-        if (values.apiKeys && !_.isEqual(values, prevValues)) {
+        if (!_.isEqual(values, prevValues)) {
             await utils.setSettings(values)
             setPrevValues(values)
         }
@@ -2682,7 +2682,12 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                             marginRight: 'auto',
                         }}
                     />
-                    <Button isLoading={loading} size='mini' startEnhancer={<IoIosSave size={12} />}>
+                    <Button
+                        isLoading={loading}
+                        size='mini'
+                        startEnhancer={<IoIosSave size={12} />}
+                        onClick={() => void onSubmit(form.getFieldsValue())}
+                    >
                         {t('Save')}
                     </Button>
                 </div>

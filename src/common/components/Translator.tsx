@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast/headless'
 import { Client as Styletron } from 'styletron-engine-atomic'
@@ -10,9 +10,8 @@ import { IoSettingsOutline } from 'react-icons/io5'
 import { TiArrowBack } from 'react-icons/ti'
 import { TbArrowsExchange } from 'react-icons/tb'
 import { MdHistory } from 'react-icons/md'
-import * as mdIcons from 'react-icons/md'
 import { detectLang, getLangConfig, sourceLanguages, targetLanguages, LangCode } from '../lang'
-import { translate, TranslateMode } from '../translate'
+import { translate } from '../translate'
 import { Select, Value, Option } from 'baseui-sd/select'
 import { RxEraser, RxEnter, RxReload, RxStop } from 'react-icons/rx'
 import { clsx } from 'clsx'
@@ -32,19 +31,9 @@ import { Tooltip } from './Tooltip'
 import { useSettings } from '../hooks/useSettings'
 import { Action, HistoryItem } from '../internal-services/db'
 import { CopyButton } from './CopyButton'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { actionService } from '../services/action'
 import { historyService } from '../services/history'
 import { TranslationHistory } from './TranslationHistory'
-import { GrMoreVertical } from 'react-icons/gr'
-import { StatefulPopover } from 'baseui-sd/popover'
-import { StatefulMenu } from 'baseui-sd/menu'
-import { IconType } from 'react-icons'
 import { IoIosRocket } from 'react-icons/io'
-import 'katex/dist/katex.min.css'
-import Latex from 'react-latex-next'
-import { Markdown } from './Markdown'
-import useResizeObserver from 'use-resize-observer'
 import _ from 'underscore'
 import { GlobalSuspense } from './GlobalSuspense'
 import { useLazyEffect } from '../usehooks'
@@ -442,36 +431,18 @@ const useStyles = createUseStyles({
     },
 })
 
-interface IActionStrItem {
-    beforeStr: string
-    afterStr: string
+const translateAction: Action = {
+    id: 0,
+    idx: 0,
+    mode: 'translate',
+    name: 'Translate',
+    createdAt: '',
+    updatedAt: '',
 }
 
-const actionStrItems: Record<TranslateMode, IActionStrItem> = {
-    'analyze': {
-        beforeStr: 'Analyzing...',
-        afterStr: 'Analyzed',
-    },
-    'polishing': {
-        beforeStr: 'Polishing...',
-        afterStr: 'Polished',
-    },
-    'translate': {
-        beforeStr: 'Translating...',
-        afterStr: 'Translated',
-    },
-    'summarize': {
-        beforeStr: 'Summarizing...',
-        afterStr: 'Summarized',
-    },
-    'explain-code': {
-        beforeStr: 'Explaining...',
-        afterStr: 'Explained',
-    },
-    'big-bang': {
-        beforeStr: 'Writing...',
-        afterStr: 'Written',
-    },
+const translateActionStrItem = {
+    beforeStr: 'Translating...',
+    afterStr: 'Translated',
 }
 
 export interface MovementXY {
@@ -528,23 +499,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     }, [onSettingsShow, showSettings])
 
     const { showLogo = true } = props
-
-    const [refreshActionsFlag, refreshActions] = useReducer((x: number) => x + 1, 0)
-
-    useEffect(() => {
-        if (!isDesktopApp()) {
-            return
-        }
-        let unlisten: UnlistenFn | undefined
-        listen('refresh-actions', () => {
-            refreshActions()
-        }).then((cb: UnlistenFn) => {
-            unlisten = cb
-        })
-        return () => {
-            unlisten?.()
-        }
-    }, [])
 
     const [isHistoryOpen, setIsHistoryOpen] = useState(false)
 
@@ -650,41 +604,11 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         highlightRef.current.handleInput()
     }, [selectedWord])
 
-    const [activateAction, setActivateAction] = useState<Action>()
-
-    const currentTranslateMode = useMemo(() => {
-        editorRef.current?.focus()
-        if (!activateAction) {
-            return undefined
-        }
-        return activateAction.mode
-    }, [activateAction])
-
-    useLiveQuery(async () => {
-        if (settings?.defaultTranslateMode && settings.defaultTranslateMode !== 'nop') {
-            let action: Action | undefined
-            const actionID = parseInt(settings.defaultTranslateMode, 10)
-            if (isNaN(actionID)) {
-                action = await actionService.getByMode(settings.defaultTranslateMode)
-            } else {
-                action = await actionService.get(actionID)
-            }
-            setActivateAction(action)
-        }
-    }, [settings.defaultTranslateMode])
-
     const headerRef = useRef<HTMLDivElement>(null)
-    const { width: headerWidth = 0 } = useResizeObserver<HTMLDivElement>({ ref: headerRef })
 
     const logoWithTextRef = useRef<LogoWithTextRef>(null)
 
     const languagesSelectorRef = useRef<HTMLDivElement>(null)
-
-    const { width: languagesSelectorWidth = 0 } = useResizeObserver<HTMLDivElement>({ ref: languagesSelectorRef })
-
-    const headerActionButtonsRef = useRef<HTMLDivElement>(null)
-
-    const { width: headerActionButtonsWidth = 0 } = useResizeObserver<HTMLDivElement>({ ref: headerActionButtonsRef })
 
     const containerRef = useRef<HTMLDivElement>(null)
     const editorContainerRef = useRef<HTMLDivElement>(null)
@@ -694,99 +618,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
 
     const actionButtonsRef = useRef<HTMLDivElement>(null)
 
-    const hasActivateAction = activateAction !== undefined
-    const [displayedActionsMaxCount, setDisplayedActionsMaxCount] = useState(4)
-
-    useLayoutEffect(() => {
-        const handleResize = () => {
-            const headerElem = headerRef.current
-            if (!headerElem) {
-                return
-            }
-            const logoWithTextElem = logoWithTextRef.current
-            const activateActionElem = headerElem.querySelector('.__yetone-activate-action')
-            if (hasActivateAction && !activateActionElem) {
-                return
-            }
-            const paddingWidth = 32
-            const logoWidth = showLogo ? 131 : 0
-            const iconWidth = 32
-            const iconWithTextWidth = activateActionElem ? activateActionElem.clientWidth : 105
-            const iconGap = 5
-            let count = Math.floor(
-                (headerWidth -
-                    paddingWidth -
-                    logoWidth -
-                    languagesSelectorWidth -
-                    10 -
-                    iconWithTextWidth * (hasActivateAction ? 1 : 0)) /
-                    (iconGap + iconWidth)
-            )
-            count = hasActivateAction ? count + 1 : count
-            if (count <= 0) {
-                logoWithTextElem?.hideText()
-            } else {
-                logoWithTextElem?.showText()
-            }
-            setDisplayedActionsMaxCount(Math.min(Math.max(count, 1), 7))
-        }
-
-        const timer = setTimeout(() => handleResize(), 300)
-
-        return () => {
-            clearTimeout(timer)
-        }
-    }, [hasActivateAction, headerWidth, languagesSelectorWidth, headerActionButtonsWidth, showLogo])
-
-    const actions = useLiveQuery(() => actionService.list(), [refreshActionsFlag])
-
     useEffect(() => {
-        if (!activateAction) {
-            return
-        }
-        if (!actions) {
-            return
-        }
-        setActivateAction(
-            actions.find((action) =>
-                action.id !== undefined ? action.id === activateAction.id : action.mode === activateAction.mode
-            )
-        )
-    }, [actions, activateAction])
-
-    const [displayedActions, setDisplayedActions] = useState<Action[]>([])
-    const [hiddenActions, setHiddenActions] = useState<Action[]>([])
-
-    useEffect(() => {
-        if (!actions) {
-            setDisplayedActions([])
-            setHiddenActions([])
-            return
-        }
-        let displayedActions = actions.slice(0, displayedActionsMaxCount)
-        let hiddenActions = actions.slice(displayedActionsMaxCount)
-        if (!displayedActions.find((action) => action.id === activateAction?.id)) {
-            const activatedAction = actions.find((a) => a.id === activateAction?.id)
-            if (activatedAction) {
-                const lastDisplayedAction = displayedActions[displayedActions.length - 1]
-                if (lastDisplayedAction) {
-                    displayedActions = displayedActions.slice(0, displayedActions.length - 1)
-                    hiddenActions = [lastDisplayedAction, ...hiddenActions]
-                }
-                displayedActions.push(activatedAction)
-                hiddenActions = hiddenActions.filter((a) => a.id !== activatedAction.id)
-            }
-        }
-        setDisplayedActions(displayedActions)
-        setHiddenActions(hiddenActions)
-    }, [actions, activateAction?.id, displayedActionsMaxCount])
-
-    const isTranslate = currentTranslateMode === 'translate'
-    useEffect(() => {
-        if (!isTranslate) {
-            setSelectedWord('')
-            return undefined
-        }
         const editor = editorRef.current
         if (!editor) {
             return undefined
@@ -818,7 +650,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             editor.removeEventListener('mouseup', onMouseUp)
             editor.removeEventListener('blur', onBlur)
         }
-    }, [isTranslate])
+    }, [])
 
     const { theme, themeType } = useTheme()
 
@@ -840,30 +672,26 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         sourceLang?: LangCode
         targetLang?: LangCode
         text: string
-        action?: Action
+        action: Action
         provider?: Provider
         engineModel?: string
     }>({
         sourceLang: undefined,
         targetLang: undefined,
         text: '',
-        action: undefined,
+        action: translateAction,
         provider: undefined,
         engineModel: undefined,
     })
 
     const getTranslateDeps = useCallback(
-        async function (text: string, action: Action): Promise<typeof translateDeps> {
+        async function (text: string): Promise<typeof translateDeps> {
             const newSourceLang = await detectLang(text)
             setSourceLang(newSourceLang)
             return await new Promise((resolve) => {
-                const isTranslate = action.mode === 'translate'
                 setTargetLang((targetLang_) => {
                     const newTargetLang = (() => {
-                        if (
-                            isTranslate &&
-                            (!stopAutomaticallyChangeTargetLang.current || newSourceLang === targetLang_)
-                        ) {
+                        if (!stopAutomaticallyChangeTargetLang.current || newSourceLang === targetLang_) {
                             return (
                                 (newSourceLang === 'zh-Hans' || newSourceLang === 'zh-Hant'
                                     ? 'en'
@@ -884,6 +712,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             sourceLang: newSourceLang,
                             targetLang: newTargetLang,
                             text,
+                            action: translateAction,
                         }
                         resolve(newV)
                         return oldV
@@ -901,21 +730,9 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         if (externalOriginalText === undefined) {
             return
         }
-        setActivateAction((action) => {
-            if (!action) {
-                setTranslateDeps((v) => {
-                    return {
-                        ...v,
-                        text: externalOriginalText,
-                    }
-                })
-                return action
-            }
-            setEditableText(externalOriginalText)
-            getTranslateDeps(externalOriginalText, action).then((v) => {
-                setTranslateDeps(v)
-            })
-            return action
+        setEditableText(externalOriginalText)
+        getTranslateDeps(externalOriginalText).then((v) => {
+            setTranslateDeps(v)
         })
         setSelectedWord('')
     }, [externalOriginalText, getTranslateDeps, props.uuid])
@@ -952,19 +769,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const [sourceLang, setSourceLang] = useState<LangCode>('en')
     const [targetLang, setTargetLang] = useState<LangCode>()
     const stopAutomaticallyChangeTargetLang = useRef(false)
-
-    useEffect(() => {
-        if (!activateAction) {
-            return
-        }
-
-        getTranslateDeps(editorRef.current?.value ?? '', activateAction).then((newTranslateDeps) => {
-            setTranslateDeps({
-                ...newTranslateDeps,
-                action: activateAction,
-            })
-        })
-    }, [activateAction, getTranslateDeps])
 
     const [actionStr, setActionStr] = useState('')
 
@@ -1035,26 +839,14 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             }
             const translationID = translationIDRef.current
             const { text, sourceLang, targetLang, action } = translateDeps
-            if (!text || !sourceLang || !targetLang || !action) {
+            if (!text || !sourceLang || !targetLang) {
                 return
             }
-            const actionMode = action.mode
-            const actionStrItem = actionMode
-                ? actionStrItems[actionMode]
-                : {
-                      beforeStr: 'Processing...',
-                      afterStr: 'Processed',
-                  }
             const persistHistory = async (resultText: string) => {
                 if (!resultText || !resultText.trim()) {
                     return
                 }
-                if (
-                    !translateDeps.text ||
-                    !translateDeps.sourceLang ||
-                    !translateDeps.targetLang ||
-                    !translateDeps.action
-                ) {
+                if (!translateDeps.text || !translateDeps.sourceLang || !translateDeps.targetLang) {
                     return
                 }
                 const dedupeKey = `${translateDeps.text}__${resultText}__${translateDeps.sourceLang}__${
@@ -1093,11 +885,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             const beforeTranslate = () => {
                 historyEntryIdRef.current = null
                 lastHistoryKeyRef.current = null
-                let actionStr = actionStrItem.beforeStr
-                if (actionMode === 'translate' && sourceLang === targetLang) {
-                    actionStr = 'Polishing...'
-                }
-                setActionStr(actionStr)
+                setActionStr(translateActionStrItem.beforeStr)
                 setTranslatedText('')
                 setErrorMessage('')
                 startLoading()
@@ -1121,11 +909,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         })
                     }
                 } else {
-                    let actionStr = actionStrItem.afterStr
-                    if (actionMode === 'translate' && sourceLang === targetLang) {
-                        actionStr = 'Polished'
-                    }
-                    setActionStr(actionStr)
+                    setActionStr(translateActionStrItem.afterStr)
                 }
             }
             beforeTranslate()
@@ -1212,12 +996,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
 
     const handleHistoryRestore = useCallback(
         (item: HistoryItem) => {
-            const matchedAction =
-                actions?.find((action) => action.id === item.actionId) ??
-                actions?.find((action) => action.mode && action.mode === item.actionMode)
-            if (matchedAction) {
-                setActivateAction(matchedAction)
-            }
             historyEntryIdRef.current = item.id ?? null
             lastHistoryKeyRef.current = null
             skipNextTranslateRef.current = true
@@ -1229,20 +1007,19 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             setErrorMessage('')
             setSelectedWord('')
             setTranslateDeps((prev) => {
-                const nextAction = matchedAction ?? prev.action
                 const providerFromHistory = isProviderValue(item.provider) ? item.provider : undefined
                 return {
                     ...prev,
                     text: item.text,
                     sourceLang: item.sourceLang,
                     targetLang: item.targetLang,
-                    action: nextAction,
+                    action: translateAction,
                     provider: providerFromHistory ?? prev.provider ?? settings.provider,
                     engineModel: item.engineModel ?? prev.engineModel,
                 }
             })
         },
-        [actions, settings.provider, setActivateAction]
+        [settings.provider]
     )
 
     useEffect(() => {
@@ -1370,14 +1147,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     }, [showSettings])
 
     const showSubmitButton = () => {
-        if (activateAction?.id === undefined) {
-            return false
-        }
-
-        if (translateDeps.action?.id === undefined) {
-            return false
-        }
-
         if (!editableText) {
             return false
         }
@@ -1393,19 +1162,12 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         (e: React.SyntheticEvent<HTMLButtonElement> | React.KeyboardEvent<HTMLTextAreaElement>) => {
             e.preventDefault()
             e.stopPropagation()
-            let action = activateAction
-            if (!action) {
-                action = actions?.find((action) => action.mode === 'translate')
-                setActivateAction(action)
-            }
             const text = editorRef.current?.value ?? ''
-            if (action) {
-                getTranslateDeps(text, action).then((v) => {
-                    setTranslateDeps(v)
-                })
-            }
+            getTranslateDeps(text).then((v) => {
+                setTranslateDeps(v)
+            })
         },
-        [actions, activateAction, getTranslateDeps]
+        [getTranslateDeps]
     )
 
     const getFooterBackgroundColor = useCallback(() => {
@@ -1457,7 +1219,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         <div className={styles.popupCardHeaderActionsContainer} ref={languagesSelectorRef}>
                             <div className={styles.from}>
                                 <Select
-                                    disabled={currentTranslateMode === 'explain-code'}
                                     size='mini'
                                     clearable={false}
                                     options={sourceLangOptions}
@@ -1504,7 +1265,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             </div>
                             <div className={styles.to}>
                                 <Select
-                                    disabled={currentTranslateMode === 'polishing'}
                                     size='mini'
                                     clearable={false}
                                     options={targetLangOptions}
@@ -1531,115 +1291,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                 />
                             </div>
                         </div>
-                        <div className={styles.popupCardHeaderButtonGroup} ref={headerActionButtonsRef}>
-                            {displayedActions?.map((action) => {
-                                return (
-                                    <Tooltip
-                                        key={action.id}
-                                        content={action.mode ? t(action.name) : action.name}
-                                        placement={isDesktopApp() ? 'bottom' : 'top'}
-                                    >
-                                        <Button
-                                            size='mini'
-                                            kind={action.id === activateAction?.id ? 'primary' : 'secondary'}
-                                            className={
-                                                action.id === activateAction?.id
-                                                    ? '__yetone-activate-action'
-                                                    : undefined
-                                            }
-                                            overrides={{
-                                                Root: {
-                                                    style: {
-                                                        height: '27px',
-                                                        display: 'flex',
-                                                        flexDirection: 'row',
-                                                        alignItems: 'center',
-                                                        gap: '4px',
-                                                    },
-                                                },
-                                            }}
-                                            onClick={() => {
-                                                setActivateAction(action)
-                                                if (action.mode === 'polishing') {
-                                                    setTargetLang(sourceLang)
-                                                }
-                                            }}
-                                        >
-                                            {action.icon &&
-                                                React.createElement(mdIcons[action.icon as keyof typeof mdIcons], {
-                                                    size: 15,
-                                                })}
-                                            {action.id === activateAction?.id && (
-                                                <div
-                                                    style={{
-                                                        maxWidth: 100,
-                                                        whiteSpace: 'nowrap',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                    }}
-                                                >
-                                                    {action.mode ? t(action.name) : action.name}
-                                                </div>
-                                            )}
-                                        </Button>
-                                    </Tooltip>
-                                )
-                            })}
-                        </div>
-                        {props.showSettingsIcon && hiddenActions.length > 0 && (
-                            <div className={styles.popupCardHeaderMoreActionsContainer}>
-                                <StatefulPopover
-                                    autoFocus={false}
-                                    triggerType='hover'
-                                    showArrow
-                                    placement='bottom'
-                                    content={
-                                        <StatefulMenu
-                                            initialState={{
-                                                highlightedIndex: hiddenActions.findIndex(
-                                                    (action) => action.id === activateAction?.id
-                                                ),
-                                            }}
-                                            onItemSelect={({ item }) => {
-                                                const actionID = item.id
-                                                setActivateAction(actions?.find((a) => a.id === (actionID as number)))
-                                            }}
-                                            items={[
-                                                ...hiddenActions.map((action) => {
-                                                    return {
-                                                        id: action.id,
-                                                        label: (
-                                                            <div
-                                                                style={{
-                                                                    display: 'flex',
-                                                                    flexDirection: 'row',
-                                                                    alignItems: 'center',
-                                                                    gap: 6,
-                                                                }}
-                                                            >
-                                                                {action.icon
-                                                                    ? React.createElement(
-                                                                          (mdIcons as Record<string, IconType>)[
-                                                                              action.icon
-                                                                          ],
-                                                                          { size: 15 }
-                                                                      )
-                                                                    : undefined}
-                                                                {action.mode ? t(action.name) : action.name}
-                                                            </div>
-                                                        ),
-                                                    }
-                                                }),
-                                            ]}
-                                        />
-                                    }
-                                >
-                                    <div className={styles.popupCardHeaderMoreActionsBtn}>
-                                        <GrMoreVertical />
-                                    </div>
-                                </StatefulPopover>
-                            </div>
-                        )}
                     </div>
                     <div
                         className={clsx(
@@ -1695,8 +1346,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                                     themeType === 'dark'
                                                         ? theme.colors.contentSecondary
                                                         : theme.colors.contentPrimary,
-                                                fontFamily:
-                                                    currentTranslateMode === 'explain-code' ? 'monospace' : 'inherit',
+                                                fontFamily: 'inherit',
                                                 textalign: 'start',
                                             },
                                         },
@@ -1829,7 +1479,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                 )}
                             </div>
                         </div>
-                        {translateDeps.text !== '' && activateAction?.id === translateDeps.action?.id && (
+                        {translateDeps.text !== '' && (
                             <div
                                 className={styles.popupCardTranslatedContainer}
                                 ref={translatedContainerRef}
@@ -1904,29 +1554,16 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                             }}
                                         >
                                             <div>
-                                                {currentTranslateMode === 'explain-code' ||
-                                                activateAction?.outputRenderingFormat === 'markdown' ? (
-                                                    <>
-                                                        <Markdown>{translatedText}</Markdown>
-                                                        {isLoading && <span className={styles.caret} />}
-                                                    </>
-                                                ) : activateAction?.outputRenderingFormat === 'latex' ? (
-                                                    <>
-                                                        <Latex>{translatedText}</Latex>
-                                                        {isLoading && <span className={styles.caret} />}
-                                                    </>
-                                                ) : (
-                                                    translatedLines.map((line, i) => {
-                                                        return (
-                                                            <div className={styles.paragraph} key={`p-${i}`}>
-                                                                {line}
-                                                                {isLoading && i === translatedLines.length - 1 && (
-                                                                    <span className={styles.caret} />
-                                                                )}
-                                                            </div>
-                                                        )
-                                                    })
-                                                )}
+                                                {translatedLines.map((line, i) => {
+                                                    return (
+                                                        <div className={styles.paragraph} key={`p-${i}`}>
+                                                            {line}
+                                                            {isLoading && i === translatedLines.length - 1 && (
+                                                                <span className={styles.caret} />
+                                                            )}
+                                                        </div>
+                                                    )
+                                                })}
                                             </div>
                                         </div>
                                         {translatedText && (
@@ -2153,16 +1790,13 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         <div className={styles.poweredBy}>
                             Powered by{' '}
                             <div className={styles.brand}>
-                                {React.createElement(engineIcons[activateAction?.provider || settings.provider], {
+                                {React.createElement(engineIcons[settings.provider], {
                                     size: 10,
                                 })}
-                                {activateAction?.provider || settings.provider}
+                                {settings.provider}
                             </div>
-                            {(activateAction?.apiModel || translateDeps.engineModel) &&
-                                ` ${activateAction?.apiModel || translateDeps.engineModel}`}
-                            {(activateAction?.provider || settings.provider) === 'Claude' &&
-                                (activateAction?.thinking ?? settings.claudeThinking) &&
-                                ' · Thinking Mode'}
+                            {translateDeps.engineModel && ` ${translateDeps.engineModel}`}
+                            {settings.provider === 'Claude' && settings.claudeThinking && ' · Thinking Mode'}
                         </div>
                     )}
                     {!showSettings && (
@@ -2208,8 +1842,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             {isHistoryOpen ? (
                 <TranslationHistory
                     isOpen
-                    actions={actions ?? []}
-                    activeActionId={activateAction?.id}
+                    actions={[translateAction]}
+                    activeActionId={translateAction.id}
                     onClose={() => setIsHistoryOpen(false)}
                     onRestore={handleHistoryRestore}
                 />

@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { listen, Event, emit } from '@tauri-apps/api/event'
 import { parse as bestEffortJSONParse } from 'best-effort-json-parser'
 import { commands } from '@/tauri/bindings'
-import toast from 'react-hot-toast/headless'
+import toast from 'react-hot-toast'
 
 export const defaultAutoTranslate = false
 export const defaultTargetLanguage = 'zh-Hans'

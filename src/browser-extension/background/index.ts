@@ -62,6 +62,7 @@ async function fetchWithStream(
     const reader = response?.body?.getReader()
     if (!reader) {
         port.postMessage(responseSend)
+        port.disconnect()
         return
     }
 
@@ -72,10 +73,9 @@ async function fetchWithStream(
             if (done) {
                 break
             }
-            const str = new TextDecoder().decode(value)
             port.postMessage({
                 ...responseSend,
-                data: str,
+                data: Array.from(value),
             })
         }
     } catch (error) {

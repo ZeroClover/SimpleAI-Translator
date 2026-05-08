@@ -11,7 +11,7 @@ export interface BackgroundFetchResponseMessage
     extends Pick<Response, 'ok' | 'status' | 'statusText' | 'redirected' | 'type' | 'url'> {
     error?: { message: string; name: string }
     status: number
-    data?: string
+    data?: number[]
 }
 
 export function getHostPermissionOrigin(input: string): string | undefined {
@@ -49,19 +49,11 @@ async function ensureHostPermission(input: string) {
     }
 }
 
-async function readText(stream: ReadableStream) {
-    const reader = stream.getReader()
-    let text = ''
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-        const { done, value } = await reader.read()
-        if (done) {
-            break
-        }
-        const str = new TextDecoder().decode(value)
-        text += str
-    }
-    return text
+function createResponse(stream: ReadableStream, init: BackgroundFetchResponseMessage): Response {
+    return new Response(stream, {
+        status: init.status,
+        statusText: init.statusText,
+    })
 }
 
 export async function backgroundFetch(input: string, options: RequestInit) {
@@ -83,7 +75,6 @@ export async function backgroundFetch(input: string, options: RequestInit) {
             const ReadableStream = isFirefox()
                 ? (ReadableStreamPolyfill as typeof window.ReadableStream)
                 : window.ReadableStream
-            const textEncoder = new TextEncoder()
             let resolved = false
             const browser = (await import('webextension-polyfill')).default
             const port = browser.runtime.connect({ name: BackgroundEventNames.fetch })
@@ -100,21 +91,20 @@ export async function backgroundFetch(input: string, options: RequestInit) {
                             const e = new Error()
                             e.message = error.message
                             e.name = error.name
+                            if (!resolved) {
+                                reject(e)
+                                resolved = true
+                                return
+                            }
                             controller.error(e)
                             return
                         }
-                        controller.enqueue(textEncoder.encode(data))
                         if (!resolved) {
-                            resolve({
-                                ...restResp,
-                                body: readableStream,
-                                text: () => readText(readableStream),
-                                json: async () => {
-                                    const text = await readText(readableStream)
-                                    return JSON.parse(text)
-                                },
-                            } as unknown as Response)
+                            resolve(createResponse(readableStream, restResp))
                             resolved = true
+                        }
+                        if (data) {
+                            controller.enqueue(new Uint8Array(data))
                         }
                     })
 

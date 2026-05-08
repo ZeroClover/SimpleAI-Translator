@@ -105,7 +105,7 @@
 
 ## 9. i18n 与文案清理
 
-- [ ] 9.1 在所有 `src/common/i18n/locales/*/translation.json` 中删除"Upload an image for OCR translation"、"OCR Hotkey"、"Writing"、"Vocabulary"、"Polishing"、"Summarize"、"Analyze"、"Explain Code"、"Action"等已无引用的键
+- [x] 9.1 在所有 `src/common/i18n/locales/*/translation.json` 中删除"Upload an image for OCR translation"、"OCR Hotkey"、"Writing"、"Vocabulary"、"Polishing"、"Summarize"、"Analyze"、"Explain Code"、"Action"等已无引用的键
 - [x] 9.2 新增 LLM Provider 列表 / 表单相关 i18n 键(中英为主,其它语言保留 fallback 到英文即可)
 - [x] 9.3 新增"无可用 Provider"引导文案 i18n 键
 - [x] 9.4 新增 OpenAI TTS 相关 i18n 键(关联 Provider、模型、voice、音频格式、错误提示)

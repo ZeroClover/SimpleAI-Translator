@@ -27,8 +27,8 @@
 - [ ] 3.7 为三种协议各写一份单元测试:成功流、4xx、5xx、网络中断、`signal.abort()` 行为;覆盖 Chat Completions `choices[].delta.content` + `[DONE]`,Responses `response.output_text.delta` + `response.completed`,Anthropic `content_block_delta(text_delta)` + `message_stop`
 - [ ] 3.8 为 `openai-api-path` 的归一化新增 case 并通过 `openai-api-path.spec.ts`
 - [ ] 3.9 在每个协议实现中暴露 `listModels(providerConfig): Promise<string[]>`:`openai-chat` / `openai-responses` 调用 `GET {endpoint}/models`(`Authorization: Bearer ...`);`anthropic` 调用 `GET {endpoint}/v1/models`(`x-api-key` + `anthropic-version: 2023-06-01`)
-- [ ] 3.10 新建 `src/common/engines/model-filter.ts`,导出 `filterChatModels(ids)`(黑名单:embedding / realtime / audio / whisper / transcribe / moderation / tts / dall-e / gpt-image / image / sora / search-preview)与 `filterTTSModels(ids)`(白名单:`/^tts-1(-hd)?$/i`、`/^gpt-4o-mini-tts(?:-[0-9]{4}-[0-9]{2}-[0-9]{2})?$/i`)
-- [ ] 3.11 为 `model-filter.ts` 编写单元测试:覆盖 spec 中"标准 OpenAI 列表过滤"、"未知前缀的新模型保留"、"大小写不敏感"三类场景,以及 `filterTTSModels` 接受 `gpt-4o-mini-tts-YYYY-MM-DD` 但不接受 `gpt-4o-tts`
+- [x] 3.10 新建 `src/common/engines/model-filter.ts`,导出 `filterChatModels(ids)`(黑名单:embedding / realtime / audio / whisper / transcribe / moderation / tts / dall-e / gpt-image / image / sora / search-preview)与 `filterTTSModels(ids)`(白名单:`/^tts-1(-hd)?$/i`、`/^gpt-4o-mini-tts(?:-[0-9]{4}-[0-9]{2}-[0-9]{2})?$/i`)
+- [x] 3.11 为 `model-filter.ts` 编写单元测试:覆盖 spec 中"标准 OpenAI 列表过滤"、"未知前缀的新模型保留"、"大小写不敏感"三类场景,以及 `filterTTSModels` 接受 `gpt-4o-mini-tts-YYYY-MM-DD` 但不接受 `gpt-4o-tts`
 - [ ] 3.12 为 `listModels` 编写单元测试:覆盖成功、404/405、超时、响应缺 `data` 字段四类降级路径
 
 ## 4. translate.ts 重写

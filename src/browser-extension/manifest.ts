@@ -39,7 +39,7 @@ export function getManifest(browser: 'firefox' | 'chromium') {
             service_worker: 'src/browser-extension/background/index.ts',
         },
 
-        permissions: ['storage', 'contextMenus', 'webRequest'],
+        permissions: ['storage', 'contextMenus'],
 
         commands: {
             'open-popup': {
@@ -52,25 +52,19 @@ export function getManifest(browser: 'firefox' | 'chromium') {
         },
 
         host_permissions: [
-            'https://*.openai.com/',
-            'https://*.openai.azure.com/',
-            'https://*.ingest.sentry.io/',
-            '*://speech.platform.bing.com/',
-            'https://*.googletagmanager.com/',
-            'https://*.google-analytics.com/',
-            'https://*.minimax.chat/',
-            'https://*.githubusercontent.com/',
-            'https://*.baidu.com/',
-            'https://api-edge.cognitive.microsofttranslator.com/',
-            'https://*.microsoft.com/',
-            'https://*.google.com/',
-            'https://*.googleapis.com/',
-            'https://*.moonshot.cn/',
-            'https://*.volces.com/',
-            'https://*.chatglm.cn/',
-            'https://*.cohere.ai/',
-            'https://*.deepseek.com/',
+            'https://api.openai.com/*',
+            'https://api.anthropic.com/*',
+            'https://chat.openai.com/*',
+            'https://*.ingest.sentry.io/*',
+            '*://speech.platform.bing.com/*',
+            'https://edge.microsoft.com/*',
+            'https://api-edge.cognitive.microsofttranslator.com/*',
+            'https://fanyi.baidu.com/*',
+            'https://translate.google.com/*',
+            'https://*.googletagmanager.com/*',
+            'https://*.google-analytics.com/*',
         ],
+        optional_host_permissions: ['http://*/*', 'https://*/*'],
     }
 
     if (browser === 'firefox') {

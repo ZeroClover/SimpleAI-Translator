@@ -14,6 +14,41 @@ export interface BackgroundFetchResponseMessage
     data?: string
 }
 
+export function getHostPermissionOrigin(input: string): string | undefined {
+    try {
+        const url = new URL(input)
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+            return undefined
+        }
+        return `${url.origin}/*`
+    } catch {
+        return undefined
+    }
+}
+
+async function ensureHostPermission(input: string) {
+    const origin = getHostPermissionOrigin(input)
+    if (!origin) {
+        return
+    }
+
+    const browser = (await import('webextension-polyfill')).default
+    const permissions = browser.permissions
+    if (!permissions) {
+        return
+    }
+
+    const granted = await permissions.contains({ origins: [origin] })
+    if (granted) {
+        return
+    }
+
+    const accepted = await permissions.request({ origins: [origin] })
+    if (!accepted) {
+        throw new DOMException(`Host permission denied for ${origin}`, 'NotAllowedError')
+    }
+}
+
 async function readText(stream: ReadableStream) {
     const reader = stream.getReader()
     let text = ''
@@ -35,6 +70,13 @@ export async function backgroundFetch(input: string, options: RequestInit) {
             const { signal, ...fetchOptions } = options
             if (signal?.aborted) {
                 reject(new DOMException('Aborted', 'AbortError'))
+                return
+            }
+
+            try {
+                await ensureHostPermission(input)
+            } catch (error) {
+                reject(error)
                 return
             }
 

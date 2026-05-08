@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useReducer, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import _ from 'underscore'
 import { Tabs, Tab, StyledTabList, StyledTabPanel } from 'baseui-sd/tabs-motion'
 import icon from '../assets/images/icon-large.png'
@@ -13,16 +13,22 @@ import { BaseProvider } from 'baseui-sd'
 import { Input } from 'baseui-sd/input'
 import { createForm } from './Form'
 import { Button, ButtonProps } from 'baseui-sd/button'
-import { APIModel } from '../translate'
-import { Select, Value, Option, Options } from 'baseui-sd/select'
+import { Select, Value, Option } from 'baseui-sd/select'
 import { Checkbox } from 'baseui-sd/checkbox'
 import { LangCode, supportedLanguages } from '../lang'
 import { useRecordHotkeys } from 'react-hotkeys-hook'
 import { createUseStyles } from 'react-jss'
 import clsx from 'clsx'
-import { ISettings, IThemedStyleProps, LanguageDetectionEngine, ProxyProtocol, ThemeType } from '../types'
+import {
+    ISettings,
+    IThemedStyleProps,
+    LanguageDetectionEngine,
+    ProviderConfig,
+    ProxyProtocol,
+    ThemeType,
+} from '../types'
 import { useTheme } from '../hooks/useTheme'
-import { IoCloseCircle, IoRefreshSharp, IoSettingsOutline } from 'react-icons/io5'
+import { IoCloseCircle, IoSettingsOutline } from 'react-icons/io5'
 import { useTranslation } from 'react-i18next'
 import AppConfig from '../../../package.json'
 import { useSettings } from '../hooks/useSettings'
@@ -35,8 +41,6 @@ import { useThemeType } from '../hooks/useThemeType'
 import { Slider } from 'baseui-sd/slider'
 import { GlobalSuspense } from './GlobalSuspense'
 import { Modal, ModalBody, ModalHeader } from 'baseui-sd/modal'
-import { Provider, engineIcons, getEngine } from '../engines'
-import { IModel } from '../engines/interfaces'
 import { BsKeyboard } from 'react-icons/bs'
 import { TbCloudNetwork } from 'react-icons/tb'
 import { Cell, Grid } from 'baseui-sd/layout-grid'
@@ -46,16 +50,10 @@ import { SpeakerIcon } from './SpeakerIcon'
 import { RxSpeakerLoud } from 'react-icons/rx'
 import { Textarea } from 'baseui-sd/textarea'
 import { ProxyTester } from './ProxyTester'
-import { CUSTOM_MODEL_ID } from '../constants'
 import { isMacOS } from '../utils'
 import NumberInput from './NumberInput'
-import { DurationPicker } from './DurationPicker'
-import {
-    getRecommendedOpenAIAPIPath,
-    OPENAI_CHAT_COMPLETIONS_API_PATH,
-    OPENAI_PREFERRED_DEFAULT_MODEL,
-    OPENAI_RESPONSES_API_PATH,
-} from '../openai-api-path'
+import { ProviderForm, ProviderFormValue } from './ProviderForm'
+import { v4 as uuidv4 } from 'uuid'
 
 const langOptions: Value = supportedLanguages.reduce((acc, [id, label]) => {
     return [
@@ -164,35 +162,6 @@ function LanguageDetectionEngineSelector({ value, onChange, onBlur }: ILanguageD
                 { label: t('Google'), id: 'google' },
                 { label: t('Bing'), id: 'bing' },
                 { label: t('Local'), id: 'local' },
-            ]}
-        />
-    )
-}
-
-interface IThinkingLevelSelectorProps {
-    value?: string
-    onChange?: (value: string) => void
-    onBlur?: () => void
-}
-
-function ThinkingLevelSelector({ value, onChange, onBlur }: IThinkingLevelSelectorProps) {
-    const { t } = useTranslation()
-
-    return (
-        <Select
-            size='compact'
-            onBlur={onBlur}
-            searchable={false}
-            clearable={false}
-            value={value ? [{ id: value }] : [{ id: 'medium' }]}
-            onChange={(params) => {
-                onChange?.(params.value[0]?.id as string)
-                onBlur?.()
-            }}
-            options={[
-                { id: 'low', label: t('Low') },
-                { id: 'medium', label: t('Medium') },
-                { id: 'high', label: t('High') },
             ]}
         />
     )
@@ -726,210 +695,6 @@ function Ii18nSelector({ value, onChange, onBlur }: Ii18nSelectorProps) {
     )
 }
 
-interface APIModelSelectorProps {
-    currentProvider: Provider
-    provider: Provider
-    apiKey?: string
-    value?: string
-    onChange?: (value: string) => void
-    onBlur?: () => void
-}
-
-interface APIModelOption {
-    label: React.ReactNode
-    id: string
-    name?: string
-}
-
-export function APIModelSelector({
-    currentProvider,
-    provider,
-    apiKey,
-    value,
-    onChange,
-    onBlur,
-}: APIModelSelectorProps) {
-    const { t } = useTranslation()
-    const [isLoading, setIsLoading] = useState(false)
-    const [options, setOptions] = useState<APIModelOption[]>([])
-    const [errMsg, setErrMsg] = useState<string>()
-    const [isChatGPTNotLogin, setIsChatGPTNotLogin] = useState(false)
-    const [refreshFlag, refresh] = useReducer((x: number) => x + 1, 0)
-    const { theme } = useTheme()
-
-    useEffect(() => {
-        setIsChatGPTNotLogin(false)
-        setErrMsg('')
-        setOptions([])
-        if (provider !== currentProvider) {
-            return
-        }
-        const engine = getEngine(provider)
-        setIsLoading(true)
-        ;(async () => {
-            try {
-                const models = await engine.listModels(apiKey)
-                setOptions([
-                    ...models.map((model: IModel) => ({
-                        label: (
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 3,
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        fontSize: '14px',
-                                        color: theme.colors.contentPrimary,
-                                    }}
-                                >
-                                    {model.name}
-                                </div>
-                                {model.description && (
-                                    <div
-                                        style={{
-                                            fontSize: '12px',
-                                            color: theme.colors.contentTertiary,
-                                        }}
-                                    >
-                                        {model.description}
-                                    </div>
-                                )}
-                            </div>
-                        ),
-                        id: model.id,
-                        name: model.name,
-                    })),
-                    ...(engine.supportCustomModel()
-                        ? [
-                              {
-                                  id: CUSTOM_MODEL_ID,
-                                  label: t('Custom'),
-                              },
-                          ]
-                        : []),
-                ])
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            } catch (e: any) {
-                if (
-                    provider === 'ChatGPT' &&
-                    e.message &&
-                    (e.message.includes('not login') || e.message.includes('Forbidden'))
-                ) {
-                    setIsChatGPTNotLogin(true)
-                }
-                setErrMsg(e.message)
-            } finally {
-                setIsLoading(false)
-            }
-        })()
-    }, [apiKey, currentProvider, provider, refreshFlag, t, theme.colors.contentPrimary, theme.colors.contentTertiary])
-
-    useEffect(() => {
-        if (provider !== currentProvider || options.length === 0) {
-            return
-        }
-        const optionIDs = options.map((option) => option.id)
-        if (value && optionIDs.includes(value)) {
-            return
-        }
-        const fallback =
-            provider === 'OpenAI' && optionIDs.includes(OPENAI_PREFERRED_DEFAULT_MODEL)
-                ? OPENAI_PREFERRED_DEFAULT_MODEL
-                : optionIDs.find((id) => id !== CUSTOM_MODEL_ID) ?? optionIDs[0]
-        if (fallback && fallback !== value) {
-            onChange?.(fallback)
-        }
-    }, [currentProvider, onChange, options, provider, value])
-
-    return (
-        <div>
-            <div
-                style={{
-                    display: 'flex',
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 4,
-                }}
-            >
-                <Select
-                    isLoading={isLoading}
-                    size='compact'
-                    onBlur={onBlur}
-                    searchable={true}
-                    clearable={false}
-                    backspaceRemoves={false}
-                    deleteRemoves={false}
-                    filterOptions={(options, filterValue) => {
-                        if (!filterValue) return options
-                        const filter = filterValue.toLowerCase()
-                        return options.filter((option) => {
-                            const id = (option.id as string)?.toLowerCase() ?? ''
-                            const name = (option.name as string)?.toLowerCase() ?? ''
-                            return id.includes(filter) || name.includes(filter)
-                        })
-                    }}
-                    value={
-                        value
-                            ? [
-                                  {
-                                      id: value,
-                                  },
-                              ]
-                            : undefined
-                    }
-                    onChange={(params) => {
-                        onChange?.(params.value[0].id as APIModel)
-                    }}
-                    options={options}
-                />
-                <Button
-                    size='compact'
-                    kind='secondary'
-                    onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        refresh()
-                    }}
-                >
-                    <IoRefreshSharp size={16} />
-                </Button>
-            </div>
-            <div
-                style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 4,
-                }}
-            >
-                {errMsg && (
-                    <div
-                        style={{
-                            color: 'red',
-                        }}
-                    >
-                        {errMsg}
-                    </div>
-                )}
-                {isChatGPTNotLogin && (
-                    <div
-                        style={{
-                            color: theme.colors.contentPrimary,
-                        }}
-                    >
-                        <span>{t('Please login to ChatGPT Web')}: </span>
-                        <a href='https://chat.openai.com' target='_blank' rel='noreferrer' style={linkStyle}>
-                            Login
-                        </a>
-                    </div>
-                )}
-            </div>
-        </div>
-    )
-}
-
 interface AutoTranslateCheckboxProps {
     value?: boolean
     onChange?: (value: boolean) => void
@@ -1217,108 +982,111 @@ function HotkeyRecorder({ value, onChange, onBlur, testId }: IHotkeyRecorderProp
     )
 }
 
-interface IAddProviderIconsProps {
-    options: Options
+interface LLMProvidersSettingsProps {
+    providers: ProviderConfig[]
+    defaultProviderId: string | null
+    onChange(providers: ProviderConfig[], defaultProviderId: string | null): void
 }
 
-const addProviderIcons = ({ options }: IAddProviderIconsProps) => {
-    if (!Array.isArray(options)) {
-        return options
-    }
-    return options.map((item) => {
-        if (typeof item.label !== 'string') {
-            return item
-        }
-        const icon = engineIcons[item.id as Provider]
-        if (!icon) {
-            return item
-        }
-        const label = (
-            <div
-                style={{
-                    display: 'flex',
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 8,
-                }}
-            >
-                {React.createElement(icon, { size: 10 }, [])}
-                {item.label}
-            </div>
-        )
-        return {
-            ...item,
-            label,
-        }
-    })
-}
-
-interface IProviderSelectorProps {
-    value?: Provider
-    onChange?: (value: Provider) => void
-}
-
-export function ProviderSelector({ value, onChange }: IProviderSelectorProps) {
+function LLMProvidersSettings({ providers, defaultProviderId, onChange }: LLMProvidersSettingsProps) {
     const { t } = useTranslation()
+    const { theme } = useTheme()
+    const [editingProvider, setEditingProvider] = useState<ProviderConfig | null>(null)
+    const [isAddingProvider, setIsAddingProvider] = useState(false)
 
-    const options = utils.isDesktopApp()
-        ? ([
-              { label: 'OpenAI', id: 'OpenAI' },
-              { label: 'Claude', id: 'Claude' },
-              { label: `Kimi (${t('Free')})`, id: 'Kimi' },
-              { label: `${t('ChatGLM')} (${t('Free')})`, id: 'ChatGLM' },
-              { label: 'Cohere', id: 'Cohere' },
-              { label: `Ollama (${t('Local Model')})`, id: 'Ollama' },
-              { label: 'Gemini', id: 'Gemini' },
-              // { label: 'ChatGPT (Web)', id: 'ChatGPT' },
-              { label: 'Azure', id: 'Azure' },
-              { label: 'MiniMax', id: 'MiniMax' },
-              { label: 'Moonshot', id: 'Moonshot' },
-              { label: 'Groq', id: 'Groq' },
-              { label: 'DeepSeek', id: 'DeepSeek' },
-              { label: 'Cerebras', id: 'Cerebras' },
-          ] as {
-              label: string
-              id: Provider
-          }[])
-        : ([
-              { label: 'OpenAI', id: 'OpenAI' },
-              { label: 'Claude', id: 'Claude' },
-              { label: `Kimi (${t('Free')})`, id: 'Kimi' },
-              { label: `${t('ChatGLM')} (${t('Free')})`, id: 'ChatGLM' },
-              { label: 'ChatGPT (Web)', id: 'ChatGPT' },
-              { label: 'Cohere', id: 'Cohere' },
-              { label: 'Gemini', id: 'Gemini' },
-              { label: 'Azure', id: 'Azure' },
-              { label: 'MiniMax', id: 'MiniMax' },
-              { label: 'Moonshot', id: 'Moonshot' },
-              { label: 'Groq', id: 'Groq' },
-              { label: 'DeepSeek', id: 'DeepSeek' },
-              { label: 'Cerebras', id: 'Cerebras' },
-          ] as {
-              label: string
-              id: Provider
-          }[])
+    const closeForm = useCallback(() => {
+        setEditingProvider(null)
+        setIsAddingProvider(false)
+    }, [])
+
+    const saveProvider = useCallback(
+        (value: ProviderFormValue) => {
+            const provider: ProviderConfig = {
+                ...value,
+                id: value.id ?? uuidv4(),
+            }
+            const nextProviders = value.id
+                ? providers.map((item) => (item.id === value.id ? provider : item))
+                : [...providers, provider]
+            onChange(nextProviders, defaultProviderId ?? provider.id)
+            closeForm()
+        },
+        [closeForm, defaultProviderId, onChange, providers]
+    )
+
+    const deleteProvider = useCallback(
+        (providerId: string) => {
+            const nextProviders = providers.filter((provider) => provider.id !== providerId)
+            const nextDefaultProviderId =
+                defaultProviderId === providerId ? nextProviders[0]?.id ?? null : defaultProviderId
+            onChange(nextProviders, nextDefaultProviderId)
+        },
+        [defaultProviderId, onChange, providers]
+    )
 
     return (
-        <Select
-            size='compact'
-            searchable={false}
-            clearable={false}
-            value={
-                value && [
-                    {
-                        id: value,
-                    },
-                ]
-            }
-            onChange={(params) => {
-                onChange?.(params.value[0].id as Provider | 'OpenAI')
-            }}
-            options={addProviderIcons({
-                options,
-            })}
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <div style={{ color: theme.colors.contentSecondary }}>
+                    {providers.length === 0
+                        ? t('No LLM Provider')
+                        : t('Manage OpenAI-compatible and Anthropic providers.')}
+                </div>
+                <Button
+                    type='button'
+                    size='compact'
+                    startEnhancer={<IoMdAdd />}
+                    onClick={() => setIsAddingProvider(true)}
+                >
+                    {t('Add')}
+                </Button>
+            </div>
+            {providers.map((provider) => (
+                <div
+                    key={provider.id}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 10,
+                        padding: '8px 10px',
+                        border: `1px solid ${theme.colors.borderOpaque}`,
+                        borderRadius: 8,
+                    }}
+                >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <div style={{ color: theme.colors.contentPrimary, fontWeight: 600 }}>
+                            {provider.name}
+                            {provider.id === defaultProviderId ? ` · ${t('Default')}` : ''}
+                        </div>
+                        <div style={{ color: theme.colors.contentSecondary, fontSize: 12 }}>
+                            {provider.protocol} · {provider.endpoint || t('Official endpoint')} · {provider.model}
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        {provider.id !== defaultProviderId && (
+                            <Button
+                                type='button'
+                                size='mini'
+                                kind='secondary'
+                                onClick={() => onChange(providers, provider.id)}
+                            >
+                                {t('Set default')}
+                            </Button>
+                        )}
+                        <Button type='button' size='mini' kind='secondary' onClick={() => setEditingProvider(provider)}>
+                            {t('Edit')}
+                        </Button>
+                        <Button type='button' size='mini' kind='tertiary' onClick={() => deleteProvider(provider.id)}>
+                            <RiDeleteBin5Line />
+                        </Button>
+                    </div>
+                </div>
+            ))}
+            {(isAddingProvider || editingProvider) && (
+                <ProviderForm initialValue={editingProvider ?? undefined} onCancel={closeForm} onSave={saveProvider} />
+            )}
+        </div>
     )
 }
 
@@ -1397,38 +1165,9 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
         }
     }, [isTauri, settings])
 
-    const onChange = useCallback(
-        (changes: Partial<ISettings>, values_: ISettings) => {
-            let nextValues = values_
-            const shouldRecomputeOpenAIPath =
-                values_.provider === 'OpenAI' &&
-                (changes.provider !== undefined ||
-                    changes.apiModel !== undefined ||
-                    (values_.apiModel === CUSTOM_MODEL_ID && changes.customModelName !== undefined))
-
-            if (shouldRecomputeOpenAIPath) {
-                const selectedModel =
-                    values_.apiModel === CUSTOM_MODEL_ID ? values_.customModelName ?? '' : values_.apiModel
-                const recommendedPath = getRecommendedOpenAIAPIPath(selectedModel)
-                const normalizedPath =
-                    recommendedPath === OPENAI_RESPONSES_API_PATH
-                        ? OPENAI_RESPONSES_API_PATH
-                        : OPENAI_CHAT_COMPLETIONS_API_PATH
-                if (nextValues.apiURLPath !== normalizedPath) {
-                    nextValues = {
-                        ...nextValues,
-                        apiURLPath: normalizedPath,
-                    }
-                    form.setFieldsValue({
-                        apiURLPath: normalizedPath,
-                    })
-                }
-            }
-
-            setValues(nextValues)
-        },
-        [form]
-    )
+    const onChange = useCallback((_changes: Partial<ISettings>, values_: ISettings) => {
+        setValues(values_)
+    }, [])
 
     const onSubmit = useCallback(
         async (data: ISettings) => {
@@ -1470,12 +1209,37 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
         [isTauri, onSave, setSettings, refreshThemeType, t, trackTauriEvent]
     )
 
+    const persistSettings = useCallback(
+        async (nextValues: ISettings) => {
+            await utils.setSettings(nextValues)
+            setPrevValues(nextValues)
+            setSettings(nextValues)
+        },
+        [setSettings]
+    )
+
     const onBlur = useCallback(async () => {
         if (!_.isEqual(values, prevValues)) {
-            await utils.setSettings(values)
-            setPrevValues(values)
+            await persistSettings(values)
         }
-    }, [prevValues, values])
+    }, [persistSettings, prevValues, values])
+
+    const handleLLMProvidersChange = useCallback(
+        (providers: ProviderConfig[], defaultProviderId: string | null) => {
+            const nextValues = {
+                ...values,
+                providers,
+                defaultProviderId,
+            }
+            form.setFieldsValue({
+                providers,
+                defaultProviderId,
+            })
+            setValues(nextValues)
+            void persistSettings(nextValues)
+        },
+        [form, persistSettings, values]
+    )
 
     const isDesktopApp = utils.isDesktopApp()
 
@@ -1765,738 +1529,23 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         <FormItem name='i18n' label={t('i18n')}>
                             <Ii18nSelector onBlur={onBlur} />
                         </FormItem>
-                        <FormItem
-                            name='provider'
-                            label={
-                                <div
-                                    style={{
-                                        display: 'flex',
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        gap: 10,
-                                    }}
-                                >
-                                    {t('Default service provider')}
-                                </div>
-                            }
-                            required
-                            caption={
-                                values.provider === 'Ollama' ? (
-                                    <div>
-                                        {t('Go to the')}{' '}
-                                        <a
-                                            target='_blank'
-                                            href='https://github.com/ollama/ollama#ollama'
-                                            rel='noreferrer'
-                                            style={linkStyle}
-                                        >
-                                            Ollama Homepage
-                                        </a>{' '}
-                                        {t('to learn how to install and setup.')}
-                                    </div>
-                                ) : undefined
-                            }
-                        >
-                            <ProviderSelector />
-                        </FormItem>
-                        <div
-                            style={{
-                                display: values.provider === 'Ollama' ? 'block' : 'none',
-                            }}
-                        >
-                            <FormItem
-                                name='ollamaAPIURL'
-                                label={t('API URL')}
-                                required={values.provider === 'Ollama'}
-                                caption={t('Generally, there is no need to modify this item.')}
-                            >
-                                <Input size='compact' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem
-                                name='ollamaModelLifetimeInMemory'
-                                label={t('The survival time of the Ollama model in memory')}
-                                required={values.provider === 'Ollama'}
-                            >
-                                <DurationPicker size='compact' />
-                            </FormItem>
-                            <FormItem
-                                name='ollamaAPIModel'
-                                label={t('API Model')}
-                                required={values.provider === 'Ollama'}
-                                caption={
-                                    <div>
-                                        <div>
-                                            {t(
-                                                'Model needs to first use the `ollama pull` command to download locally, please view all models from this page:'
-                                            )}{' '}
-                                            <a
-                                                target='_blank'
-                                                href='https://ollama.com/library'
-                                                rel='noreferrer'
-                                                style={linkStyle}
-                                            >
-                                                Models
-                                            </a>
-                                        </div>
-                                    </div>
-                                }
-                            >
-                                <APIModelSelector provider='Ollama' currentProvider={values.provider} onBlur={onBlur} />
-                            </FormItem>
+                        <div style={{ marginBottom: 20 }}>
                             <div
                                 style={{
-                                    display: values.ollamaAPIModel === CUSTOM_MODEL_ID ? 'block' : 'none',
+                                    flexShrink: 0,
+                                    padding: '0.25em 0',
+                                    fontSize: '1.2em',
+                                    fontWeight: '600',
+                                    color: theme.colors.contentPrimary,
                                 }}
                             >
-                                <FormItem
-                                    name='ollamaCustomModelName'
-                                    label={t('Custom Model Name')}
-                                    required={values.provider === 'Ollama' && values.ollamaAPIModel === CUSTOM_MODEL_ID}
-                                >
-                                    <Input autoComplete='off' size='compact' />
-                                </FormItem>
+                                {t('LLM Providers')}
                             </div>
-                        </div>
-                        <div
-                            style={{
-                                display: values.provider === 'Groq' ? 'block' : 'none',
-                            }}
-                        >
-                            <FormItem
-                                required={values.provider === 'Groq'}
-                                name='groqAPIKey'
-                                label='Groq API Key'
-                                caption={
-                                    <div>
-                                        {t('Go to the')}{' '}
-                                        <a
-                                            target='_blank'
-                                            href='https://console.groq.com/keys'
-                                            rel='noreferrer'
-                                            style={linkStyle}
-                                        >
-                                            GroqCloud
-                                        </a>{' '}
-                                        {t('to get your API Key.')}
-                                    </div>
-                                }
-                            >
-                                <Input autoFocus type='password' size='compact' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem name='groqAPIModel' label={t('API Model')} required={values.provider === 'Groq'}>
-                                <APIModelSelector
-                                    provider='Groq'
-                                    currentProvider={values.provider}
-                                    apiKey={values.groqAPIKey}
-                                    onBlur={onBlur}
-                                />
-                            </FormItem>
-                            <div
-                                style={{
-                                    display: values.groqAPIModel === CUSTOM_MODEL_ID ? 'block' : 'none',
-                                }}
-                            >
-                                <FormItem
-                                    name='groqCustomModelName'
-                                    label={t('Custom Model Name')}
-                                    required={values.provider === 'Groq' && values.groqAPIModel === CUSTOM_MODEL_ID}
-                                >
-                                    <Input autoComplete='off' size='compact' />
-                                </FormItem>
-                            </div>
-                            <FormItem
-                                name='groqAPIURL'
-                                label={t('API URL')}
-                                required={values.provider === 'Groq'}
-                                caption={t('Generally, there is no need to modify this item.')}
-                            >
-                                <Input size='compact' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem
-                                name='groqAPIURLPath'
-                                label={t('API URL Path')}
-                                required={values.provider === 'Groq'}
-                                caption={t('Generally, there is no need to modify this item.')}
-                            >
-                                <Input size='compact' onBlur={onBlur} />
-                            </FormItem>
-                        </div>
-                        <div
-                            style={{
-                                display: values.provider === 'Claude' ? 'block' : 'none',
-                            }}
-                        >
-                            <FormItem
-                                required={values.provider === 'Claude'}
-                                name='claudeAPIKey'
-                                label='Claude API Key'
-                                caption={
-                                    <div>
-                                        {t('Go to the')}{' '}
-                                        <a
-                                            target='_blank'
-                                            href='https://console.anthropic.com/settings/keys'
-                                            rel='noreferrer'
-                                            style={linkStyle}
-                                        >
-                                            Anthropic Console
-                                        </a>{' '}
-                                        {t('to get your API Key.')}
-                                    </div>
-                                }
-                            >
-                                <Input autoFocus type='password' size='compact' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem
-                                name='claudeAPIModel'
-                                label={t('API Model')}
-                                required={values.provider === 'Claude'}
-                            >
-                                <APIModelSelector
-                                    provider='Claude'
-                                    currentProvider={values.provider}
-                                    apiKey={values.claudeAPIKey}
-                                    onBlur={onBlur}
-                                />
-                            </FormItem>
-                            <div
-                                style={{
-                                    display: values.claudeAPIModel === CUSTOM_MODEL_ID ? 'block' : 'none',
-                                }}
-                            >
-                                <FormItem
-                                    name='claudeCustomModelName'
-                                    label={t('Custom Model Name')}
-                                    required={values.provider === 'Claude' && values.claudeAPIModel === CUSTOM_MODEL_ID}
-                                >
-                                    <Input autoComplete='off' size='compact' />
-                                </FormItem>
-                            </div>
-                            <FormItem name='claudeThinking' label={t('Enable Extended Thinking')}>
-                                <MyCheckbox onBlur={onBlur} />
-                            </FormItem>
-                            <div
-                                style={{
-                                    display: values.claudeThinking ? 'block' : 'none',
-                                }}
-                            >
-                                <FormItem name='claudeThinkingLevel' label={t('Thinking Level')}>
-                                    <ThinkingLevelSelector onBlur={onBlur} />
-                                </FormItem>
-                            </div>
-                            <FormItem
-                                name='claudeAPIURL'
-                                label={t('API URL')}
-                                required={values.provider === 'Claude'}
-                                caption={t('Generally, there is no need to modify this item.')}
-                            >
-                                <Input size='compact' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem
-                                name='claudeAPIURLPath'
-                                label={t('API URL Path')}
-                                required={values.provider === 'Claude'}
-                                caption={t('Generally, there is no need to modify this item.')}
-                            >
-                                <Input size='compact' onBlur={onBlur} />
-                            </FormItem>
-                        </div>
-                        <div
-                            style={{
-                                display: values.provider === 'Kimi' && utils.isDesktopApp() ? 'block' : 'none',
-                            }}
-                        >
-                            <FormItem
-                                required={values.provider === 'Kimi' && utils.isDesktopApp()}
-                                name='kimiRefreshToken'
-                                label='Kimi Refresh Token'
-                                caption={
-                                    <div>
-                                        {t('Go to the')}{' '}
-                                        <a
-                                            target='_blank'
-                                            href={
-                                                values?.i18n?.toLowerCase().includes('zh')
-                                                    ? 'https://github.com/nextai-translator/nextai-translator/blob/main/docs/kimi-cn.md'
-                                                    : 'https://github.com/nextai-translator/nextai-translator/blob/main/docs/kimi.md'
-                                            }
-                                            rel='noreferrer'
-                                            style={linkStyle}
-                                        >
-                                            Tutorial
-                                        </a>{' '}
-                                        {t('to get your refresh_token.')}
-                                    </div>
-                                }
-                            >
-                                <Input autoFocus type='password' size='compact' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem
-                                required={values.provider === 'Kimi' && utils.isDesktopApp()}
-                                name='kimiAccessToken'
-                                label='Kimi Access Token'
-                                caption={
-                                    <div>
-                                        {t('Go to the')}{' '}
-                                        <a
-                                            target='_blank'
-                                            href={
-                                                values?.i18n?.toLowerCase().includes('zh')
-                                                    ? 'https://github.com/nextai-translator/nextai-translator/blob/main/docs/kimi-cn.md'
-                                                    : 'https://github.com/nextai-translator/nextai-translator/blob/main/docs/kimi.md'
-                                            }
-                                            rel='noreferrer'
-                                            style={linkStyle}
-                                        >
-                                            Tutorial
-                                        </a>{' '}
-                                        {t('to get your access_token.')}
-                                    </div>
-                                }
-                            >
-                                <Input autoFocus type='password' size='compact' onBlur={onBlur} />
-                            </FormItem>
-                        </div>
-                        <div
-                            style={{
-                                display: values.provider === 'ChatGLM' && utils.isDesktopApp() ? 'block' : 'none',
-                            }}
-                        >
-                            <FormItem
-                                required={values.provider === 'ChatGLM' && utils.isDesktopApp()}
-                                name='chatglmRefreshToken'
-                                label={`${t('ChatGLM')} Refresh Token`}
-                                caption={
-                                    <div>
-                                        {t('Go to the')}{' '}
-                                        <a
-                                            target='_blank'
-                                            href={
-                                                values?.i18n?.toLowerCase().includes('zh')
-                                                    ? 'https://github.com/nextai-translator/nextai-translator/blob/main/docs/chatglm-cn.md'
-                                                    : 'https://github.com/nextai-translator/nextai-translator/blob/main/docs/chatglm.md'
-                                            }
-                                            rel='noreferrer'
-                                            style={linkStyle}
-                                        >
-                                            Tutorial
-                                        </a>{' '}
-                                        {t('to get your refresh_token.')}
-                                    </div>
-                                }
-                            >
-                                <Input autoFocus type='password' size='compact' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem
-                                required={values.provider === 'ChatGLM' && utils.isDesktopApp()}
-                                name='chatglmAccessToken'
-                                label={`${t('ChatGLM')} Token`}
-                                caption={
-                                    <div>
-                                        {t('Go to the')}{' '}
-                                        <a
-                                            target='_blank'
-                                            href={
-                                                values?.i18n?.toLowerCase().includes('zh')
-                                                    ? 'https://github.com/nextai-translator/nextai-translator/blob/main/docs/chatglm-cn.md'
-                                                    : 'https://github.com/nextai-translator/nextai-translator/blob/main/docs/chatglm.md'
-                                            }
-                                            rel='noreferrer'
-                                            style={linkStyle}
-                                        >
-                                            Tutorial
-                                        </a>{' '}
-                                        {t('to get your token.')}
-                                    </div>
-                                }
-                            >
-                                <Input autoFocus type='password' size='compact' onBlur={onBlur} />
-                            </FormItem>
-                        </div>
-                        <div
-                            style={{
-                                display: values.provider === 'Gemini' ? 'block' : 'none',
-                            }}
-                        >
-                            <FormItem name='geminiAPIURL' label={t('API URL')} required={values.provider === 'Gemini'}>
-                                <Input size='compact' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem
-                                required={values.provider === 'Gemini'}
-                                name='geminiAPIKey'
-                                label='Gemini API Key'
-                                caption={
-                                    <div>
-                                        {t('Go to the')}{' '}
-                                        <a
-                                            target='_blank'
-                                            href='https://makersuite.google.com/app/apikey'
-                                            rel='noreferrer'
-                                            style={linkStyle}
-                                        >
-                                            Google AI Studio
-                                        </a>{' '}
-                                        {t('to get your API Key.')}
-                                    </div>
-                                }
-                            >
-                                <Input autoFocus type='password' size='compact' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem
-                                name='geminiAPIModel'
-                                label={t('API Model')}
-                                required={values.provider === 'Gemini'}
-                            >
-                                <APIModelSelector
-                                    provider='Gemini'
-                                    currentProvider={values.provider}
-                                    apiKey={values.geminiAPIKey}
-                                    onBlur={onBlur}
-                                />
-                            </FormItem>
-                        </div>
-                        <div
-                            style={{
-                                display: values.provider === 'Cohere' ? 'block' : 'none',
-                            }}
-                        >
-                            <FormItem
-                                required={values.provider === 'Cohere'}
-                                name='cohereAPIKey'
-                                label='Cohere API Key'
-                                caption={
-                                    <div>
-                                        {t('Go to the')}{' '}
-                                        <a
-                                            target='_blank'
-                                            href='https://dashboard.cohere.com/api-keys'
-                                            rel='noreferrer'
-                                            style={linkStyle}
-                                        >
-                                            Cohere Dashboard
-                                        </a>{' '}
-                                        {t('to get your API Key.')}
-                                    </div>
-                                }
-                            >
-                                <Input autoFocus type='password' size='compact' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem
-                                name='cohereAPIModel'
-                                label={t('API Model')}
-                                required={values.provider === 'Cohere'}
-                            >
-                                <APIModelSelector
-                                    provider='Cohere'
-                                    currentProvider={values.provider}
-                                    apiKey={values.cohereAPIKey}
-                                    onBlur={onBlur}
-                                />
-                            </FormItem>
-                        </div>
-                        <div
-                            style={{
-                                display: values.provider === 'DeepSeek' ? 'block' : 'none',
-                            }}
-                        >
-                            <FormItem
-                                required={values.provider === 'DeepSeek'}
-                                name='deepSeekAPIKey'
-                                label='DeepSeek API Key'
-                                caption={
-                                    <div>
-                                        {t('Go to the')}{' '}
-                                        <a
-                                            target='_blank'
-                                            href='https://platform.deepseek.com/api_keys'
-                                            rel='noreferrer'
-                                            style={linkStyle}
-                                        >
-                                            DeepSeek Dashboard
-                                        </a>{' '}
-                                        {t('to get your API Key.')}
-                                    </div>
-                                }
-                            >
-                                <Input autoFocus type='password' size='compact' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem
-                                name='deepSeekAPIModel'
-                                label={t('API Model')}
-                                required={values.provider === 'DeepSeek'}
-                            >
-                                <APIModelSelector
-                                    provider='DeepSeek'
-                                    currentProvider={values.provider}
-                                    apiKey={values.deepSeekAPIKey}
-                                    onBlur={onBlur}
-                                />
-                            </FormItem>
-                        </div>
-                        <div
-                            style={{
-                                display: values.provider === 'OpenAI' ? 'block' : 'none',
-                            }}
-                        >
-                            <FormItem
-                                required={values.provider === 'OpenAI'}
-                                name='apiKeys'
-                                label={t('API Key')}
-                                caption={
-                                    <div
-                                        style={{
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: 3,
-                                        }}
-                                    >
-                                        <div>
-                                            {t('Go to the')}{' '}
-                                            <a
-                                                target='_blank'
-                                                href='https://platform.openai.com/account/api-keys'
-                                                rel='noreferrer'
-                                                style={linkStyle}
-                                            >
-                                                {t('OpenAI page')}
-                                            </a>{' '}
-                                            {t(
-                                                'to get your API Key. You can separate multiple API Keys with English commas to achieve quota doubling and load balancing.'
-                                            )}
-                                        </div>
-                                    </div>
-                                }
-                            >
-                                <Input autoFocus type='password' size='compact' name='apiKey' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem
-                                name='noModelsAPISupport'
-                                label={t('No models API support')}
-                                caption={t(
-                                    "Some providers claiming to be compatible with OpenAI's API do not actually support OpenAI's standard model API. Therefore, we have no choice but to offer this option. If you choose this option (and then need to click the save button), we will not attempt to dynamically fetch the latest model list from the model API, but will only use a fixed model list and custom models."
-                                )}
-                            >
-                                <MyCheckbox onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem name='apiModel' label={t('API Model')} required={values.provider === 'OpenAI'}>
-                                <APIModelSelector
-                                    provider='OpenAI'
-                                    currentProvider={values.provider}
-                                    apiKey={values.apiKeys}
-                                    onBlur={onBlur}
-                                />
-                            </FormItem>
-                            <div
-                                style={{
-                                    display: values.apiModel === CUSTOM_MODEL_ID ? 'block' : 'none',
-                                }}
-                            >
-                                <FormItem
-                                    name='customModelName'
-                                    label={t('Custom Model Name')}
-                                    required={values.provider === 'OpenAI' && values.apiModel === CUSTOM_MODEL_ID}
-                                >
-                                    <Input autoComplete='off' size='compact' />
-                                </FormItem>
-                            </div>
-                            <FormItem name='apiURL' label={t('API URL')} required={values.provider === 'OpenAI'}>
-                                <Input size='compact' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem
-                                name='apiURLPath'
-                                label={t('API URL Path')}
-                                required={values.provider === 'OpenAI'}
-                            >
-                                <Input size='compact' />
-                            </FormItem>
-                        </div>
-                        <div
-                            style={{
-                                display: values.provider === 'Azure' ? 'block' : 'none',
-                            }}
-                        >
-                            <FormItem
-                                required={values.provider === 'Azure'}
-                                name='azureAPIKeys'
-                                label={t('API Key')}
-                                caption={
-                                    <div>
-                                        {t('Go to the')}{' '}
-                                        <a
-                                            target='_blank'
-                                            href='https://learn.microsoft.com/en-us/azure/cognitive-services/openai/chatgpt-quickstart?tabs=command-line&pivots=rest-api#retrieve-key-and-endpoint'
-                                            rel='noreferrer'
-                                            style={linkStyle}
-                                        >
-                                            {t('Azure OpenAI Service page')}
-                                        </a>{' '}
-                                        {t(
-                                            'to get your API Key. You can separate multiple API Keys with English commas to achieve quota doubling and load balancing.'
-                                        )}
-                                    </div>
-                                }
-                            >
-                                <Input autoFocus type='password' size='compact' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem
-                                name='azureAPIModel'
-                                label={t('API Model')}
-                                required={values.provider === 'Azure'}
-                            >
-                                <APIModelSelector
-                                    provider='Azure'
-                                    currentProvider={values.provider}
-                                    apiKey={values.azureAPIKeys}
-                                    onBlur={onBlur}
-                                />
-                            </FormItem>
-                            <FormItem name='azureAPIURL' label={t('API URL')} required={values.provider === 'Azure'}>
-                                <Input size='compact' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem
-                                name='azureAPIURLPath'
-                                label={t('API URL Path')}
-                                required={values.provider === 'Azure'}
-                            >
-                                <Input size='compact' />
-                            </FormItem>
-                            <FormItem name='azMaxWords' label='Max Tokens' required={values.provider === 'Azure'}>
-                                <NumberInput size='compact' />
-                            </FormItem>
-                        </div>
-                        <div
-                            style={{
-                                display: values.provider === 'ChatGPT' ? 'block' : 'none',
-                            }}
-                        >
-                            <FormItem
-                                name='chatgptModel'
-                                label={t('API Model')}
-                                required={values.provider === 'ChatGPT'}
-                            >
-                                <APIModelSelector
-                                    provider='ChatGPT'
-                                    currentProvider={values.provider}
-                                    onBlur={onBlur}
-                                />
-                            </FormItem>
-                        </div>
-                        <div
-                            style={{
-                                display: values.provider === 'MiniMax' ? 'block' : 'none',
-                            }}
-                        >
-                            <FormItem
-                                required={values.provider === 'MiniMax'}
-                                name='miniMaxAPIKey'
-                                label='MiniMax API Key'
-                                caption={
-                                    <div>
-                                        {t('Go to the')}{' '}
-                                        <a
-                                            target='_blank'
-                                            href='https://platform.minimaxi.com/user-center/basic-information/interface-key'
-                                            rel='noreferrer'
-                                            style={linkStyle}
-                                        >
-                                            {t('MiniMax page')}
-                                        </a>{' '}
-                                        {t('to get your API Key.')}
-                                    </div>
-                                }
-                            >
-                                <Input autoFocus type='password' size='compact' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem
-                                name='miniMaxAPIModel'
-                                label={t('API Model')}
-                                required={values.provider === 'MiniMax'}
-                            >
-                                <APIModelSelector
-                                    provider='MiniMax'
-                                    currentProvider={values.provider}
-                                    onBlur={onBlur}
-                                    apiKey={values.miniMaxAPIKey}
-                                />
-                            </FormItem>
-                        </div>
-                        <div
-                            style={{
-                                display: values.provider === 'Moonshot' ? 'block' : 'none',
-                            }}
-                        >
-                            <FormItem
-                                required={values.provider === 'Moonshot'}
-                                name='moonshotAPIKey'
-                                label='Moonshot API Key'
-                                caption={
-                                    <div>
-                                        {t('Go to the')}{' '}
-                                        <a
-                                            target='_blank'
-                                            href='https://www.moonshot.cn/'
-                                            rel='noreferrer'
-                                            style={linkStyle}
-                                        >
-                                            Moonshot Page
-                                        </a>{' '}
-                                        {t('to get your API Key.')}
-                                    </div>
-                                }
-                            >
-                                <Input autoFocus type='password' size='compact' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem
-                                name='moonshotAPIModel'
-                                label={t('API Model')}
-                                required={values.provider === 'Moonshot'}
-                            >
-                                <APIModelSelector
-                                    provider='Moonshot'
-                                    currentProvider={values.provider}
-                                    onBlur={onBlur}
-                                    apiKey={values.moonshotAPIKey}
-                                />
-                            </FormItem>
-                        </div>
-                        <div
-                            style={{
-                                display: values.provider === 'Cerebras' ? 'block' : 'none',
-                            }}
-                        >
-                            <FormItem
-                                required={values.provider === 'Cerebras'}
-                                name='cerebrasAPIKey'
-                                label='Cerebras API Key'
-                                caption={
-                                    <div>
-                                        {t('Go to the')}{' '}
-                                        <a
-                                            target='_blank'
-                                            href='https://cloud.cerebras.ai/'
-                                            rel='noreferrer'
-                                            style={linkStyle}
-                                        >
-                                            Cerebras Page
-                                        </a>{' '}
-                                        {t('to get your API Key.')}
-                                    </div>
-                                }
-                            >
-                                <Input autoFocus type='password' size='compact' onBlur={onBlur} />
-                            </FormItem>
-                            <FormItem
-                                name='cerebrasAPIModel'
-                                label={t('API Model')}
-                                required={values.provider === 'Cerebras'}
-                            >
-                                <APIModelSelector
-                                    provider='Cerebras'
-                                    currentProvider={values.provider}
-                                    apiKey={values.cerebrasAPIKey}
-                                    onBlur={onBlur}
-                                />
-                            </FormItem>
+                            <LLMProvidersSettings
+                                providers={values.providers ?? []}
+                                defaultProviderId={values.defaultProviderId ?? null}
+                                onChange={handleLLMProvidersChange}
+                            />
                         </div>
                         <FormItem name='defaultTargetLanguage' label={t('Default target language')}>
                             <LanguageSelector onBlur={onBlur} />

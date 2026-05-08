@@ -55,18 +55,18 @@
 
 - [x] 6.1 删除 OCR 热键、写作热键、写作语言等设置项 UI
 - [x] 6.2 删除画词、Action、生词本相关设置项 UI
-- [ ] 6.3 删除按厂商列出的 API Key / API URL / Model 表单(OpenAI、Azure、Gemini、MiniMax、DeepSeek、Moonshot 等独立块)
-- [ ] 6.4 新增 "LLM Providers" 区块:列表 + 新增按钮 + 编辑/删除/设为默认
-- [ ] 6.5 新增 "添加/编辑 Provider" 表单组件 `ProviderForm.tsx`(在 `components/Form/` 内或独立文件):字段 `name / protocol(下拉) / apiKey / endpoint(可选) / model(Combobox) / extraHeaders(可选高级折叠)`
-- [ ] 6.6 表单内不提供第三方厂商模板;只提供协议选择、官方默认 endpoint 说明与用户手填 endpoint/model 输入
-- [ ] 6.7 表单校验:`name` / `apiKey` / `model` 非空;`endpoint` 若非空必须为合法 URL
-- [ ] 6.8 实现"设为默认":修改 `settings.defaultProviderId`
-- [ ] 6.9 实现"删除":若被删条目为默认,落到 `providers[0].id`;若删后为空,设为 `null`
-- [ ] 6.10 实现"模型 Combobox":apiKey 输入框 blur 后若 endpoint+apiKey 完整则自动调用 `listModels` + `filterChatModels` 渲染下拉;提供"刷新"按钮重新拉取;失败时降级为纯文本输入并 toast;允许任意手填值优先生效
+- [x] 6.3 删除按厂商列出的 API Key / API URL / Model 表单(OpenAI、Azure、Gemini、MiniMax、DeepSeek、Moonshot 等独立块)
+- [x] 6.4 新增 "LLM Providers" 区块:列表 + 新增按钮 + 编辑/删除/设为默认
+- [x] 6.5 新增 "添加/编辑 Provider" 表单组件 `ProviderForm.tsx`(在 `components/Form/` 内或独立文件):字段 `name / protocol(下拉) / apiKey / endpoint(可选) / model(Combobox) / extraHeaders(可选高级折叠)`
+- [x] 6.6 表单内不提供第三方厂商模板;只提供协议选择、官方默认 endpoint 说明与用户手填 endpoint/model 输入
+- [x] 6.7 表单校验:`name` / `apiKey` / `model` 非空;`endpoint` 若非空必须为合法 URL
+- [x] 6.8 实现"设为默认":修改 `settings.defaultProviderId`
+- [x] 6.9 实现"删除":若被删条目为默认,落到 `providers[0].id`;若删后为空,设为 `null`
+- [x] 6.10 实现"模型 Combobox":apiKey 输入框 blur 后若 endpoint+apiKey 完整则自动调用 `listModels` + `filterChatModels` 渲染下拉;提供"刷新"按钮重新拉取;失败时降级为纯文本输入并 toast;允许任意手填值优先生效
 - [ ] 6.11 保留并完善 TTS provider / voice / volume / rate 设置 UI
 - [ ] 6.12 在 TTS 设置区新增 OpenAI TTS 子区:provider 引用下拉(仅显示 `openai-chat` / `openai-responses`,Anthropic 条目隐藏或禁用)、模型 Combobox(经 `filterTTSModels` 白名单过滤,空时引导手填)、voice 下拉(内置 `alloy / ash / ballad / coral / echo / fable / onyx / nova / sage / shimmer / verse / marin / cedar` + 自定义输入/voice id)、音频格式下拉(默认 mp3,含 pcm)
 - [x] 6.13 实现"dangling 引用检测":在 `getSettings` 或 settings 写回前检查 `settings.tts.openai.providerId` 是否仍存在于 `settings.providers`,若不存在则把 `settings.tts.provider` 回退为 `'edge'` 并通过 toast 通知
-- [ ] 6.14 保留 languageDetectionEngine、defaultTargetLanguage、热键(主热键、显示窗口热键)、proxy、theme 等保留设置
+- [x] 6.14 保留 languageDetectionEngine、defaultTargetLanguage、热键(主热键、显示窗口热键)、proxy、theme 等保留设置
 
 ## 7. OpenAI TTS Backend
 
@@ -106,7 +106,7 @@
 ## 9. i18n 与文案清理
 
 - [ ] 9.1 在所有 `src/common/i18n/locales/*/translation.json` 中删除"Upload an image for OCR translation"、"OCR Hotkey"、"Writing"、"Vocabulary"、"Polishing"、"Summarize"、"Analyze"、"Explain Code"、"Action"等已无引用的键
-- [ ] 9.2 新增 LLM Provider 列表 / 表单相关 i18n 键(中英为主,其它语言保留 fallback 到英文即可)
+- [x] 9.2 新增 LLM Provider 列表 / 表单相关 i18n 键(中英为主,其它语言保留 fallback 到英文即可)
 - [x] 9.3 新增"无可用 Provider"引导文案 i18n 键
 - [ ] 9.4 新增 OpenAI TTS 相关 i18n 键(关联 Provider、模型、voice、音频格式、错误提示)
 - [x] 9.5 删除 Promotion 相关文案、样式与测试 fixture;确认 UI 不再出现 promotion、推广、公告、API Key 提示点等旧文案

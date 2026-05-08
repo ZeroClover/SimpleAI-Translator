@@ -49,7 +49,7 @@
 - [x] 5.5 替换"Provider 选择"控件:把原来按 `provider` 枚举画的下拉,改为渲染 `settings.providers` 列表的下拉(显示 `name`,选中后写入运行时状态,不修改 `defaultProviderId`)
 - [x] 5.6 翻译触发逻辑改为传入运行时选定的 `providerId` 给 `translate(...)`(若未临时切换则等于 `defaultProviderId`)
 - [x] 5.7 为"无可用 Provider"场景渲染禁用态 + 引导文案(链接到设置页)
-- [ ] 5.8 验证 `SpeakerIcon` / `SpeakerMotion` 仍能朗读源文与译文,且不依赖任何已删模块
+- [x] 5.8 验证 `SpeakerIcon` / `SpeakerMotion` 仍能朗读源文与译文,且不依赖任何已删模块
 
 ## 6. Settings.tsx 重构
 

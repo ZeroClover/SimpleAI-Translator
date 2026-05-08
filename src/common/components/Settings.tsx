@@ -37,7 +37,6 @@ import { GlobalSuspense } from './GlobalSuspense'
 import { Modal, ModalBody, ModalHeader } from 'baseui-sd/modal'
 import { Provider, engineIcons, getEngine } from '../engines'
 import { IModel } from '../engines/interfaces'
-import { PiTextbox } from 'react-icons/pi'
 import { BsKeyboard } from 'react-icons/bs'
 import { TbCloudNetwork } from 'react-icons/tb'
 import { Cell, Grid } from 'baseui-sd/layout-grid'
@@ -1702,14 +1701,6 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         overrides={tabOverrides}
                     />
                     <Tab
-                        title={t('Writing')}
-                        key='writing'
-                        artwork={() => {
-                            return <PiTextbox size={14} />
-                        }}
-                        overrides={tabOverrides}
-                    />
-                    <Tab
                         title={t('Shortcuts')}
                         key='shortcuts'
                         artwork={() => {
@@ -2662,43 +2653,6 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                     </div>
                     <div
                         style={{
-                            display: activeTab === 'writing' ? 'block' : 'none',
-                        }}
-                    >
-                        <FormItem
-                            style={{
-                                display: isDesktopApp ? 'block' : 'none',
-                            }}
-                            name='writingTargetLanguage'
-                            label={t('Writing target language')}
-                        >
-                            <LanguageSelector onBlur={onBlur} />
-                        </FormItem>
-                        <FormItem
-                            style={{
-                                display: isDesktopApp ? 'block' : 'none',
-                            }}
-                            name='writingHotkey'
-                            label={t('Writing Hotkey')}
-                            caption={t(
-                                'Press this shortcut key in the input box of any application, and the text already entered in the input box will be automatically translated into the writing target language.'
-                            )}
-                        >
-                            <HotkeyRecorder onBlur={onBlur} testId='writing-hotkey-recorder' />
-                        </FormItem>
-                        <FormItem
-                            style={{
-                                display: isDesktopApp ? 'block' : 'none',
-                            }}
-                            name='writingNewlineHotkey'
-                            label={t('Writing line break shortcut')}
-                            caption={t('When writing, which key should be pressed when encountering a line break?')}
-                        >
-                            <HotkeyRecorder onBlur={onBlur} testId='writing-newline-hotkey-recorder' />
-                        </FormItem>
-                    </div>
-                    <div
-                        style={{
                             display: activeTab === 'shortcuts' ? 'block' : 'none',
                         }}
                     >
@@ -2707,15 +2661,6 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         </FormItem>
                         <FormItem name='displayWindowHotkey' label={t('Display window Hotkey')}>
                             <HotkeyRecorder onBlur={onBlur} testId='display-window-hotkey-recorder' />
-                        </FormItem>
-                        <FormItem
-                            style={{
-                                display: isDesktopApp ? 'block' : 'none',
-                            }}
-                            name='ocrHotkey'
-                            label={t('OCR Hotkey')}
-                        >
-                            <HotkeyRecorder onBlur={onBlur} testId='ocr-hotkey-recorder' />
                         </FormItem>
                     </div>
                 </div>

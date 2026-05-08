@@ -35,8 +35,8 @@ use crate::fetch::fetch_stream;
 use crate::lang::detect_lang;
 use crate::windows::{
     get_translator_window_always_on_top, hide_translator_window, show_history_window,
-    show_translator_window_command,
-    show_translator_window_with_selected_text_command, show_updater_window, TRANSLATOR_WIN_NAME,
+    show_translator_window_command, show_translator_window_with_selected_text_command,
+    show_updater_window, TRANSLATOR_WIN_NAME,
 };
 
 use mouce::{Mouse, MouseActions};
@@ -59,6 +59,9 @@ pub static PREVIOUS_PRESS_TIME: Mutex<u128> = Mutex::new(0);
 pub static PREVIOUS_RELEASE_TIME: Mutex<u128> = Mutex::new(0);
 pub static PREVIOUS_RELEASE_POSITION: Mutex<(i32, i32)> = Mutex::new((0, 0));
 pub static RELEASE_THREAD_ID: Mutex<u32> = Mutex::new(0);
+
+const DEFAULT_IPC_SOCKET_PATH: &str = "/tmp/openai-translator.sock";
+const IPC_SOCKET_PATH_ENV: &str = "NEXTAI_TRANSLATOR_IPC_SOCKET";
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -434,7 +437,9 @@ fn main() {
                 #[cfg(not(target_os = "windows"))]
                 {
                     use std::path::Path;
-                    let path = Path::new("/tmp/openai-translator.sock");
+                    let socket_path = env::var(IPC_SOCKET_PATH_ENV)
+                        .unwrap_or_else(|_| DEFAULT_IPC_SOCKET_PATH.to_string());
+                    let path = Path::new(&socket_path);
                     std::fs::remove_file(path).unwrap_or_default();
                     let server = Server::http_unix(path).unwrap();
                     launch_ipc_server(&server);

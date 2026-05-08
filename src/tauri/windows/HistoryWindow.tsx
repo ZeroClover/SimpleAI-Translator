@@ -26,7 +26,7 @@ export function HistoryWindow() {
 
     return (
         <Window>
-            <TranslationHistory variant='window' isOpen actions={[]} onClose={handleClose} onRestore={handleRestore} />
+            <TranslationHistory variant='window' isOpen onClose={handleClose} onRestore={handleRestore} />
         </Window>
     )
 }

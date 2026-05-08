@@ -19,12 +19,6 @@ export const historyService = {
     update(id: number, payload: UpdateHistoryPayload): Promise<void> {
         return historyServiceImpl.update(id, payload)
     },
-    updateFavorite(id: number, favorite: boolean): Promise<void> {
-        return historyServiceImpl.updateFavorite(id, favorite)
-    },
-    touch(id: number): Promise<void> {
-        return historyServiceImpl.touch(id)
-    },
     delete(id: number): Promise<void> {
         return historyServiceImpl.delete(id)
     },

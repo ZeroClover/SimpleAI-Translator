@@ -1,70 +1,31 @@
 import Dexie, { Table } from 'dexie'
 import { LangCode } from '../lang'
 
-export interface VocabularyItem {
-    word: string
-    reviewCount: number
-    description: string
-    updatedAt: string
-    createdAt: string
-    [prop: string]: string | number
-}
-
-export type ActionOutputRenderingFormat = 'text' | 'markdown' | 'latex'
-export type LegacyActionMode = 'translate' | 'polishing' | 'summarize' | 'analyze' | 'explain-code' | 'big-bang'
-
-export interface Action {
-    id?: number
-    idx: number
-    mode?: LegacyActionMode
-    name: string
-    icon?: string
-    rolePrompt?: string
-    commandPrompt?: string
-    outputRenderingFormat?: ActionOutputRenderingFormat
-    provider?: string
-    apiModel?: string
-    thinking?: boolean
-    thinkingLevel?: 'low' | 'medium' | 'high'
-    updatedAt: string
-    createdAt: string
-}
-
 export interface HistoryItem {
     id?: number
-    text: string
-    translatedText: string
-    sourceLang: LangCode
-    targetLang: LangCode
-    actionId?: number
-    actionName?: string
-    actionMode?: LegacyActionMode
-    provider?: string
-    engineModel?: string
-    favorite: boolean
-    wordMode?: boolean
-    tokenCount?: number
     createdAt: number
-    updatedAt: number
+    fromLang: LangCode
+    toLang: LangCode
+    sourceText: string
+    translatedText: string
+    providerId: string
+    model: string
 }
 
 export class LocalDB extends Dexie {
-    vocabulary!: Table<VocabularyItem>
-    action!: Table<Action>
     history!: Table<HistoryItem>
 
     constructor() {
         super('openai-translator')
-        this.version(4).stores({
-            vocabulary: 'word, reviewCount, description, updatedAt, createdAt',
-            action: '++id, idx, mode, name, icon, rolePrompt, commandPrompt, outputRenderingFormat, updatedAt, createdAt',
-        })
-        this.version(5).stores({
-            vocabulary: 'word, reviewCount, description, updatedAt, createdAt',
-            action: '++id, idx, mode, name, icon, rolePrompt, commandPrompt, outputRenderingFormat, updatedAt, createdAt',
-            history:
-                '++id, createdAt, updatedAt, text, translatedText, sourceLang, targetLang, actionId, actionMode, favorite',
-        })
+        this.version(6)
+            .stores({
+                vocabulary: null,
+                action: null,
+                history: '++id, createdAt, fromLang, toLang, providerId, model',
+            })
+            .upgrade(async (tx) => {
+                await tx.table('history').clear()
+            })
     }
 }
 

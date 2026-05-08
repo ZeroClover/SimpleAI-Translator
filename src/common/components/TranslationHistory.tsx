@@ -1,17 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Modal, ModalBody, ModalHeader } from 'baseui-sd/modal'
 import { Input } from 'baseui-sd/input'
-import { Select, Value, Option } from 'baseui-sd/select'
 import { Button } from 'baseui-sd/button'
-import { Checkbox } from 'baseui-sd/checkbox'
 import { createUseStyles } from 'react-jss'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../hooks/useTheme'
-import { HistoryItem, Action } from '../internal-services/db'
+import { HistoryItem } from '../internal-services/db'
 import { historyService } from '../services/history'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Tooltip } from './Tooltip'
-import { LuStar, LuStarOff } from 'react-icons/lu'
 import { RxTrash, RxCopy } from 'react-icons/rx'
 import { MdReplay } from 'react-icons/md'
 import color from 'color'
@@ -21,8 +18,6 @@ import { isTauri } from '../utils'
 
 interface TranslationHistoryProps {
     isOpen: boolean
-    actions: Action[]
-    activeActionId?: number
     onClose: () => void
     onRestore: (item: HistoryItem) => void
     variant?: 'modal' | 'window'
@@ -38,7 +33,7 @@ const useStyles = createUseStyles({
     },
     controls: {
         display: 'grid',
-        gridTemplateColumns: '1fr 220px auto',
+        gridTemplateColumns: '1fr',
         gap: '12px',
         alignItems: 'center',
     },
@@ -135,27 +130,8 @@ const useStyles = createUseStyles({
     },
 })
 
-const ALL_ACTIONS_OPTION_ID = '__all__'
-
-function useActionOptions(actions: Action[], t: (key: string) => string): Option[] {
-    return useMemo(() => {
-        const base: Option = {
-            id: ALL_ACTIONS_OPTION_ID,
-            label: t('All Actions'),
-        }
-        return [
-            base,
-            ...actions.map((action) => ({
-                id: action.id ?? action.mode ?? '',
-                label: action.mode ? t(action.name) : action.name,
-                data: action,
-            })),
-        ]
-    }, [actions, t])
-}
-
 export function TranslationHistory(props: TranslationHistoryProps) {
-    const { isOpen, onClose, actions, activeActionId, onRestore, variant = 'modal' } = props
+    const { isOpen, onClose, onRestore, variant = 'modal' } = props
     const isModal = variant !== 'window'
     const isActive = isModal ? isOpen : true
     const { t } = useTranslation()
@@ -164,14 +140,6 @@ export function TranslationHistory(props: TranslationHistoryProps) {
     const headerRef = useRef<HTMLDivElement>(null)
     const searchInputRef = useRef<HTMLInputElement>(null)
     const [search, setSearch] = useState('')
-    const [favoritesOnly, setFavoritesOnly] = useState(false)
-    const actionsOptions = useActionOptions(actions, t)
-    const [selectedActionId, setSelectedActionId] = useState<string | number>(ALL_ACTIONS_OPTION_ID)
-    const selectedActionOption = useMemo(() => {
-        return actionsOptions.find((option) => option.id === selectedActionId) ?? actionsOptions[0]
-    }, [actionsOptions, selectedActionId])
-    const selectedActionData = selectedActionOption?.data as Action | undefined
-    const selectValue: Value = selectedActionOption ? [selectedActionOption] : []
 
     useEffect(() => {
         if (!isActive) {
@@ -193,8 +161,6 @@ export function TranslationHistory(props: TranslationHistoryProps) {
             return
         }
         setSearch('')
-        setFavoritesOnly(false)
-        setSelectedActionId(ALL_ACTIONS_OPTION_ID)
     }, [isModal, isOpen])
 
     useEffect(() => {
@@ -235,18 +201,10 @@ export function TranslationHistory(props: TranslationHistoryProps) {
             }
             return historyService.list({
                 search,
-                favoritesOnly,
                 limit: 200,
-                actionId:
-                    selectedActionId === ALL_ACTIONS_OPTION_ID
-                        ? undefined
-                        : typeof selectedActionData?.id === 'number'
-                        ? selectedActionData.id
-                        : undefined,
-                actionMode: selectedActionId === ALL_ACTIONS_OPTION_ID ? undefined : selectedActionData?.mode,
             })
         },
-        [isActive, search, favoritesOnly, selectedActionId, selectedActionData?.id, selectedActionData?.mode],
+        [isActive, search],
         []
     )
 
@@ -256,13 +214,6 @@ export function TranslationHistory(props: TranslationHistoryProps) {
         },
         [onRestore]
     )
-
-    const onToggleFavorite = async (item: HistoryItem) => {
-        if (item.id === undefined) {
-            return
-        }
-        await historyService.updateFavorite(item.id, !item.favorite)
-    }
 
     const onDelete = async (item: HistoryItem) => {
         if (item.id === undefined) {
@@ -312,19 +263,6 @@ export function TranslationHistory(props: TranslationHistoryProps) {
                 onChange={(e) => setSearch(e.currentTarget.value)}
                 onClear={() => setSearch('')}
             />
-            <Select
-                size='compact'
-                clearable={false}
-                options={actionsOptions}
-                value={selectValue}
-                onChange={({ value }) => {
-                    const nextId = (value[0]?.id ?? ALL_ACTIONS_OPTION_ID) as string | number
-                    setSelectedActionId((current) => (current === nextId ? current : nextId))
-                }}
-            />
-            <Checkbox checked={favoritesOnly} onChange={(event) => setFavoritesOnly(event.currentTarget.checked)}>
-                {t('Favorites Only')}
-            </Checkbox>
         </div>
     )
 
@@ -348,21 +286,11 @@ export function TranslationHistory(props: TranslationHistoryProps) {
             >
                 {isActive && historyItems && historyItems.length > 0 ? (
                     historyItems.map((item) => {
-                        const matchedAction =
-                            actions.find((action) => action.id === item.actionId) ??
-                            actions.find((action) => action.mode && action.mode === item.actionMode)
-                        const isActiveAction = activeActionId !== undefined && matchedAction?.id === activeActionId
-                        const borderColor = isActiveAction ? theme.colors.accent : theme.colors.borderOpaque
+                        const borderColor = theme.colors.borderOpaque
                         const backgroundColor =
                             themeType === 'dark'
-                                ? color(theme.colors.backgroundPrimary)
-                                      .lighten(isActiveAction ? 0.3 : 0.15)
-                                      .alpha(0.85)
-                                      .string()
-                                : color(theme.colors.backgroundSecondary)
-                                      .lighten(isActiveAction ? 0.05 : 0)
-                                      .alpha(isActiveAction ? 1 : 0.9)
-                                      .string()
+                                ? color(theme.colors.backgroundPrimary).lighten(0.15).alpha(0.85).string()
+                                : color(theme.colors.backgroundSecondary).alpha(0.9).string()
                         return (
                             <div
                                 key={item.id}
@@ -386,32 +314,10 @@ export function TranslationHistory(props: TranslationHistoryProps) {
                             >
                                 <div className={styles.historyMeta} style={{ color: theme.colors.contentSecondary }}>
                                     <div>
-                                        {formatTimestamp(item.updatedAt)}
-                                        {matchedAction
-                                            ? ` · ${matchedAction.mode ? t(matchedAction.name) : matchedAction.name}`
-                                            : ''}
+                                        {formatTimestamp(item.createdAt)}
+                                        {item.model ? ` · ${item.model}` : ''}
                                     </div>
                                     <div className={styles.historyActions}>
-                                        <Tooltip
-                                            content={item.favorite ? t('Remove from favorites') : t('Add to favorites')}
-                                            placement='bottom'
-                                        >
-                                            <Button
-                                                size='mini'
-                                                kind='tertiary'
-                                                onClick={(event) => {
-                                                    event.stopPropagation()
-                                                    void onToggleFavorite(item)
-                                                }}
-                                                overrides={{
-                                                    BaseButton: {
-                                                        style: { paddingLeft: '6px', paddingRight: '6px' },
-                                                    },
-                                                }}
-                                            >
-                                                {item.favorite ? <LuStar size={16} /> : <LuStarOff size={16} />}
-                                            </Button>
-                                        </Tooltip>
                                         <Tooltip content={t('Restore')} placement='bottom'>
                                             <Button
                                                 size='mini'
@@ -491,7 +397,7 @@ export function TranslationHistory(props: TranslationHistoryProps) {
                                         className={styles.historyTextBlock}
                                         style={{ color: theme.colors.contentPrimary }}
                                     >
-                                        {item.text}
+                                        {item.sourceText}
                                     </div>
                                 </div>
                                 <div className={styles.divider} style={{ background: theme.colors.borderOpaque }} />

@@ -14,12 +14,6 @@ class BackgroundHistoryService implements IHistoryInternalService {
     update(id: number, payload: UpdateHistoryPayload): Promise<void> {
         return callMethod('historyService', 'update', [id, payload])
     }
-    updateFavorite(id: number, favorite: boolean): Promise<void> {
-        return callMethod('historyService', 'updateFavorite', [id, favorite])
-    }
-    touch(id: number): Promise<void> {
-        return callMethod('historyService', 'touch', [id])
-    }
     delete(id: number): Promise<void> {
         return callMethod('historyService', 'delete', [id])
     }

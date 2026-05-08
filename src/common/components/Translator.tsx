@@ -29,7 +29,7 @@ import { ISettings, IThemedStyleProps } from '../types'
 import { useTheme } from '../hooks/useTheme'
 import { Tooltip } from './Tooltip'
 import { useSettings } from '../hooks/useSettings'
-import { Action, HistoryItem } from '../internal-services/db'
+import { HistoryItem } from '../internal-services/db'
 import { CopyButton } from './CopyButton'
 import { historyService } from '../services/history'
 import { TranslationHistory } from './TranslationHistory'
@@ -426,15 +426,6 @@ const useStyles = createUseStyles({
     },
 })
 
-const translateAction: Action = {
-    id: 0,
-    idx: 0,
-    mode: 'translate',
-    name: 'Translate',
-    createdAt: '',
-    updatedAt: '',
-}
-
 const translateActionStrItem = {
     beforeStr: 'Translating...',
     afterStr: 'Translated',
@@ -668,21 +659,16 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const [tokenCount, setTokenCount] = useState(0)
     const [translatedText, setTranslatedText] = useState('')
     const [translatedLines, setTranslatedLines] = useState<string[]>([])
-    const [isWordMode, setIsWordMode] = useState(false)
-    const isWordModeRef = useRef(false)
-
     const [translateDeps, setTranslateDeps] = useState<{
         sourceLang?: LangCode
         targetLang?: LangCode
         text: string
-        action: Action
         providerId?: string
         engineModel?: string
     }>({
         sourceLang: undefined,
         targetLang: undefined,
         text: '',
-        action: translateAction,
         providerId: undefined,
         engineModel: undefined,
     })
@@ -723,7 +709,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             sourceLang: newSourceLang,
                             targetLang: newTargetLang,
                             text,
-                            action: translateAction,
                             providerId: selectedProvider?.id,
                             engineModel: selectedProvider?.model,
                         }
@@ -769,9 +754,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     useEffect(() => {
         setTranslatedLines(translatedText.split('\n'))
     }, [translatedText])
-    useEffect(() => {
-        isWordModeRef.current = isWordMode
-    }, [isWordMode])
     const [errorMessage, setErrorMessage] = useState('')
     const startLoading = useCallback(() => {
         setIsLoading(true)
@@ -870,21 +852,20 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     if (historyEntryIdRef.current !== null) {
                         await historyService.update(historyEntryIdRef.current, {
                             translatedText: resultText,
-                            tokenCount,
                         })
                     } else {
+                        const providerId = translateDeps.providerId ?? selectedProvider?.id
+                        const model = translateDeps.engineModel ?? selectedProvider?.model
+                        if (!providerId || !model) {
+                            return
+                        }
                         const history = await historyService.create({
-                            text: translateDeps.text,
+                            sourceText: translateDeps.text,
                             translatedText: resultText,
-                            sourceLang: translateDeps.sourceLang,
-                            targetLang: translateDeps.targetLang,
-                            actionId: translateDeps.action.id,
-                            actionName: translateDeps.action.name,
-                            actionMode: translateDeps.action.mode,
-                            provider: translateDeps.providerId ?? selectedProvider?.id,
-                            engineModel: translateDeps.engineModel ?? selectedProvider?.model,
-                            wordMode: isWordModeRef.current,
-                            tokenCount,
+                            fromLang: translateDeps.sourceLang,
+                            toLang: translateDeps.targetLang,
+                            providerId,
+                            model,
                         })
                         historyEntryIdRef.current = history.id ?? null
                     }
@@ -950,7 +931,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         if (!message.content) {
                             return
                         }
-                        setIsWordMode(message.isWordMode)
                         setTranslatedText((translatedText) => {
                             if (message.isFullText) {
                                 return message.content
@@ -1006,28 +986,27 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             historyEntryIdRef.current = item.id ?? null
             lastHistoryKeyRef.current = null
             skipNextTranslateRef.current = true
-            setSourceLang(item.sourceLang)
-            setTargetLang(item.targetLang)
-            setEditableText(item.text)
+            setSourceLang(item.fromLang)
+            setTargetLang(item.toLang)
+            setEditableText(item.sourceText)
             setTranslatedText(item.translatedText)
             setActionStr('')
             setErrorMessage('')
             setSelectedWord('')
             setTranslateDeps((prev) => {
-                const providerIdFromHistory = settings.providers.some((provider) => provider.id === item.provider)
-                    ? item.provider
+                const providerIdFromHistory = settings.providers.some((provider) => provider.id === item.providerId)
+                    ? item.providerId
                     : undefined
                 if (providerIdFromHistory) {
                     setSelectedProviderId(providerIdFromHistory)
                 }
                 return {
                     ...prev,
-                    text: item.text,
-                    sourceLang: item.sourceLang,
-                    targetLang: item.targetLang,
-                    action: translateAction,
+                    text: item.sourceText,
+                    sourceLang: item.fromLang,
+                    targetLang: item.toLang,
                     providerId: providerIdFromHistory ?? prev.providerId ?? selectedProviderId ?? undefined,
-                    engineModel: item.engineModel ?? prev.engineModel,
+                    engineModel: item.model ?? prev.engineModel,
                 }
             })
         },
@@ -1765,13 +1744,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 </div>
             )}
             {isHistoryOpen ? (
-                <TranslationHistory
-                    isOpen
-                    actions={[translateAction]}
-                    activeActionId={translateAction.id}
-                    onClose={() => setIsHistoryOpen(false)}
-                    onRestore={handleHistoryRestore}
-                />
+                <TranslationHistory isOpen onClose={() => setIsHistoryOpen(false)} onRestore={handleHistoryRestore} />
             ) : null}
             <Toaster />
         </div>

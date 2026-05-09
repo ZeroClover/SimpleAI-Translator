@@ -52,7 +52,6 @@
     "Cancel": "取消",
     "Submit": "提交",
     "disable collecting statistics": "禁用统计",
-    "Buy me a coffee": "请我喝杯咖啡",
     "It is recommended to download the desktop application of NextAI Translator to enjoy the wonderful experience of word translation in all software!": "推荐下载 NextAI Translator 的桌面应用程序，以享受在所有软件中进行单词翻译的精彩体验！",
     "Download Link": "下载链接",
     "General": "通用",
@@ -157,6 +156,5 @@
     "Minutes": "分钟",
     "Hours": "小时",
     "Days": "天",
-    "Forever": "永久",
-    "If you find this tool helpful, you can buy me a cup of coffee.": "如果您觉得这个工具对您有所帮助，您可以请我喝杯咖啡。"
+    "Forever": "永久"
 }

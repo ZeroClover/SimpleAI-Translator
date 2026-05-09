@@ -3,8 +3,6 @@ import _ from 'underscore'
 import { Tabs, Tab, StyledTabList, StyledTabPanel } from 'baseui-sd/tabs-motion'
 import icon from '../assets/images/icon-large.png'
 import beams from '../assets/images/beams.jpg'
-import wechat from '../assets/images/wechat.png'
-import alipay from '../assets/images/alipay.png'
 import toast, { Toaster } from 'react-hot-toast'
 import * as utils from '../utils'
 import { Client as Styletron } from 'styletron-engine-atomic'
@@ -38,7 +36,6 @@ import { fetchEdgeVoices } from '../tts/edge-tts'
 import { useThemeType } from '../hooks/useThemeType'
 import { Slider } from 'baseui-sd/slider'
 import { GlobalSuspense } from './GlobalSuspense'
-import { Modal, ModalBody, ModalHeader } from 'baseui-sd/modal'
 import { TbCloudNetwork } from 'react-icons/tb'
 import { Cell, Grid } from 'baseui-sd/layout-grid'
 import useSWR from 'swr'
@@ -1349,8 +1346,6 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
         }
     }, [showFooter])
 
-    const [showBuyMeACoffee, setShowBuyMeACoffee] = useState(false)
-
     const [activeTab, setActiveTab] = useState('general')
 
     const [isScrolled, setIsScrolled] = useState(window.scrollY > 0)
@@ -1483,19 +1478,6 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                             flexGrow: 1,
                         }}
                     />
-                    <div>
-                        <Button
-                            kind='secondary'
-                            size='mini'
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                setShowBuyMeACoffee(true)
-                                void trackTauriEvent('buy_me_a_coffee_clicked')
-                            }}
-                        >
-                            {'❤️  ' + t('Buy me a coffee')}
-                        </Button>
-                    </div>
                 </div>
                 <Tabs
                     overrides={tabsOverrides}
@@ -1790,42 +1772,6 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                     }}
                 />
             )}
-            <Modal
-                isOpen={showBuyMeACoffee}
-                onClose={() => setShowBuyMeACoffee(false)}
-                closeable
-                size='auto'
-                autoFocus
-                animate
-            >
-                <ModalHeader
-                    style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                    }}
-                >
-                    {'❤️  ' + t('Buy me a coffee')}
-                </ModalHeader>
-                <ModalBody>
-                    <div
-                        style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: 10,
-                        }}
-                    >
-                        <div>{t('If you find this tool helpful, you can buy me a cup of coffee.')}</div>
-                        <div>
-                            <img width='330' src={wechat} />
-                        </div>
-                        <div>
-                            <img width='330' src={alipay} />
-                        </div>
-                    </div>
-                </ModalBody>
-            </Modal>
         </div>
     )
 }

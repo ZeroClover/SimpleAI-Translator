@@ -52,7 +52,6 @@
     "Cancel": "Cancel",
     "Submit": "Submit",
     "disable collecting statistics": "Disable collecting statistics",
-    "Buy me a coffee": "Buy me a coffee",
     "It is recommended to download the desktop application of NextAI Translator to enjoy the wonderful experience of word translation in all software!": "It is recommended to download the desktop application of NextAI Translator to enjoy the wonderful experience of word translation in all software!",
     "Download Link": "Download Link",
     "General": "General",
@@ -157,6 +156,5 @@
     "Minutes": "Minutes",
     "Hours": "Hours",
     "Days": "Days",
-    "Forever": "Forever",
-    "If you find this tool helpful, you can buy me a cup of coffee.": "If you find this tool helpful, you can buy me a cup of coffee."
+    "Forever": "Forever"
 }

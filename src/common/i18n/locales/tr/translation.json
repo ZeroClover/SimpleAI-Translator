@@ -42,7 +42,6 @@
     "Cancel": "İptal",
     "Submit": "Gönder",
     "disable collecting statistics": "İstatistik toplamayı devre dışı bırak",
-    "Buy me a coffee": "Bana bir kahve ısmarla",
     "It is recommended to download the desktop application of NextAI Translator to enjoy the wonderful experience of word translation in all software!": "Tüm yazılımlarda kelime çevirisinin harika deneyimini yaşamak için NextAI Translator'ın masaüstü uygulamasını indirmeniz önerilir!",
     "Download Link": "İndirme Bağlantısı",
     "General": "Genel",
@@ -114,6 +113,5 @@
     "Minutes": "Dakika",
     "Hours": "Saat",
     "Days": "Gün",
-    "Forever": "Süresiz",
-    "If you find this tool helpful, you can buy me a cup of coffee.": "Bu aracı faydalı bulursanız, bana bir fincan kahve ısmarlayabilirsiniz."
+    "Forever": "Süresiz"
 }

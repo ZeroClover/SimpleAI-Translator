@@ -43,7 +43,6 @@
     "Cancel": "キャンセル",
     "Submit": "提出",
     "disable collecting statistics": "統計情報の収集を無効にする",
-    "Buy me a coffee": "コーヒーを買ってください",
     "It is recommended to download the desktop application of NextAI Translator to enjoy the wonderful experience of word translation in all software!": "すべてのソフトウェアで単語翻訳の素晴らしい体験をお楽しみいただくために、NextAI Translatorのデスクトップアプリケーションをダウンロードすることをお勧めします！",
     "Download Link": "ダウンロードリンク",
     "General": "一般",
@@ -115,6 +114,5 @@
     "Minutes": "分",
     "Hours": "時間",
     "Days": "日",
-    "Forever": "永遠",
-    "If you find this tool helpful, you can buy me a cup of coffee.": "このツールが役に立ったら、コーヒーを買ってください。"
+    "Forever": "永遠"
 }

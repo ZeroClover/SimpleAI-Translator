@@ -50,9 +50,9 @@
 
 ## 6. 删除 Buy me a coffee / 赞助路径
 
-- [ ] 6.1 从 `Settings.tsx` 删除 `showBuyMeACoffee` 状态、"Buy me a coffee" 按钮 JSX、`buy_me_a_coffee_clicked` 埋点、赞助 Modal、`wechat.png` / `alipay.png` import
-- [ ] 6.2 在 `git grep wechat.png alipay.png src/` 确认无其它引用后,删除 `src/common/assets/images/wechat.png` 与 `src/common/assets/images/alipay.png`
-- [ ] 6.3 在所有 `src/common/i18n/locales/<lang>/translation.json` 中删除 key:`Buy me a coffee`、与赞助介绍语对应的长句 key
+- [x] 6.1 从 `Settings.tsx` 删除 `showBuyMeACoffee` 状态、"Buy me a coffee" 按钮 JSX、`buy_me_a_coffee_clicked` 埋点、赞助 Modal、`wechat.png` / `alipay.png` import
+- [x] 6.2 在 `git grep wechat.png alipay.png src/` 确认无其它引用后,删除 `src/common/assets/images/wechat.png` 与 `src/common/assets/images/alipay.png`
+- [x] 6.3 在所有 `src/common/i18n/locales/<lang>/translation.json` 中删除 key:`Buy me a coffee`、与赞助介绍语对应的长句 key
 
 ## 7. 删除遥测(Sentry + Google Analytics + Aptabase)
 

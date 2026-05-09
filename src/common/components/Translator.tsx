@@ -1159,7 +1159,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     return (
         <div
             className={clsx(styles.popupCard, {
-                'yetone-dark': themeType === 'dark',
+                'simpleai-dark': themeType === 'dark',
             })}
             ref={containerRef}
             style={{

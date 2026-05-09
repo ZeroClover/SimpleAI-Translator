@@ -1,7 +1,7 @@
 export const zIndex = '2147483647'
-export const popupThumbID = '__yetone-nextai-translator-popup-thumb'
-export const popupCardID = '__yetone-nextai-translator-popup-card'
-export const containerID = '__yetone-nextai-translator'
+export const popupThumbID = '__zeroclover-simpleai-translator-popup-thumb'
+export const popupCardID = '__zeroclover-simpleai-translator-popup-card'
+export const containerID = '__zeroclover-simpleai-translator'
 export const popupCardMinWidth = 220
 export const popupCardMinHeight = 220
 export const popupCardMinHeightAfterTranslation = 500
@@ -9,4 +9,4 @@ export const popupCardMaxWidth = 660
 export const documentPadding = 10
 export const popupCardOffset = 7
 export const dragRegionSelector = '[data-tauri-drag-region]'
-export const popupCardInnerContainerId = '__yetone-nextai-translator-popup-card-inner-container'
+export const popupCardInnerContainerId = '__zeroclover-simpleai-translator-popup-card-inner-container'

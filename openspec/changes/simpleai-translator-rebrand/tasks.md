@@ -20,12 +20,12 @@
 
 ## 3. 命名空间前缀切换
 
-- [ ] 3.1 修改 `src/common/constants.ts` 的 `PREFIX` 为 `'__zeroclover-simpleai-translator'`
-- [ ] 3.2 修改 `src/browser-extension/content_script/consts.ts` 中四个 DOM ID(thumb / card / container / inner container)前缀
-- [ ] 3.3 修改 `src-tauri/src/main.rs` 的 IPC socket 默认路径 `DEFAULT_IPC_SOCKET_PATH` 为 `"/tmp/simpleai-translator.sock"`
-- [ ] 3.4 修改 `src/browser-extension/content_script/index.tsx` 中 JSS `classNamePrefix='__yetone-nextai-translator-jss-'` 为新前缀
-- [ ] 3.5 修改自有持久化/样式命名空间:`src/common/internal-services/db.ts` 的 Dexie 数据库名、`src/common/highlight-in-textarea/index.ts` 与 `index.css` 中 `yetone-hit` 类名/ID
-- [ ] 3.6 全仓库 `git grep '__yetone-' -- src/ src-tauri/` 应 0 命中(浏览器插件所有者/签名身份字段不属于此 grep)
+- [x] 3.1 修改 `src/common/constants.ts` 的 `PREFIX` 为 `'__zeroclover-simpleai-translator'`
+- [x] 3.2 修改 `src/browser-extension/content_script/consts.ts` 中四个 DOM ID(thumb / card / container / inner container)前缀
+- [x] 3.3 修改 `src-tauri/src/main.rs` 的 IPC socket 默认路径 `DEFAULT_IPC_SOCKET_PATH` 为 `"/tmp/simpleai-translator.sock"`
+- [x] 3.4 修改 `src/browser-extension/content_script/index.tsx` 中 JSS `classNamePrefix='__yetone-nextai-translator-jss-'` 为新前缀
+- [x] 3.5 修改自有持久化/样式命名空间:`src/common/internal-services/db.ts` 的 Dexie 数据库名、`src/common/highlight-in-textarea/index.ts` 与 `index.css` 中 `yetone-hit` 类名/ID
+- [x] 3.6 全仓库 `git grep '__yetone-' -- src/ src-tauri/` 应 0 命中(浏览器插件所有者/签名身份字段不属于此 grep)
 
 ## 4. 删除从旧 Bundle ID 迁移配置目录的代码
 

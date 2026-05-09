@@ -16,7 +16,7 @@ export class LocalDB extends Dexie {
     history!: Table<HistoryItem>
 
     constructor() {
-        super('openai-translator')
+        super('simpleai-translator')
         this.version(6)
             .stores({
                 vocabulary: null,

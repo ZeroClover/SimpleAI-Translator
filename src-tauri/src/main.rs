@@ -60,8 +60,8 @@ pub static PREVIOUS_RELEASE_TIME: Mutex<u128> = Mutex::new(0);
 pub static PREVIOUS_RELEASE_POSITION: Mutex<(i32, i32)> = Mutex::new((0, 0));
 pub static RELEASE_THREAD_ID: Mutex<u32> = Mutex::new(0);
 
-const DEFAULT_IPC_SOCKET_PATH: &str = "/tmp/openai-translator.sock";
-const IPC_SOCKET_PATH_ENV: &str = "NEXTAI_TRANSLATOR_IPC_SOCKET";
+const DEFAULT_IPC_SOCKET_PATH: &str = "/tmp/simpleai-translator.sock";
+const IPC_SOCKET_PATH_ENV: &str = "SIMPLEAI_TRANSLATOR_IPC_SOCKET";
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

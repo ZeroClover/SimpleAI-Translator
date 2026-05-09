@@ -1,4 +1,4 @@
-.yetone-hit-container {
+.simpleai-hit-container {
     display: inline-block;
     position: relative;
     overflow: hidden !important;
@@ -6,11 +6,11 @@
     width: 100% !important;
 }
 
-.yetone-hit-container textarea {
+.simpleai-hit-container textarea {
     display: block;
 }
 
-.yetone-hit-backdrop {
+.simpleai-hit-backdrop {
     position: absolute !important;
     top: 0 !important;
     right: -99px !important;
@@ -21,7 +21,7 @@
     overflow-y: auto !important;
 }
 
-.yetone-hit-highlights {
+.simpleai-hit-highlights {
     width: auto !important;
     height: auto !important;
     border-color: transparent !important;
@@ -31,7 +31,7 @@
     overflow: hidden !important;
 }
 
-.yetone-hit-input {
+.simpleai-hit-input {
     display: block !important;
     position: relative !important;
     margin: 0;
@@ -42,12 +42,12 @@
     overflow-y: auto !important;
 }
 
-.yetone-hit-content {
+.simpleai-hit-content {
     padding: 4px 8px;
     background: none transparent !important;
 }
 
-.yetone-hit-content mark {
+.simpleai-hit-content mark {
     padding: 1px 3px !important;
     margin-left: -2px !important;
     margin-top: 1px !important;
@@ -56,7 +56,7 @@
     background-color: rgba(248, 195, 205, 0.6) !important;
 }
 
-.yetone-dark .yetone-hit-content mark {
+.simpleai-dark .simpleai-hit-content mark {
     color: rgb(203, 203, 203);
     background-color: rgba(181, 73, 91, 0.5) !important;
 }

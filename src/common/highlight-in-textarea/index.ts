@@ -18,7 +18,7 @@ export class HighlightInTextarea {
         this.backdrop = null
         this.container = null
         this.highlights = null
-        this.ID = 'yetone-hit'
+        this.ID = 'simpleai-hit'
         this.el = el
         el.style.position = 'relative'
         this.browser = 'chrome'

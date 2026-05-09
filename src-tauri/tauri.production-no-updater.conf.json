@@ -1,0 +1,81 @@
+{
+    "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+    "productName": "SimpleAI Translator",
+    "version": "1.0.0",
+    "identifier": "io.zeroclover.app.simpleai-translator",
+    "build": {
+        "beforeDevCommand": "pnpm dev-tauri-renderer",
+        "devUrl": "http://localhost:3333",
+        "frontendDist": "../dist/tauri"
+    },
+    "plugins": {
+        "fs": {},
+        "shell": {
+            "open": true
+        },
+        "updater": {
+            "endpoints": [
+                "https://github.com/nextai-translator/nextai-translator/releases/latest/download/latest.json"
+            ],
+            "active": false,
+            "windows": {
+                "installMode": "passive"
+            },
+            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM3MzdGN0RCQjhGMkVENDEKUldSQjdmSzQyL2MzTjFaY0dIKzQzVnJYSjFwMlhFZmhjWmU5emZoVUt2OWExcVorbDRkK0NBaDMK"
+        }
+    },
+    "bundle": {
+        "active": true,
+        "createUpdaterArtifacts": false,
+        "linux": {
+            "deb": {
+                "depends": ["xdotool"]
+            },
+            "appimage": {
+                "bundleMediaFramework": true
+            }
+        },
+        "category": "DeveloperTool",
+        "copyright": "",
+        "externalBin": [],
+        "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+        "longDescription": "",
+        "macOS": {
+            "entitlements": null,
+            "exceptionDomain": "",
+            "frameworks": [],
+            "providerShortName": null,
+            "signingIdentity": null
+        },
+        "resources": ["resources/*"],
+        "shortDescription": "",
+        "targets": ["deb", "appimage", "nsis", "app", "dmg"],
+        "windows": {
+            "certificateThumbprint": null,
+            "digestAlgorithm": "sha256",
+            "timestampUrl": "",
+            "webviewInstallMode": {
+                "type": "embedBootstrapper"
+            }
+        }
+    },
+    "app": {
+        "withGlobalTauri": true,
+        "macOSPrivateApi": true,
+        "security": {
+            "csp": null,
+            "assetProtocol": {
+                "enable": true,
+                "scope": {
+                    "allow": ["$CACHE/**", "$CONFIG/**", "$APPCACHE/**"]
+                }
+            }
+        },
+        "trayIcon": {
+            "id": "tray",
+            "iconAsTemplate": true,
+            "iconPath": "icons/favicon.ico"
+        },
+        "windows": []
+    }
+}

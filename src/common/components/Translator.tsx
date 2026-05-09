@@ -561,14 +561,11 @@ function InnerTranslator(props: IInnerTranslatorProps) {
 
     useEffect(() => {
         setSelectedModel((currentModel) => {
-            if (
-                currentModel &&
-                settings.providers.some((provider) => provider.id === currentModel.providerId) &&
-                currentModel.model
-            ) {
+            const nextModel = resolveModelSelection(settings)
+            if (currentModel?.providerId === nextModel?.providerId && currentModel?.model === nextModel?.model) {
                 return currentModel
             }
-            return resolveModelSelection(settings)
+            return nextModel
         })
     }, [settings])
 

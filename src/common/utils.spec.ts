@@ -75,32 +75,15 @@ describe('settings schema normalization', () => {
         })
     })
 
-    it('does not invent provider thinking fields for old configs', () => {
+    it('does not keep thinking fields on providers', () => {
         const provider = {
             id: 'provider-1',
             name: 'Primary',
             protocol: 'openai-chat' as const,
             apiKey: 'sk-test',
             model: 'gpt-4o-mini',
-        }
-        const settings = normalizeSettings({
-            providers: [provider],
-            defaultProviderId: provider.id,
-        })
-
-        expect(settings.providers[0]).toEqual({ ...provider, modelOptions: [] })
-        expect(settings.providers[0].thinkingEnabled).not.toBe(true)
-    })
-
-    it('preserves valid provider thinking effort values without inventing missing defaults', () => {
-        const provider = {
-            id: 'provider-1',
-            name: 'Primary',
-            protocol: 'anthropic' as const,
-            apiKey: 'sk-ant',
-            model: 'claude-sonnet-4-6',
             thinkingEnabled: true,
-            anthropicThinkingEffort: 'max' as const,
+            openaiReasoningEffort: 'high' as const,
         }
         const settings = normalizeSettings({
             providers: [provider],
@@ -108,10 +91,42 @@ describe('settings schema normalization', () => {
         })
 
         expect(settings.providers[0]).toEqual({
-            ...provider,
+            id: provider.id,
+            name: provider.name,
+            protocol: provider.protocol,
+            apiKey: provider.apiKey,
+            model: provider.model,
             modelOptions: [],
         })
+        expect(settings.providers[0]).not.toHaveProperty('thinkingEnabled')
         expect(settings.providers[0]).not.toHaveProperty('openaiReasoningEffort')
+    })
+
+    it('preserves valid model thinking fields on defaultModel', () => {
+        const provider = {
+            id: 'provider-1',
+            name: 'Primary',
+            protocol: 'anthropic' as const,
+            apiKey: 'sk-ant',
+            model: 'claude-sonnet-4-6',
+        }
+        const settings = normalizeSettings({
+            providers: [provider],
+            defaultProviderId: provider.id,
+            defaultModel: {
+                providerId: provider.id,
+                model: provider.model,
+                thinkingEnabled: true,
+                anthropicThinkingEffort: 'max',
+            },
+        })
+
+        expect(settings.defaultModel).toEqual({
+            providerId: provider.id,
+            model: provider.model,
+            thinkingEnabled: true,
+            anthropicThinkingEffort: 'max',
+        })
     })
 
     it('sanitizes writes to the new settings schema', () => {

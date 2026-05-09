@@ -67,7 +67,7 @@ Tauri 主窗口、历史记录窗口、设置窗口、更新器窗口的标题 S
 
 所有 i18n locale 文件中提及产品名的字符串值 SHALL 使用 `SimpleAI Translator`,即便 i18n key 名仍可保持稳定(只换 value)。
 
-运行时代码中的产品名展示(例如设置页 header、LogoWithText、浏览器右键菜单 title、TTS 示例文本、UpdaterWindow header) SHALL 使用 `SimpleAI Translator`。IndexedDB / local database 名称、JSS class prefix、highlight-in-textarea 内部 id/class 等项目自有命名空间 SHALL 不再使用 `openai-translator`、`nextai-translator` 或 `yetone`。
+运行时代码中的产品名展示(例如设置页 header、LogoWithText、浏览器右键菜单 title、TTS 示例文本、UpdaterWindow header) SHALL 使用 `SimpleAI Translator`。IndexedDB / local database 名称、JSS class prefix 等项目自有命名空间 SHALL 不再使用 `openai-translator`、`nextai-translator` 或 `yetone`。
 
 #### Scenario: HTML title 字符串
 
@@ -149,4 +149,3 @@ Tauri IPC socket 路径 SHALL 从 `/tmp/openai-translator.sock` 改为 `/tmp/sim
 - **WHEN** 检查 `src-tauri/src/config.rs`
 - **THEN** 文件 SHALL NOT 包含 `xyz.yetone.apps.openai-translator` 或 `xyz.yetone.apps.nextai-translator` 字符串
 - **AND** 文件 SHALL NOT 包含读取旧目录路径并复制到新目录的逻辑
-

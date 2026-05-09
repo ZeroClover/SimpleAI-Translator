@@ -1,4 +1,4 @@
-import { AnthropicThinkingEffort, ProviderConfig } from '../../types'
+import { AnthropicThinkingEffort, ProviderConfig, ThinkingControl } from '../../types'
 import { getUniversalFetch } from '../../universal-fetch'
 import { ANTHROPIC_MESSAGES_API_PATH, normalizeAPIEndpoint } from '../../openai-api-path'
 import { fetchSSE } from '../../utils'
@@ -12,6 +12,7 @@ const MODELS_PATH = '/v1/models'
 const DEFAULT_MAX_TOKENS = 4096
 const THINKING_MAX_TOKENS = 64000
 const MANUAL_MAX_TOKENS = 128000
+type EngineProviderConfig = ProviderConfig & ThinkingControl
 
 function getHeaders(providerConfig: ProviderConfig): Record<string, string> {
     return {
@@ -84,7 +85,7 @@ function getManualBudget(effort: AnthropicThinkingEffort, maxTokens: number): nu
     return Math.max(1024, Math.min(targetBudget, maxTokens - 1))
 }
 
-function getThinkingRequest(providerConfig: ProviderConfig) {
+function getThinkingRequest(providerConfig: EngineProviderConfig) {
     if (providerConfig.thinkingEnabled !== true) {
         return {
             maxTokens: DEFAULT_MAX_TOKENS,
@@ -135,7 +136,7 @@ export async function listModels(providerConfig: ProviderConfig): Promise<string
 }
 
 export class AnthropicEngine implements IEngine {
-    constructor(private readonly providerConfig: ProviderConfig) {}
+    constructor(private readonly providerConfig: EngineProviderConfig) {}
 
     async listModels(): Promise<IModel[]> {
         return (await listModels(this.providerConfig)).map((id) => ({ id, name: id }))

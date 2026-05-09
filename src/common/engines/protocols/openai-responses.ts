@@ -1,4 +1,4 @@
-import { ProviderConfig } from '../../types'
+import { ProviderConfig, ThinkingControl } from '../../types'
 import { normalizeAPIEndpoint, OPENAI_RESPONSES_API_PATH } from '../../openai-api-path'
 import { fetchSSE } from '../../utils'
 import { formatStructuredOutput, IEngine, IMessageRequest, IModel, StructuredOutputRequest } from '../interfaces'
@@ -6,6 +6,7 @@ import { ThinkingFilter } from '../thinking-filter'
 import { listModels as listOpenAIModels } from './openai-chat'
 
 const DEFAULT_ENDPOINT = 'https://api.openai.com/v1'
+type EngineProviderConfig = ProviderConfig & ThinkingControl
 
 function getHeaders(providerConfig: ProviderConfig): Record<string, string> {
     return {
@@ -52,7 +53,7 @@ function getTextFormat(structuredOutput: StructuredOutputRequest | undefined) {
     }
 }
 
-function getReasoning(providerConfig: ProviderConfig) {
+function getReasoning(providerConfig: EngineProviderConfig) {
     if (providerConfig.thinkingEnabled !== true) {
         return undefined
     }
@@ -91,7 +92,7 @@ export async function listModels(providerConfig: ProviderConfig): Promise<string
 }
 
 export class OpenAIResponsesEngine implements IEngine {
-    constructor(private readonly providerConfig: ProviderConfig) {}
+    constructor(private readonly providerConfig: EngineProviderConfig) {}
 
     async listModels(): Promise<IModel[]> {
         return (await listModels(this.providerConfig)).map((id) => ({ id, name: id }))

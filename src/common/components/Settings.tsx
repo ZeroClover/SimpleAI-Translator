@@ -16,10 +16,12 @@ import { Checkbox } from 'baseui-sd/checkbox'
 import { LangCode, supportedLanguages } from '../lang'
 import { createUseStyles } from 'react-jss'
 import {
+    AnthropicThinkingEffort,
     ISettings,
     IThemedStyleProps,
     LanguageDetectionEngine,
     ModelSelection,
+    OpenAIReasoningEffort,
     ProviderConfig,
     ProxyProtocol,
     ThemeType,
@@ -940,11 +942,7 @@ function SettingsToggle({ value, onChange, onBlur, disabled, label, caption }: S
             >
                 {label}
             </Checkbox>
-            {caption && (
-                <div style={{ color: theme.colors.contentSecondary, fontSize: '0.85em', paddingLeft: 44 }}>
-                    {caption}
-                </div>
-            )}
+            {caption && <div style={{ color: theme.colors.contentSecondary, fontSize: '0.85em' }}>{caption}</div>}
         </div>
     )
 }
@@ -1024,6 +1022,23 @@ interface LLMProvidersSettingsProps {
     onChange(providers: ProviderConfig[], defaultProviderId: string | null, defaultModel: ModelSelection | null): void
 }
 
+const openaiReasoningEffortOptions: { id: OpenAIReasoningEffort; label: string }[] = [
+    { id: 'none', label: 'None' },
+    { id: 'minimal', label: 'Minimal' },
+    { id: 'low', label: 'Low' },
+    { id: 'medium', label: 'Medium' },
+    { id: 'high', label: 'High' },
+    { id: 'xhigh', label: 'Extra High' },
+]
+
+const anthropicThinkingEffortOptions: { id: AnthropicThinkingEffort; label: string }[] = [
+    { id: 'low', label: 'Low' },
+    { id: 'medium', label: 'Medium' },
+    { id: 'high', label: 'High' },
+    { id: 'xhigh', label: 'Extra High' },
+    { id: 'max', label: 'Max' },
+]
+
 function LLMProvidersSettings({ providers, defaultProviderId, defaultModel, onChange }: LLMProvidersSettingsProps) {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -1063,6 +1078,22 @@ function LLMProvidersSettings({ providers, defaultProviderId, defaultModel, onCh
                   }
                 : undefined,
         [defaultModel, modelOptions]
+    )
+    const selectedOpenAIEffort = defaultModel?.openaiReasoningEffort ?? 'medium'
+    const selectedAnthropicEffort = defaultModel?.anthropicThinkingEffort ?? 'high'
+    const isOpenAIProtocol =
+        activeProvider?.protocol === 'openai-chat' || activeProvider?.protocol === 'openai-responses'
+    const updateDefaultModelThinking = useCallback(
+        (thinking: Partial<ModelSelection>) => {
+            if (!defaultModel) {
+                return
+            }
+            onChange(providers, defaultProviderId, {
+                ...defaultModel,
+                ...thinking,
+            })
+        },
+        [defaultModel, defaultProviderId, onChange, providers]
     )
     const dropdownOverrides = useMemo(
         () => ({
@@ -1315,16 +1346,105 @@ function LLMProvidersSettings({ providers, defaultProviderId, defaultModel, onCh
                             const providerId = option.providerId as string | undefined
                             const model = option.model as string | undefined
                             if (providerId && model) {
-                                onChange(providers, providerId, { providerId, model })
+                                onChange(providers, providerId, {
+                                    providerId,
+                                    model,
+                                    thinkingEnabled: defaultModel?.thinkingEnabled,
+                                    openaiReasoningEffort: defaultModel?.openaiReasoningEffort,
+                                    anthropicThinkingEffort: defaultModel?.anthropicThinkingEffort,
+                                })
                                 return
                             }
                             const selectedModel = option.id
                             if (typeof selectedModel === 'string') {
                                 const providerId = defaultModel?.providerId ?? defaultProviderId ?? providers[0].id
-                                onChange(providers, providerId, { providerId, model: selectedModel })
+                                onChange(providers, providerId, {
+                                    providerId,
+                                    model: selectedModel,
+                                    thinkingEnabled: defaultModel?.thinkingEnabled,
+                                    openaiReasoningEffort: defaultModel?.openaiReasoningEffort,
+                                    anthropicThinkingEffort: defaultModel?.anthropicThinkingEffort,
+                                })
                             }
                         }}
                     />
+                    <Checkbox
+                        checkmarkType='toggle_round'
+                        checked={defaultModel?.thinkingEnabled === true}
+                        disabled={!defaultModel}
+                        onChange={(event) => updateDefaultModelThinking({ thinkingEnabled: event.target.checked })}
+                    >
+                        {t('Thinking Enabled')}
+                    </Checkbox>
+                    {isOpenAIProtocol && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <div style={{ color: theme.colors.contentSecondary, fontSize: 12 }}>
+                                {t('OpenAI Reasoning Effort')}
+                            </div>
+                            <Select
+                                size='compact'
+                                clearable={false}
+                                searchable={false}
+                                options={openaiReasoningEffortOptions.map((option) => ({
+                                    ...option,
+                                    label: t(option.label),
+                                }))}
+                                value={[
+                                    {
+                                        id: selectedOpenAIEffort,
+                                        label: t(
+                                            openaiReasoningEffortOptions.find(
+                                                (option) => option.id === selectedOpenAIEffort
+                                            )?.label ?? 'Medium'
+                                        ),
+                                    },
+                                ]}
+                                onChange={({ option }) =>
+                                    option?.id &&
+                                    updateDefaultModelThinking({
+                                        openaiReasoningEffort: option.id as OpenAIReasoningEffort,
+                                    })
+                                }
+                            />
+                        </div>
+                    )}
+                    {activeProvider?.protocol === 'anthropic' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <div style={{ color: theme.colors.contentSecondary, fontSize: 12 }}>
+                                {t('Anthropic Thinking Effort')}
+                            </div>
+                            <Select
+                                size='compact'
+                                clearable={false}
+                                searchable={false}
+                                options={anthropicThinkingEffortOptions.map((option) => ({
+                                    ...option,
+                                    label: t(option.label),
+                                }))}
+                                value={[
+                                    {
+                                        id: selectedAnthropicEffort,
+                                        label: t(
+                                            anthropicThinkingEffortOptions.find(
+                                                (option) => option.id === selectedAnthropicEffort
+                                            )?.label ?? 'High'
+                                        ),
+                                    },
+                                ]}
+                                onChange={({ option }) =>
+                                    option?.id &&
+                                    updateDefaultModelThinking({
+                                        anthropicThinkingEffort: option.id as AnthropicThinkingEffort,
+                                    })
+                                }
+                            />
+                        </div>
+                    )}
+                    <div style={{ color: theme.colors.contentSecondary, fontSize: 12 }}>
+                        {t(
+                            'Thinking support depends on the selected model and compatible endpoint. OpenAI reasoning models should use the OpenAI Responses protocol.'
+                        )}
+                    </div>
                 </div>
             )}
             {(isAddingProvider || editingProvider) && (
@@ -1487,6 +1607,38 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
             void persistSettings(nextValues)
         },
         [form, persistSettings, values]
+    )
+
+    const handleStructuredOutputChange = useCallback(
+        (useStructuredOutput: boolean) => {
+            const nextValues = {
+                ...valuesRef.current,
+                useStructuredOutput,
+            }
+            form.setFieldsValue({
+                useStructuredOutput,
+            })
+            valuesRef.current = nextValues
+            setValues(nextValues)
+            void persistSettings(nextValues)
+        },
+        [form, persistSettings]
+    )
+
+    const handleStrictSchemaChange = useCallback(
+        (useStrictSchema: boolean) => {
+            const nextValues = {
+                ...valuesRef.current,
+                useStrictSchema,
+            }
+            form.setFieldsValue({
+                useStrictSchema,
+            })
+            valuesRef.current = nextValues
+            setValues(nextValues)
+            void persistSettings(nextValues)
+        },
+        [form, persistSettings]
     )
 
     const isDesktopApp = utils.isDesktopApp()
@@ -1768,18 +1920,44 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         <FormItem name='defaultTargetLanguage' label={t('Default target language')}>
                             <LanguageSelector onBlur={onBlur} />
                         </FormItem>
-                        <FormItem name='useStructuredOutput' label={t('Use Structured Output')}>
-                            <SettingsToggle onBlur={onBlur} />
-                        </FormItem>
-                        <FormItem name='useStrictSchema' label={t('Strict JSON Schema')}>
+                        <div className='rc-form-item'>
+                            <div
+                                className='rc-form-item-label'
+                                style={{
+                                    flexShrink: 0,
+                                    padding: '0.25em 0',
+                                    fontSize: '1.2em',
+                                    fontWeight: '600',
+                                }}
+                            >
+                                {t('Use Structured Output')}
+                            </div>
                             <SettingsToggle
-                                onBlur={onBlur}
+                                value={values.useStructuredOutput}
+                                onChange={handleStructuredOutputChange}
+                            />
+                        </div>
+                        <div className='rc-form-item'>
+                            <div
+                                className='rc-form-item-label'
+                                style={{
+                                    flexShrink: 0,
+                                    padding: '0.25em 0',
+                                    fontSize: '1.2em',
+                                    fontWeight: '600',
+                                }}
+                            >
+                                {t('Strict JSON Schema')}
+                            </div>
+                            <SettingsToggle
+                                value={values.useStrictSchema}
+                                onChange={handleStrictSchemaChange}
                                 disabled={!values.useStructuredOutput}
                                 caption={t(
                                     'Some older or third-party models only support JSON Object mode and may fail with Strict Schema enabled.'
                                 )}
                             />
-                        </FormItem>
+                        </div>
                         <FormItem name='languageDetectionEngine' label={t('Language detection engine')}>
                             <LanguageDetectionEngineSelector onBlur={onBlur} />
                         </FormItem>

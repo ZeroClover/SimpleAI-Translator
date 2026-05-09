@@ -150,5 +150,16 @@
     "Minutes": "Dakika",
     "Hours": "Saat",
     "Days": "Gün",
-    "Forever": "Süresiz"
+    "Forever": "Süresiz",
+    "Thinking Enabled": "Düşünmeyi Etkinleştir",
+    "OpenAI Reasoning Effort": "OpenAI Akıl Yürütme Düzeyi",
+    "Anthropic Thinking Effort": "Anthropic Düşünme Düzeyi",
+    "Thinking support depends on the selected model and compatible endpoint. OpenAI reasoning models should use the OpenAI Responses protocol.": "Düşünme desteği seçilen modele ve uyumlu uç noktaya bağlıdır. OpenAI akıl yürütme modelleri için OpenAI Responses protokolü kullanılmalıdır.",
+    "None": "Yok",
+    "Minimal": "En düşük",
+    "Low": "Düşük",
+    "Medium": "Orta",
+    "High": "Yüksek",
+    "Extra High": "Çok yüksek",
+    "Max": "Maksimum"
 }

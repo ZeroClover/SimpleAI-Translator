@@ -462,11 +462,20 @@ Etymology:
         query.onFinish('error')
         return
     }
+    const modelThinking =
+        settings.defaultModel?.providerId === providerConfig.id && settings.defaultModel.model === model
+            ? {
+                  thinkingEnabled: settings.defaultModel.thinkingEnabled,
+                  openaiReasoningEffort: settings.defaultModel.openaiReasoningEffort,
+                  anthropicThinkingEffort: settings.defaultModel.anthropicThinkingEffort,
+              }
+            : {}
 
     try {
         const engine = getEngine({
             ...providerConfig,
             model,
+            ...modelThinking,
         })
         await engine.sendMessage({
             signal: query.signal,

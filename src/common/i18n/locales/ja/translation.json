@@ -150,5 +150,16 @@
     "Minutes": "分",
     "Hours": "時間",
     "Days": "日",
-    "Forever": "永遠"
+    "Forever": "永遠",
+    "Thinking Enabled": "思考を有効化",
+    "OpenAI Reasoning Effort": "OpenAI 推論強度",
+    "Anthropic Thinking Effort": "Anthropic 思考強度",
+    "Thinking support depends on the selected model and compatible endpoint. OpenAI reasoning models should use the OpenAI Responses protocol.": "思考設定が有効になるかどうかは、選択したモデルと互換エンドポイントによって異なります。OpenAI の推論モデルでは OpenAI Responses プロトコルの使用を推奨します。",
+    "None": "なし",
+    "Minimal": "最小",
+    "Low": "低",
+    "Medium": "中",
+    "High": "高",
+    "Extra High": "非常に高い",
+    "Max": "最大"
 }

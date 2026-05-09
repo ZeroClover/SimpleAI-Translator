@@ -1,4 +1,4 @@
-import { ProviderConfig } from '../../types'
+import { ProviderConfig, ThinkingControl } from '../../types'
 import { getUniversalFetch } from '../../universal-fetch'
 import { fetchSSE } from '../../utils'
 import { normalizeAPIEndpoint, OPENAI_CHAT_COMPLETIONS_API_PATH } from '../../openai-api-path'
@@ -9,6 +9,7 @@ import { ThinkingFilter } from '../thinking-filter'
 
 const DEFAULT_ENDPOINT = 'https://api.openai.com/v1'
 const MODELS_PATH = '/v1/models'
+type EngineProviderConfig = ProviderConfig & ThinkingControl
 
 function getHeaders(providerConfig: ProviderConfig): Record<string, string> {
     return {
@@ -57,7 +58,7 @@ function getResponseFormat(structuredOutput: StructuredOutputRequest | undefined
     }
 }
 
-function getReasoningEffort(providerConfig: ProviderConfig) {
+function getReasoningEffort(providerConfig: EngineProviderConfig) {
     if (providerConfig.thinkingEnabled !== true) {
         return undefined
     }
@@ -88,7 +89,7 @@ export async function listModels(providerConfig: ProviderConfig): Promise<string
 }
 
 export class OpenAIChatEngine implements IEngine {
-    constructor(private readonly providerConfig: ProviderConfig) {}
+    constructor(private readonly providerConfig: EngineProviderConfig) {}
 
     async listModels(): Promise<IModel[]> {
         return (await listModels(this.providerConfig)).map((id) => ({ id, name: id }))

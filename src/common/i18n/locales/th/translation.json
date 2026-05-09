@@ -150,5 +150,16 @@
     "Minutes": "นาที",
     "Hours": "ชั่วโมง",
     "Days": "วัน",
-    "Forever": "ตลอดไป"
+    "Forever": "ตลอดไป",
+    "Thinking Enabled": "เปิดใช้การคิด",
+    "OpenAI Reasoning Effort": "ระดับการให้เหตุผลของ OpenAI",
+    "Anthropic Thinking Effort": "ระดับการคิดของ Anthropic",
+    "Thinking support depends on the selected model and compatible endpoint. OpenAI reasoning models should use the OpenAI Responses protocol.": "การรองรับการคิดขึ้นอยู่กับโมเดลที่เลือกและเอนด์พอยต์ที่เข้ากันได้ โมเดลให้เหตุผลของ OpenAI ควรใช้โปรโตคอล OpenAI Responses",
+    "None": "ไม่มี",
+    "Minimal": "น้อยที่สุด",
+    "Low": "ต่ำ",
+    "Medium": "ปานกลาง",
+    "High": "สูง",
+    "Extra High": "สูงมาก",
+    "Max": "สูงสุด"
 }

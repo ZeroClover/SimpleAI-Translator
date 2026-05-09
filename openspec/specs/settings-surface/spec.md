@@ -13,7 +13,6 @@ TBD - created by archiving change simpleai-translator-rebrand. Update Purpose af
 - LLM Provider 多配置列表与新增/编辑表单
 - TTS backend / voice / volume / rate,以及 OpenAI TTS 子区
 - 代理配置、开机启动、自动检查更新
-- 输入框内选中文字朗读(`readSelectedWordsFromInputElementsText`),只要它不触发翻译
 
 设置面板 MUST NOT 出现以下被本变更移除的区域或表单项:
 - 任何"快捷键 / Hotkey / Shortcut / 全局热键"区域或表单项
@@ -21,6 +20,7 @@ TBD - created by archiving change simpleai-translator-rebrand. Update Purpose af
 - `alwaysShowIcons`(选中文字时显示图标 / Always show icons)开关
 - `autoTranslate`(自动翻译 / Auto Translate)开关
 - `selectInputElementsText`(输入框划词 / Word selection in input)开关
+- `readSelectedWordsFromInputElementsText`(输入框选词朗读 / Read the selected words in input)开关
 - `hideTheIconInTheDock`(隐藏 Dock 栏中的图标 / Hide the icon in the Dock bar / Hide the icon in the taskbar)开关
 - `autoHideWindowWhenOutOfFocus`(失去焦点时自动隐藏窗口)开关
 - `disableCollectingStatistics`(禁用统计 / Disable collecting statistics)开关
@@ -50,6 +50,7 @@ TBD - created by archiving change simpleai-translator-rebrand. Update Purpose af
 - `alwaysShowIcons`
 - `autoTranslate`
 - `selectInputElementsText`
+- `readSelectedWordsFromInputElementsText`
 - `hideTheIconInTheDock`
 - `autoHideWindowWhenOutOfFocus`
 - `disableCollectingStatistics`
@@ -167,7 +168,7 @@ TBD - created by archiving change simpleai-translator-rebrand. Update Purpose af
 - `Buy me a coffee`、与"赞助"介绍相关的长句 key
 - `Always show icons`、`Show icon when text is selected`
 - `Auto Translate`
-- `Word selection in input`、`Enable word selection for lookup in the input field`
+- `Word selection in input`、`Enable word selection for lookup in the input field`、`Read the selected words in input`
 - `Hide the icon in the Dock bar`、`Hide the icon in the taskbar`
 - `Auto hide window when out of focus`
 - `disable collecting statistics`、`Disable collecting statistics`
@@ -182,3 +183,24 @@ TBD - created by archiving change simpleai-translator-rebrand. Update Purpose af
 - **WHEN** 在任意一个 `translation.json` 中搜索本需求列出的 key 字符串
 - **THEN** SHALL NOT 命中
 
+### Requirement: Structured Output & Strict Schema Setting Toggles
+The settings UI SHALL provide two boolean preferences:
+1. "Use Structured Output": The main toggle enabling JSON responses.
+2. "Strict JSON Schema": A sub-toggle (default true, only active when Structured Output is enabled) that forces the use of strict JSON Schema constraints.
+
+#### Scenario: Toggle Visibility & Dependency
+- **WHEN** a user opens the settings panel
+- **THEN** a switch for "Use Structured Output" SHALL be available
+- **AND** a sub-switch for "Strict JSON Schema" SHALL be visible
+- **AND** if "Use Structured Output" is false, "Strict JSON Schema" SHALL be disabled or hidden
+
+#### Scenario: Warning Tooltip
+- **WHEN** the "Strict JSON Schema" setting is rendered
+- **THEN** it SHALL display a warning or tooltip indicating that some older or third-party models only support JSON Object mode and may fail with Strict Schema enabled.
+
+### Requirement: ISettings 更新
+`src/common/types.ts` 中 `ISettings` 接口 SHALL 包含 `useStructuredOutput` 和 `useStrictSchema` 字段。
+
+#### Scenario: types.ts 字段添加
+- **WHEN** 在 `src/common/types.ts` 检查 `ISettings` 接口
+- **THEN** `useStructuredOutput` (boolean) 和 `useStrictSchema` (boolean) 字段 SHALL 存在

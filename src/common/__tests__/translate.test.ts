@@ -85,6 +85,33 @@ describe('translate', () => {
         })
     })
 
+    it('passes thinking controls from the selected model', async () => {
+        vi.mocked(getSettings).mockResolvedValue({
+            providers: [provider],
+            defaultProviderId: provider.id,
+            defaultModel: {
+                providerId: provider.id,
+                model: provider.model,
+                thinkingEnabled: true,
+                openaiReasoningEffort: 'high',
+            },
+        } as Awaited<ReturnType<typeof getSettings>>)
+        const sendMessage = vi.fn(async (req) => {
+            await req.onMessage({ content: '你好', role: 'assistant' })
+            req.onFinished('stop')
+        })
+        vi.mocked(getEngine).mockReturnValue(createMockEngine(sendMessage))
+
+        await translate(createTranslateQuery())
+
+        expect(getEngine).toHaveBeenCalledWith({
+            ...provider,
+            thinkingEnabled: true,
+            openaiReasoningEffort: 'high',
+            anthropicThinkingEffort: undefined,
+        })
+    })
+
     it('uses word mode for a single word', async () => {
         const sendMessage = vi.fn(async (req) => {
             expect(req.commandPrompt).toContain('单词是：hello')

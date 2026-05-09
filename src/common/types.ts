@@ -52,6 +52,12 @@ export type ProviderProtocol = 'openai-chat' | 'openai-responses' | 'anthropic'
 export type OpenAIReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
 export type AnthropicThinkingEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
+export interface ThinkingControl {
+    thinkingEnabled?: boolean
+    openaiReasoningEffort?: OpenAIReasoningEffort
+    anthropicThinkingEffort?: AnthropicThinkingEffort
+}
+
 export interface ProviderConfig {
     id: string
     name: string
@@ -61,12 +67,9 @@ export interface ProviderConfig {
     model: string
     modelOptions?: string[]
     extraHeaders?: Record<string, string>
-    thinkingEnabled?: boolean
-    openaiReasoningEffort?: OpenAIReasoningEffort
-    anthropicThinkingEffort?: AnthropicThinkingEffort
 }
 
-export interface ModelSelection {
+export interface ModelSelection extends ThinkingControl {
     providerId: string
     model: string
 }

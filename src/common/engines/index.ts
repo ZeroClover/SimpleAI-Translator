@@ -1,10 +1,12 @@
-import { ProviderConfig } from '../types'
+import { ProviderConfig, ThinkingControl } from '../types'
 import { AnthropicEngine } from './protocols/anthropic'
 import { OpenAIChatEngine } from './protocols/openai-chat'
 import { OpenAIResponsesEngine } from './protocols/openai-responses'
 import { IEngine } from './interfaces'
 
-export function getEngine(providerConfig: ProviderConfig): IEngine {
+export type EngineProviderConfig = ProviderConfig & ThinkingControl
+
+export function getEngine(providerConfig: EngineProviderConfig): IEngine {
     switch (providerConfig.protocol) {
         case 'openai-chat':
             return new OpenAIChatEngine(providerConfig)

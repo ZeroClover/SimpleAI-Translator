@@ -1,6 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createParser } from 'eventsource-parser'
-import { IBrowser, ISettings, ModelSelection, ProviderConfig } from './types'
+import {
+    AnthropicThinkingEffort,
+    IBrowser,
+    ISettings,
+    ModelSelection,
+    OpenAIReasoningEffort,
+    ProviderConfig,
+} from './types'
 import { getUniversalFetch } from './universal-fetch'
 import { v4 as uuidv4 } from 'uuid'
 import { listen, Event, emit } from '@tauri-apps/api/event'
@@ -98,31 +105,27 @@ function normalizeProviderList(providers: unknown): ProviderConfig[] {
     if (!Array.isArray(providers)) {
         return []
     }
-    const openaiReasoningEfforts = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
-    const anthropicThinkingEfforts = new Set(['low', 'medium', 'high', 'xhigh', 'max'])
     return providers.map((provider) => {
-        const {
-            openaiReasoningEffort: rawOpenAIEffort,
-            anthropicThinkingEffort: rawAnthropicEffort,
-            ...item
-        } = provider as ProviderConfig
+        const item = provider as ProviderConfig
         const modelOptions = Array.isArray(item.modelOptions)
             ? item.modelOptions.filter((model): model is string => typeof model === 'string' && model.trim() !== '')
             : []
         const model = typeof item.model === 'string' ? item.model : modelOptions[0] ?? ''
-        const openaiReasoningEffort = openaiReasoningEfforts.has(String(rawOpenAIEffort)) ? rawOpenAIEffort : undefined
-        const anthropicThinkingEffort = anthropicThinkingEfforts.has(String(rawAnthropicEffort))
-            ? rawAnthropicEffort
-            : undefined
         return {
-            ...item,
+            id: item.id,
+            name: item.name,
+            protocol: item.protocol,
+            apiKey: item.apiKey,
+            ...(item.endpoint ? { endpoint: item.endpoint } : {}),
             model,
             modelOptions,
-            ...(openaiReasoningEffort ? { openaiReasoningEffort } : {}),
-            ...(anthropicThinkingEffort ? { anthropicThinkingEffort } : {}),
+            ...(item.extraHeaders ? { extraHeaders: item.extraHeaders } : {}),
         }
     })
 }
+
+const openaiReasoningEfforts = new Set<OpenAIReasoningEffort>(['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
+const anthropicThinkingEfforts = new Set<AnthropicThinkingEffort>(['low', 'medium', 'high', 'xhigh', 'max'])
 
 function normalizeDefaultModel(rawDefaultModel: unknown, providers: ProviderConfig[]): ModelSelection | null {
     const defaultModel = rawDefaultModel as Partial<ModelSelection> | undefined
@@ -133,9 +136,22 @@ function normalizeDefaultModel(rawDefaultModel: unknown, providers: ProviderConf
         providers.some((provider) => provider.id === defaultModel.providerId) &&
         defaultModel.model.trim()
     ) {
+        const openaiReasoningEffort = openaiReasoningEfforts.has(
+            String(defaultModel.openaiReasoningEffort) as OpenAIReasoningEffort
+        )
+            ? defaultModel.openaiReasoningEffort
+            : undefined
+        const anthropicThinkingEffort = anthropicThinkingEfforts.has(
+            String(defaultModel.anthropicThinkingEffort) as AnthropicThinkingEffort
+        )
+            ? defaultModel.anthropicThinkingEffort
+            : undefined
         return {
             providerId: defaultModel.providerId,
             model: defaultModel.model,
+            ...(defaultModel.thinkingEnabled === true ? { thinkingEnabled: true } : {}),
+            ...(openaiReasoningEffort ? { openaiReasoningEffort } : {}),
+            ...(anthropicThinkingEffort ? { anthropicThinkingEffort } : {}),
         }
     }
     const fallbackProvider = providers.find((provider) => provider.model.trim()) ?? providers[0]

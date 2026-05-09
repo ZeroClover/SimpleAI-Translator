@@ -154,5 +154,16 @@
     "Minutes": "分钟",
     "Hours": "小时",
     "Days": "天",
-    "Forever": "永久"
+    "Forever": "永久",
+    "Thinking Enabled": "启用思考",
+    "OpenAI Reasoning Effort": "OpenAI 推理强度",
+    "Anthropic Thinking Effort": "Anthropic 思考强度",
+    "Thinking support depends on the selected model and compatible endpoint. OpenAI reasoning models should use the OpenAI Responses protocol.": "思考配置是否生效取决于所选模型和兼容端点。OpenAI 推理模型建议使用 OpenAI Responses 协议。",
+    "None": "无",
+    "Minimal": "最低",
+    "Low": "低",
+    "Medium": "中",
+    "High": "高",
+    "Extra High": "极高",
+    "Max": "最大"
 }

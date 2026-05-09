@@ -154,5 +154,16 @@
     "Minutes": "Minutes",
     "Hours": "Hours",
     "Days": "Days",
-    "Forever": "Forever"
+    "Forever": "Forever",
+    "Thinking Enabled": "Thinking Enabled",
+    "OpenAI Reasoning Effort": "OpenAI Reasoning Effort",
+    "Anthropic Thinking Effort": "Anthropic Thinking Effort",
+    "Thinking support depends on the selected model and compatible endpoint. OpenAI reasoning models should use the OpenAI Responses protocol.": "Thinking support depends on the selected model and compatible endpoint. OpenAI reasoning models should use the OpenAI Responses protocol.",
+    "None": "None",
+    "Minimal": "Minimal",
+    "Low": "Low",
+    "Medium": "Medium",
+    "High": "High",
+    "Extra High": "Extra High",
+    "Max": "Max"
 }

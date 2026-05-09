@@ -26,6 +26,7 @@ export interface TranslateQuery {
     detectFrom: LangCode
     detectTo: LangCode
     providerId?: string
+    model?: string
     onMessage: (message: { content: string; role: string; isWordMode: boolean; isFullText?: boolean }) => Promise<void>
     onError: (error: string) => void
     onFinish: (reason: string) => void
@@ -306,16 +307,25 @@ If you understand, say "yes", and then we will begin.`
     }
 
     const settings = await getSettings()
-    const providerId = query.providerId ?? settings.defaultProviderId
+    const providerId = query.providerId ?? settings.defaultModel?.providerId ?? settings.defaultProviderId
     const providerConfig = settings.providers.find((provider) => provider.id === providerId)
     if (!providerConfig) {
         query.onError('No LLM Provider configured. Please add a provider in settings.')
         query.onFinish('error')
         return
     }
+    const model = query.model ?? settings.defaultModel?.model ?? providerConfig.model
+    if (!model) {
+        query.onError('No model selected. Please select a model in settings.')
+        query.onFinish('error')
+        return
+    }
 
     try {
-        const engine = getEngine(providerConfig)
+        const engine = getEngine({
+            ...providerConfig,
+            model,
+        })
         await engine.sendMessage({
             signal: query.signal,
             rolePrompt,

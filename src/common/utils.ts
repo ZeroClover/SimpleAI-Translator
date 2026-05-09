@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createParser } from 'eventsource-parser'
-import { IBrowser, ISettings, ProviderConfig } from './types'
+import { IBrowser, ISettings, ModelSelection, ProviderConfig } from './types'
 import { getUniversalFetch } from './universal-fetch'
 import { v4 as uuidv4 } from 'uuid'
 import { listen, Event, emit } from '@tauri-apps/api/event'
@@ -19,6 +19,7 @@ const settingKeys = {
     automaticCheckForUpdates: 1,
     providers: 1,
     defaultProviderId: 1,
+    defaultModel: 1,
     enableMica: 1,
     enableBackgroundBlur: 1,
     defaultTargetLanguage: 1,
@@ -94,7 +95,45 @@ const legacySettingKeys = [
 ] as const
 
 function normalizeProviderList(providers: unknown): ProviderConfig[] {
-    return Array.isArray(providers) ? (providers as ProviderConfig[]) : []
+    if (!Array.isArray(providers)) {
+        return []
+    }
+    return providers.map((provider) => {
+        const item = provider as ProviderConfig
+        const modelOptions = Array.isArray(item.modelOptions)
+            ? item.modelOptions.filter((model): model is string => typeof model === 'string' && model.trim() !== '')
+            : []
+        const model = typeof item.model === 'string' ? item.model : modelOptions[0] ?? ''
+        return {
+            ...item,
+            model,
+            modelOptions,
+        }
+    })
+}
+
+function normalizeDefaultModel(rawDefaultModel: unknown, providers: ProviderConfig[]): ModelSelection | null {
+    const defaultModel = rawDefaultModel as Partial<ModelSelection> | undefined
+    if (
+        defaultModel &&
+        typeof defaultModel.providerId === 'string' &&
+        typeof defaultModel.model === 'string' &&
+        providers.some((provider) => provider.id === defaultModel.providerId) &&
+        defaultModel.model.trim()
+    ) {
+        return {
+            providerId: defaultModel.providerId,
+            model: defaultModel.model,
+        }
+    }
+    const fallbackProvider = providers.find((provider) => provider.model.trim()) ?? providers[0]
+    if (!fallbackProvider || !fallbackProvider.model.trim()) {
+        return null
+    }
+    return {
+        providerId: fallbackProvider.id,
+        model: fallbackProvider.model,
+    }
 }
 
 function hasDanglingOpenAITTSProvider(tts: ISettings['tts'] | undefined, providers: ProviderConfig[]): boolean {
@@ -146,6 +185,7 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
                 : rawSettings.automaticCheckForUpdates,
         providers,
         defaultProviderId,
+        defaultModel: normalizeDefaultModel(rawSettings.defaultModel, providers),
         enableMica: rawSettings.enableMica ?? false,
         enableBackgroundBlur:
             rawSettings.enableBackgroundBlur === undefined || rawSettings.enableBackgroundBlur === null
@@ -187,10 +227,11 @@ export function sanitizeSettingsForStorage(settings: RawSettings): Partial<ISett
     const sanitized: Record<string, unknown> = {
         providers: normalized.providers,
         defaultProviderId: normalized.defaultProviderId,
+        defaultModel: normalized.defaultModel,
     }
 
     for (const key of Object.keys(settingKeys) as Array<keyof typeof settingKeys>) {
-        if (key === 'providers' || key === 'defaultProviderId') {
+        if (key === 'providers' || key === 'defaultProviderId' || key === 'defaultModel') {
             continue
         }
         if (Object.prototype.hasOwnProperty.call(settings, key)) {

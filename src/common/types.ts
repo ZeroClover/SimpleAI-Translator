@@ -57,13 +57,20 @@ export interface ProviderConfig {
     apiKey: string
     endpoint?: string
     model: string
+    modelOptions?: string[]
     extraHeaders?: Record<string, string>
+}
+
+export interface ModelSelection {
+    providerId: string
+    model: string
 }
 
 export interface ISettings {
     automaticCheckForUpdates: boolean
     providers: ProviderConfig[]
     defaultProviderId: string | null
+    defaultModel: ModelSelection | null
     enableBackgroundBlur: boolean
     enableMica: boolean // deprecated, please use enableBackgroundBlur
     defaultTargetLanguage: string

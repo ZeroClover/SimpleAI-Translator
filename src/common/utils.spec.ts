@@ -67,8 +67,12 @@ describe('settings schema normalization', () => {
             apiKeys: 'sk-legacy',
         })
 
-        expect(settings.providers).toEqual([provider])
+        expect(settings.providers).toEqual([{ ...provider, modelOptions: [] }])
         expect(settings.defaultProviderId).toBe(provider.id)
+        expect(settings.defaultModel).toEqual({
+            providerId: provider.id,
+            model: provider.model,
+        })
     })
 
     it('sanitizes writes to the new settings schema', () => {
@@ -89,8 +93,12 @@ describe('settings schema normalization', () => {
         })
 
         expect(sanitized).toEqual({
-            providers: [provider],
+            providers: [{ ...provider, modelOptions: [] }],
             defaultProviderId: provider.id,
+            defaultModel: {
+                providerId: provider.id,
+                model: provider.model,
+            },
         })
     })
 

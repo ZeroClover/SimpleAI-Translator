@@ -63,6 +63,22 @@ describe('translate', () => {
         expect(query.onFinish).toHaveBeenCalledWith('stop')
     })
 
+    it('overrides the provider model without changing the provider config', async () => {
+        const sendMessage = vi.fn(async (req) => {
+            await req.onMessage({ content: '你好', role: 'assistant' })
+            req.onFinished('stop')
+        })
+        vi.mocked(getEngine).mockReturnValue(createMockEngine(sendMessage))
+        const query = createTranslateQuery({ model: 'gpt-4o' })
+
+        await translate(query)
+
+        expect(getEngine).toHaveBeenCalledWith({
+            ...provider,
+            model: 'gpt-4o',
+        })
+    })
+
     it('uses word mode for a single word', async () => {
         const sendMessage = vi.fn(async (req) => {
             expect(req.commandPrompt).toContain('单词是：hello')

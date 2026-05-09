@@ -1,11 +1,5 @@
-#[cfg(target_os = "macos")]
-use accessibility_sys_ng::{kAXErrorSuccess, AXError};
-#[cfg(target_os = "macos")]
-use core_graphics::geometry::CGRect;
 use enigo::*;
 use parking_lot::Mutex;
-#[cfg(target_os = "macos")]
-use std::mem::MaybeUninit;
 use std::{thread, time::Duration};
 #[cfg(target_os = "macos")]
 use tauri::path::BaseDirectory;
@@ -304,110 +298,6 @@ pub fn get_selected_text_by_clipboard(
             } else {
                 Ok(String::new())
             }
-        }
-    }
-}
-
-#[allow(dead_code)]
-#[cfg(target_os = "macos")]
-unsafe fn ax_call<F, V>(f: F) -> Result<V, AXError>
-where
-    F: Fn(*mut V) -> AXError,
-{
-    let mut result = MaybeUninit::uninit();
-    let err = (f)(result.as_mut_ptr());
-
-    if err != kAXErrorSuccess {
-        return Err(err);
-    }
-
-    Ok(result.assume_init())
-}
-
-#[cfg(target_os = "macos")]
-fn get_selected_text_frame_by_ax() -> Result<CGRect, Box<dyn std::error::Error>> {
-    use accessibility_ng::{AXAttribute, AXUIElement, AXValue};
-    use accessibility_sys_ng::{
-        kAXBoundsForRangeParameterizedAttribute, kAXFocusedUIElementAttribute,
-        kAXSelectedTextRangeAttribute,
-    };
-    use core_foundation::string::CFString;
-
-    let system_element = AXUIElement::system_wide();
-    let Some(focused_element) = system_element
-        .attribute(&AXAttribute::new(&CFString::from_static_string(
-            kAXFocusedUIElementAttribute,
-        )))
-        .map(|element| element.downcast_into::<AXUIElement>())
-        .ok()
-        .flatten()
-    else {
-        return Ok(CGRect::default());
-    };
-    let Some(selection_range_value) = focused_element
-        .attribute(&AXAttribute::new(&CFString::from_static_string(
-            kAXSelectedTextRangeAttribute,
-        )))
-        .map(|value| value.downcast_into::<AXValue>())
-        .ok()
-        .flatten()
-    else {
-        return Ok(CGRect::default());
-    };
-    let Some(selection_bounds_value) = focused_element
-        .parameterized_attribute(
-            &AXAttribute::new(&CFString::from_static_string(
-                kAXBoundsForRangeParameterizedAttribute,
-            )),
-            &selection_range_value,
-        )
-        .map(|value| value.downcast_into::<AXValue>())
-        .ok()
-        .flatten()
-    else {
-        return Ok(CGRect::default());
-    };
-    selection_bounds_value
-        .get_value::<CGRect>()
-        .map_err(|err| err.into())
-}
-
-#[cfg(target_os = "macos")]
-pub fn is_valid_selected_frame() -> Result<bool, Box<dyn std::error::Error>> {
-    use crate::windows::get_mouse_location;
-    use core_graphics::geometry::{CGPoint, CGSize};
-    use debug_print::debug_println;
-
-    match get_selected_text_frame_by_ax() {
-        Ok(selected_frame) => {
-            if selected_frame.size.width == 0.0 && selected_frame.size.height == 0.0 {
-                debug_println!("Selected frame is empty");
-                return Ok(true);
-            }
-
-            let expand_value = 40.0;
-            let origin = CGPoint::new(
-                selected_frame.origin.x - expand_value,
-                selected_frame.origin.y - expand_value,
-            );
-            let size = CGSize::new(
-                selected_frame.size.width + expand_value * 2.0,
-                selected_frame.size.height + expand_value * 2.0,
-            );
-            let expanded_selected_text_frame = CGRect::new(&origin, &size);
-            let (mouse_x, mouse_y) = get_mouse_location()?;
-            let mouse_position_point = CGPoint::new(mouse_x as f64, mouse_y as f64);
-            debug_println!(
-                "selected_frame: {:?}, expanded_selected_text_frame: {:?}, mouse_position_point: {:?}",
-                selected_frame,
-                expanded_selected_text_frame,
-                mouse_position_point
-            );
-            Ok(expanded_selected_text_frame.contains(&mouse_position_point))
-        }
-        Err(err) => {
-            debug_println!("get_selected_text_frame_by_ax error: {}", err);
-            Err(err)
         }
     }
 }

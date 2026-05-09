@@ -1,5 +1,4 @@
 export const zIndex = '2147483647'
-export const popupThumbID = '__zeroclover-simpleai-translator-popup-thumb'
 export const popupCardID = '__zeroclover-simpleai-translator-popup-card'
 export const containerID = '__zeroclover-simpleai-translator'
 export const popupCardMinWidth = 220

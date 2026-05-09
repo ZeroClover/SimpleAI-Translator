@@ -1,14 +1,12 @@
 import path from 'node:path'
 import { expect, test } from './fixtures'
-import { selectExampleText } from './common'
-import { containerID, popupCardInnerContainerId, popupThumbID } from '../src/browser-extension/content_script/consts'
+import { openTranslatorWithSelectedText } from './common'
+import { popupCardInnerContainerId } from '../src/browser-extension/content_script/consts'
 
 test.describe('titlebar', () => {
     test.beforeEach(async ({ page }) => {
         await page.goto(`file:${path.join(__dirname, 'test.html')}`)
-        await selectExampleText(page)
-        const thumb = page.locator(`#${containerID} #${popupThumbID}`)
-        await thumb.click()
+        await openTranslatorWithSelectedText(page)
     })
 
     test('pin/unpin should work', async ({ page }) => {

@@ -36,10 +36,8 @@ pub struct ProxyConfig {
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub restore_previous_position: Option<bool>,
-    pub always_show_icons: Option<bool>,
     pub allow_using_clipboard_when_selected_text_not_available: Option<bool>,
     pub automatic_check_for_updates: Option<bool>,
-    pub hide_the_icon_in_the_dock: Option<bool>,
     pub proxy: Option<ProxyConfig>,
 }
 

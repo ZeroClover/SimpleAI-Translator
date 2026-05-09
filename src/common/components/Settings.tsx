@@ -44,7 +44,6 @@ import { SpeakerIcon } from './SpeakerIcon'
 import { RxSpeakerLoud } from 'react-icons/rx'
 import { Textarea } from 'baseui-sd/textarea'
 import { ProxyTester } from './ProxyTester'
-import { isMacOS } from '../utils'
 import NumberInput from './NumberInput'
 import { ProviderForm, ProviderFormValue } from './ProviderForm'
 import { v4 as uuidv4 } from 'uuid'
@@ -899,25 +898,6 @@ function Ii18nSelector({ value, onChange, onBlur }: Ii18nSelectorProps) {
     )
 }
 
-interface AutoTranslateCheckboxProps {
-    value?: boolean
-    onChange?: (value: boolean) => void
-    onBlur?: () => void
-}
-
-function AutoTranslateCheckbox({ value, onChange, onBlur }: AutoTranslateCheckboxProps) {
-    return (
-        <Checkbox
-            checkmarkType='toggle_round'
-            checked={value}
-            onChange={(e) => {
-                onChange?.(e.target.checked)
-                onBlur?.()
-            }}
-        />
-    )
-}
-
 interface MyCheckboxProps {
     value?: boolean
     onChange?: (value: boolean) => void
@@ -955,25 +935,6 @@ function RestorePreviousPositionCheckbox({ value, onChange, onBlur }: RestorePre
         />
     )
 }
-interface SelectInputElementsProps {
-    value?: boolean
-    onChange?: (value: boolean) => void
-    onBlur?: () => void
-}
-
-function SelectInputElementsCheckbox({ value, onChange, onBlur }: SelectInputElementsProps) {
-    return (
-        <Checkbox
-            checkmarkType='toggle_round'
-            checked={value}
-            onChange={(e) => {
-                onChange?.(e.target.checked)
-                onBlur?.()
-            }}
-        />
-    )
-}
-
 interface ReadSelectedWordsFromInputElementsProps {
     value?: boolean
     onChange?: (value: boolean) => void
@@ -1585,38 +1546,6 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                             <NumberInput />
                         </FormItem>
                         <FormItem
-                            name='alwaysShowIcons'
-                            label={t('Show icon when text is selected')}
-                            caption={
-                                isDesktopApp && (
-                                    <div
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 6,
-                                        }}
-                                    >
-                                        {t(
-                                            'It is highly recommended to disable this feature and use the Clip Extension'
-                                        )}
-                                        <a
-                                            href='https://github.com/nextai-translator/nextai-translator/blob/main/CLIP-EXTENSIONS.md'
-                                            target='_blank'
-                                            rel='noreferrer'
-                                            style={linkStyle}
-                                        >
-                                            {t('Clip Extension')}
-                                        </a>
-                                    </div>
-                                )
-                            }
-                        >
-                            <MyCheckbox onBlur={onBlur} />
-                        </FormItem>
-                        <FormItem name='autoTranslate' label={t('Auto Translate')}>
-                            <AutoTranslateCheckbox onBlur={onBlur} />
-                        </FormItem>
-                        <FormItem
                             style={{
                                 display: isDesktopApp ? 'block' : 'none',
                             }}
@@ -1625,32 +1554,11 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         >
                             <RestorePreviousPositionCheckbox onBlur={onBlur} />
                         </FormItem>
-                        <FormItem name='selectInputElementsText' label={t('Word selection in input')}>
-                            <SelectInputElementsCheckbox onBlur={onBlur} />
-                        </FormItem>
                         {isTauri && (
                             <FormItem name='runAtStartup' label={t('Run at startup')}>
                                 <RunAtStartupCheckbox onBlur={onBlur} />
                             </FormItem>
                         )}
-                        <FormItem
-                            style={{
-                                display: isDesktopApp ? 'block' : 'none',
-                            }}
-                            name='hideTheIconInTheDock'
-                            label={isMacOS ? t('Hide the icon in the Dock bar') : t('Hide the icon in the taskbar')}
-                        >
-                            <MyCheckbox onBlur={onBlur} />
-                        </FormItem>
-                        <FormItem
-                            style={{
-                                display: isDesktopApp ? 'block' : 'none',
-                            }}
-                            name='autoHideWindowWhenOutOfFocus'
-                            label={t('Auto hide window when out of focus')}
-                        >
-                            <MyCheckbox onBlur={onBlur} />
-                        </FormItem>
                         <FormItem
                             style={{
                                 display: isDesktopApp ? 'block' : 'none',

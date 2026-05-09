@@ -9,7 +9,6 @@ import { useSettings } from '../../common/hooks/useSettings'
 import { Window } from '../components/Window'
 import { setExternalOriginalText } from '../../common/store'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { usePinned } from '../../common/hooks/usePinned'
 import { useMemoWindow } from '../../common/hooks/useMemoWindow'
 import { isMacOS } from '@/common/utils'
 import { commands } from '../bindings'
@@ -68,39 +67,22 @@ export function TranslatorWindow() {
         return unlisten
     }, [])
 
-    const { pinned } = usePinned()
-
     useEffect(() => {
         const appWindow = WebviewWindow.getCurrent()
         let unlisten: UnlistenFn | undefined
-        let timer: number | undefined
         appWindow
             .onFocusChanged(({ payload: focused }: Event<boolean>) => {
                 if (!focused) {
                     commands.rememberActiveWindowCommand().catch(console.error)
-                }
-                if (!pinned && settings.autoHideWindowWhenOutOfFocus) {
-                    if (timer) {
-                        clearTimeout(timer)
-                    }
-                    if (focused) {
-                        return
-                    }
-                    timer = window.setTimeout(() => {
-                        commands.hideTranslatorWindow()
-                    }, 50)
                 }
             })
             .then((cb: UnlistenFn) => {
                 unlisten = cb
             })
         return () => {
-            if (timer) {
-                clearTimeout(timer)
-            }
             unlisten?.()
         }
-    }, [pinned, settings.autoHideWindowWhenOutOfFocus])
+    }, [])
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 

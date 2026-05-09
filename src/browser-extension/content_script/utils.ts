@@ -1,4 +1,4 @@
-import { containerID, documentPadding, popupCardID, popupThumbID, zIndex } from './consts'
+import { containerID, documentPadding, popupCardID, zIndex } from './consts'
 
 function attachEventsToContainer($container: HTMLElement) {
     $container.addEventListener('mousedown', (event) => {
@@ -49,11 +49,6 @@ export async function getContainer(): Promise<HTMLElement> {
     return new Promise((resolve) => {
         resolve($container as HTMLElement)
     })
-}
-
-export async function queryPopupThumbElement(): Promise<HTMLDivElement | null> {
-    const $container = await getContainer()
-    return $container.shadowRoot?.querySelector(`#${popupThumbID}`) as HTMLDivElement | null
 }
 
 export async function queryPopupCardElement(): Promise<HTMLDivElement | null> {

@@ -19,3 +19,26 @@ export async function selectExampleText(page: Page) {
         await page.mouse.up()
     }
 }
+
+export async function openTranslatorWithSelectedText(page: Page) {
+    await selectExampleText(page)
+    const selectionText = await page.evaluate(() => window.getSelection()?.toString() ?? '')
+    const context = page.context()
+    let [background] = context.serviceWorkers()
+    if (!background) {
+        background = await context.waitForEvent('serviceworker')
+    }
+
+    await background.evaluate(async (text) => {
+        const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
+        if (!tab.id) {
+            throw new Error('No active tab found')
+        }
+        await chrome.tabs.sendMessage(tab.id, {
+            type: 'open-translator',
+            info: {
+                selectionText: text,
+            },
+        })
+    }, selectionText)
+}

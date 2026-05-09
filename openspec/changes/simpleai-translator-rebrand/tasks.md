@@ -72,17 +72,17 @@
 
 ## 8. 删除 alwaysShowIcons / autoTranslate / selectInputElementsText / hideTheIconInTheDock / autoHideWindowWhenOutOfFocus
 
-- [ ] 8.1 从 `src/common/types.ts` 的 `ISettings` 删除上述五个字段
-- [ ] 8.2 从 `src/common/utils.ts` 默认值 / 规范化逻辑删除上述五个字段对应映射
-- [ ] 8.3 从 `Settings.tsx` 删除 `alwaysShowIcons`、`autoTranslate`、`selectInputElementsText`、`hideTheIconInTheDock`、`autoHideWindowWhenOutOfFocus` FormItem;删除 `AutoTranslateCheckbox` 组件(若仅供此处)
-- [ ] 8.4 从 `src-tauri/src/config.rs` 删除 `hide_the_icon_in_the_dock: Option<bool>` 字段
-- [ ] 8.5 从 `src-tauri/src/main.rs` 删除 `bind_mouse_hook` 中读取 `always_show_icons` 的分支(若该 hook 整体仅服务于此功能,把 hook 安装代码与函数本身整段删除);删除 `set_activation_policy(...)` 中根据 `hide_the_icon_in_the_dock` 切换 Accessory 模式的分支,保留始终 `Regular` 的默认行为
-- [ ] 8.6 从 `src/tauri/windows/TranslatorWindow.tsx` 删除失去焦点时隐藏窗口的 effect;从 dependency array 删除 `settings.autoHideWindowWhenOutOfFocus`
-- [ ] 8.7 用 `git grep 'settings.autoTranslate' -- src/common/components/Translator.tsx src/browser-extension/content_script` 确认真实读取位置;当前实现的自动翻译分支在浏览器插件 content script 中,若 `Translator.tsx` 无读取则无需改动
-- [ ] 8.8 从浏览器插件 content script 删除任何读取 `settings.autoTranslate` / `settings.selectInputElementsText` / `settings.alwaysShowIcons` 的分支与对 input/textarea 的 selection 监听(若有);删除"选中文本即自动翻译/弹浮标"代码路径
-- [ ] 8.9 删除桌面端 thumb 浮标链路:若 `bind_mouse_hook` 被整段删除,同步删除 `src-tauri/src/windows.rs` 中 `THUMB_WIN_NAME` / `delete_thumb` / `close_thumb` / `show_thumb` / `get_thumb_window` 等仅服务浮标的代码、`src/tauri/App.tsx` 的 `thumb` window 映射、`src/tauri/windows/ThumbWindow.tsx`,以及仅供该链路使用的依赖(如 `mouce`;`get-selected-text` 若仍被显式命令使用则保留)
-- [ ] 8.10 删除所有 i18n locale 中相关 key:`Always show icons` / `Show icon when text is selected` / `Auto Translate` / `Word selection in input` / `Enable word selection for lookup in the input field` / `Hide the icon in the Dock bar` / `Hide the icon in the taskbar` / `Auto hide window when out of focus`
-- [ ] 8.11 `pnpm exec tsc --noEmit` + `cargo check --manifest-path src-tauri/Cargo.toml` 通过
+- [x] 8.1 从 `src/common/types.ts` 的 `ISettings` 删除上述五个字段
+- [x] 8.2 从 `src/common/utils.ts` 默认值 / 规范化逻辑删除上述五个字段对应映射
+- [x] 8.3 从 `Settings.tsx` 删除 `alwaysShowIcons`、`autoTranslate`、`selectInputElementsText`、`hideTheIconInTheDock`、`autoHideWindowWhenOutOfFocus` FormItem;删除 `AutoTranslateCheckbox` 组件(若仅供此处)
+- [x] 8.4 从 `src-tauri/src/config.rs` 删除 `hide_the_icon_in_the_dock: Option<bool>` 字段
+- [x] 8.5 从 `src-tauri/src/main.rs` 删除 `bind_mouse_hook` 中读取 `always_show_icons` 的分支(若该 hook 整体仅服务于此功能,把 hook 安装代码与函数本身整段删除);删除 `set_activation_policy(...)` 中根据 `hide_the_icon_in_the_dock` 切换 Accessory 模式的分支,保留始终 `Regular` 的默认行为
+- [x] 8.6 从 `src/tauri/windows/TranslatorWindow.tsx` 删除失去焦点时隐藏窗口的 effect;从 dependency array 删除 `settings.autoHideWindowWhenOutOfFocus`
+- [x] 8.7 用 `git grep 'settings.autoTranslate' -- src/common/components/Translator.tsx src/browser-extension/content_script` 确认真实读取位置;当前实现的自动翻译分支在浏览器插件 content script 中,若 `Translator.tsx` 无读取则无需改动
+- [x] 8.8 从浏览器插件 content script 删除任何读取 `settings.autoTranslate` / `settings.selectInputElementsText` / `settings.alwaysShowIcons` 的分支与对 input/textarea 的 selection 监听(若有);删除"选中文本即自动翻译/弹浮标"代码路径
+- [x] 8.9 删除桌面端 thumb 浮标链路:若 `bind_mouse_hook` 被整段删除,同步删除 `src-tauri/src/windows.rs` 中 `THUMB_WIN_NAME` / `delete_thumb` / `close_thumb` / `show_thumb` / `get_thumb_window` 等仅服务浮标的代码、`src/tauri/App.tsx` 的 `thumb` window 映射、`src/tauri/windows/ThumbWindow.tsx`,以及仅供该链路使用的依赖(如 `mouce`;`get-selected-text` 若仍被显式命令使用则保留)
+- [x] 8.10 删除所有 i18n locale 中相关 key:`Always show icons` / `Show icon when text is selected` / `Auto Translate` / `Word selection in input` / `Enable word selection for lookup in the input field` / `Hide the icon in the Dock bar` / `Hide the icon in the taskbar` / `Auto hide window when out of focus`
+- [x] 8.11 `pnpm exec tsc --noEmit` + `cargo check --manifest-path src-tauri/Cargo.toml` 通过
 
 ## 9. 产品名 i18n 与文档替换
 

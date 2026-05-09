@@ -19,7 +19,6 @@ use tauri_specta::Event;
 pub const TRANSLATOR_WIN_NAME: &str = "translator";
 pub const SETTINGS_WIN_NAME: &str = "settings";
 pub const UPDATER_WIN_NAME: &str = "updater";
-pub const THUMB_WIN_NAME: &str = "thumb";
 pub const HISTORY_WIN_NAME: &str = "history";
 
 fn get_dummy_window() -> tauri::WebviewWindow {
@@ -179,124 +178,6 @@ pub async fn hide_translator_window() {
     do_hide_translator_window();
 }
 
-pub fn delete_thumb() {
-    match APP_HANDLE.get() {
-        Some(handle) => match handle.get_webview_window(THUMB_WIN_NAME) {
-            Some(window) => {
-                window.close().unwrap();
-            }
-            None => {}
-        },
-        None => {}
-    }
-}
-
-pub fn close_thumb() {
-    match APP_HANDLE.get() {
-        Some(handle) => match handle.get_webview_window(THUMB_WIN_NAME) {
-            Some(window) => {
-                window
-                    .set_position(LogicalPosition::new(-100.0, -100.0))
-                    .unwrap();
-                window.set_always_on_top(false).unwrap();
-                window.hide().unwrap();
-            }
-            None => {}
-        },
-        None => {}
-    }
-}
-
-pub fn show_thumb(x: i32, y: i32) {
-    let window = get_thumb_window(x, y);
-    window.show().unwrap();
-}
-
-pub fn get_thumb_window(x: i32, y: i32) -> tauri::WebviewWindow {
-    let handle = APP_HANDLE.get().unwrap();
-    let position_offset = 7.0 as f64;
-    let window = match handle.get_webview_window(THUMB_WIN_NAME) {
-        Some(window) => {
-            debug_println!("Thumb window already exists");
-            window.unminimize().unwrap();
-            window.set_always_on_top(true).unwrap();
-            window
-        }
-        None => {
-            debug_println!("Thumb window does not exist");
-            #[cfg_attr(not(target_os = "windows"), allow(unused_mut))]
-            let mut builder = tauri::WebviewWindowBuilder::new(
-                handle,
-                THUMB_WIN_NAME,
-                tauri::WebviewUrl::App("src/tauri/index.html".into()),
-            )
-            .fullscreen(false)
-            .focused(false)
-            .inner_size(20.0, 20.0)
-            .min_inner_size(20.0, 20.0)
-            .max_inner_size(20.0, 20.0)
-            .visible(false)
-            .resizable(false)
-            .skip_taskbar(true)
-            .minimizable(false)
-            .maximizable(false)
-            .closable(false)
-            .decorations(false);
-
-            #[cfg(target_os = "windows")]
-            {
-                builder = builder.shadow(false);
-            }
-
-            let window = builder.build().unwrap();
-            #[cfg(target_os = "windows")]
-            {
-                // use SetWindowLongPtrW in tao page to disable minimize, maximize and close buttons
-                use windows::Win32::UI::WindowsAndMessaging::{
-                    SetWindowLongPtrW, GWL_STYLE, WS_POPUP,
-                };
-                let hwnd = window.hwnd().unwrap();
-                unsafe {
-                    // let mut style = GetWindowLongPtrW(hwnd, GWL_STYLE);
-                    // style = style & !(0x00020000 | 0x00010000 | 0x00080000); // WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU
-                    let style: u32 = WS_POPUP.0;
-                    SetWindowLongPtrW(hwnd, GWL_STYLE, style as isize);
-                }
-                window
-                    .set_size(tauri::LogicalSize {
-                        width: 20.0,
-                        height: 20.0,
-                    })
-                    .unwrap();
-            }
-            post_process_window(&window);
-
-            window.unminimize().unwrap();
-            window.set_always_on_top(true).unwrap();
-
-            window
-        }
-    };
-
-    if cfg!(target_os = "macos") {
-        window
-            .set_position(LogicalPosition::new(
-                x as f64 + position_offset,
-                y as f64 + position_offset,
-            ))
-            .unwrap();
-    } else {
-        window
-            .set_position(PhysicalPosition::new(
-                x as f64 + position_offset,
-                y as f64 + position_offset,
-            ))
-            .unwrap();
-    }
-
-    window
-}
-
 pub fn post_process_window<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
     window.set_visible_on_all_workspaces(true).unwrap();
 
@@ -454,8 +335,6 @@ pub fn get_translator_window(
             window
         }
         None => {
-            let config = config::get_config_by_app(handle).unwrap();
-
             let builder = tauri::WebviewWindowBuilder::new(
                 handle,
                 TRANSLATOR_WIN_NAME,
@@ -466,7 +345,7 @@ pub fn get_translator_window(
             .inner_size(620.0, 700.0)
             .min_inner_size(540.0, 600.0)
             .resizable(true)
-            .skip_taskbar(config.hide_the_icon_in_the_dock.unwrap_or(true))
+            .skip_taskbar(false)
             .visible(false)
             .focused(false);
 

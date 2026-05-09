@@ -66,9 +66,7 @@ export interface ISettings {
     defaultProviderId: string | null
     enableBackgroundBlur: boolean
     enableMica: boolean // deprecated, please use enableBackgroundBlur
-    autoTranslate: boolean
     defaultTargetLanguage: string
-    alwaysShowIcons: boolean
     themeType?: ThemeType
     i18n?: string
     tts?: {
@@ -82,14 +80,11 @@ export interface ISettings {
         openai?: OpenAITTSSettings
     }
     restorePreviousPosition?: boolean
-    selectInputElementsText?: boolean
     readSelectedWordsFromInputElementsText?: boolean
     runAtStartup?: boolean
     allowUsingClipboardWhenSelectedTextNotAvailable?: boolean
     pinned?: boolean
-    hideTheIconInTheDock?: boolean
     languageDetectionEngine?: LanguageDetectionEngine
-    autoHideWindowWhenOutOfFocus?: boolean
     proxy?: {
         enabled?: boolean
         protocol?: ProxyProtocol

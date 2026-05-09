@@ -8,9 +8,7 @@ import { parse as bestEffortJSONParse } from 'best-effort-json-parser'
 import { commands } from '@/tauri/bindings'
 import toast from 'react-hot-toast'
 
-export const defaultAutoTranslate = false
 export const defaultTargetLanguage = 'zh-Hans'
-export const defaultSelectInputElementsText = true
 export const defaultReadSelectedWordsFromInputElementsText = false
 export const defaulti18n = 'en'
 
@@ -23,21 +21,16 @@ const settingKeys = {
     defaultProviderId: 1,
     enableMica: 1,
     enableBackgroundBlur: 1,
-    autoTranslate: 1,
     defaultTargetLanguage: 1,
-    alwaysShowIcons: 1,
     themeType: 1,
     i18n: 1,
     tts: 1,
     restorePreviousPosition: 1,
     runAtStartup: 1,
-    selectInputElementsText: 1,
     readSelectedWordsFromInputElementsText: 1,
     allowUsingClipboardWhenSelectedTextNotAvailable: 1,
     pinned: 1,
-    hideTheIconInTheDock: 1,
     languageDetectionEngine: 1,
-    autoHideWindowWhenOutOfFocus: 1,
     proxy: 1,
     fontSize: 1,
     uiFontSize: 1,
@@ -158,24 +151,12 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
             rawSettings.enableBackgroundBlur === undefined || rawSettings.enableBackgroundBlur === null
                 ? rawSettings.enableMica ?? false
                 : rawSettings.enableBackgroundBlur,
-        autoTranslate:
-            rawSettings.autoTranslate === undefined || rawSettings.autoTranslate === null
-                ? defaultAutoTranslate
-                : rawSettings.autoTranslate,
         defaultTargetLanguage: rawSettings.defaultTargetLanguage || defaultTargetLanguage,
-        alwaysShowIcons:
-            rawSettings.alwaysShowIcons === undefined || rawSettings.alwaysShowIcons === null
-                ? !isTauri()
-                : rawSettings.alwaysShowIcons,
         themeType: rawSettings.themeType || 'followTheSystem',
         i18n: rawSettings.i18n || defaulti18n,
         tts: normalizeTTSSettings(rawSettings.tts, providers),
         restorePreviousPosition: rawSettings.restorePreviousPosition,
         runAtStartup: rawSettings.runAtStartup,
-        selectInputElementsText:
-            rawSettings.selectInputElementsText === undefined || rawSettings.selectInputElementsText === null
-                ? defaultSelectInputElementsText
-                : rawSettings.selectInputElementsText,
         readSelectedWordsFromInputElementsText:
             rawSettings.readSelectedWordsFromInputElementsText === undefined ||
             rawSettings.readSelectedWordsFromInputElementsText === null
@@ -183,12 +164,7 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
                 : rawSettings.readSelectedWordsFromInputElementsText,
         allowUsingClipboardWhenSelectedTextNotAvailable: rawSettings.allowUsingClipboardWhenSelectedTextNotAvailable,
         pinned: rawSettings.pinned,
-        hideTheIconInTheDock:
-            rawSettings.hideTheIconInTheDock === undefined || rawSettings.hideTheIconInTheDock === null
-                ? true
-                : rawSettings.hideTheIconInTheDock,
         languageDetectionEngine: rawSettings.languageDetectionEngine || 'local',
-        autoHideWindowWhenOutOfFocus: rawSettings.autoHideWindowWhenOutOfFocus,
         proxy: rawSettings.proxy ?? {
             enabled: false,
             protocol: 'HTTP',

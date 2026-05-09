@@ -1,4 +1,4 @@
-import { ProviderConfig } from '../../types'
+import { AnthropicThinkingEffort, ProviderConfig } from '../../types'
 import { getUniversalFetch } from '../../universal-fetch'
 import { ANTHROPIC_MESSAGES_API_PATH, normalizeAPIEndpoint } from '../../openai-api-path'
 import { fetchSSE } from '../../utils'
@@ -9,6 +9,9 @@ import { ThinkingFilter } from '../thinking-filter'
 
 const DEFAULT_ENDPOINT = 'https://api.anthropic.com'
 const MODELS_PATH = '/v1/models'
+const DEFAULT_MAX_TOKENS = 4096
+const THINKING_MAX_TOKENS = 64000
+const MANUAL_MAX_TOKENS = 128000
 
 function getHeaders(providerConfig: ProviderConfig): Record<string, string> {
     return {
@@ -49,6 +52,61 @@ function getOutputConfig(structuredOutput: StructuredOutputRequest | undefined) 
         format: {
             type: 'json_schema',
             schema: structuredOutput.schema,
+        },
+    }
+}
+
+function isAdaptiveThinkingModel(model: string): boolean {
+    const id = model.toLowerCase()
+    return (
+        id.startsWith('claude-opus-4-7') ||
+        id.startsWith('claude-opus-4-6') ||
+        id.startsWith('claude-sonnet-4-6') ||
+        id.startsWith('claude-mythos-preview')
+    )
+}
+
+function getAdaptiveEffort(model: string, effort: AnthropicThinkingEffort) {
+    if (effort === 'xhigh' && !model.toLowerCase().startsWith('claude-opus-4-7')) {
+        return 'high'
+    }
+    return effort
+}
+
+function getManualBudget(effort: AnthropicThinkingEffort, maxTokens: number): number {
+    const budgetByEffort: Record<Exclude<AnthropicThinkingEffort, 'max'>, number> = {
+        low: 1024,
+        medium: 4096,
+        high: 16384,
+        xhigh: 32768,
+    }
+    const targetBudget = effort === 'max' ? THINKING_MAX_TOKENS : budgetByEffort[effort]
+    return Math.max(1024, Math.min(targetBudget, maxTokens - 1))
+}
+
+function getThinkingRequest(providerConfig: ProviderConfig) {
+    if (providerConfig.thinkingEnabled !== true) {
+        return {
+            maxTokens: DEFAULT_MAX_TOKENS,
+        }
+    }
+
+    const effort = providerConfig.anthropicThinkingEffort ?? 'high'
+    if (isAdaptiveThinkingModel(providerConfig.model)) {
+        return {
+            maxTokens: THINKING_MAX_TOKENS,
+            thinking: { type: 'adaptive', display: 'omitted' },
+            outputEffort: getAdaptiveEffort(providerConfig.model, effort),
+        }
+    }
+
+    const maxTokens = effort === 'max' ? MANUAL_MAX_TOKENS : THINKING_MAX_TOKENS
+    return {
+        maxTokens,
+        thinking: {
+            type: 'enabled',
+            budget_tokens: getManualBudget(effort, maxTokens),
+            display: 'omitted',
         },
     }
 }
@@ -123,14 +181,23 @@ export class AnthropicEngine implements IEngine {
 
         try {
             const outputConfig = getOutputConfig(req.structuredOutput)
+            const thinkingRequest = getThinkingRequest(this.providerConfig)
             await fetchSSE(url, {
                 method: 'POST',
                 headers: getHeaders(this.providerConfig),
                 body: JSON.stringify({
                     model: this.providerConfig.model,
-                    ['max_tokens']: 4096,
+                    ['max_tokens']: thinkingRequest.maxTokens,
                     messages: [{ role: 'user', content: getPrompt(req) }],
-                    ...(outputConfig ? { output_config: outputConfig } : {}),
+                    ...(thinkingRequest.thinking ? { thinking: thinkingRequest.thinking } : {}),
+                    ...(outputConfig || thinkingRequest.outputEffort
+                        ? {
+                              output_config: {
+                                  ...outputConfig,
+                                  ...(thinkingRequest.outputEffort ? { effort: thinkingRequest.outputEffort } : {}),
+                              },
+                          }
+                        : {}),
                     stream: true,
                 }),
                 signal: req.signal,
@@ -156,6 +223,18 @@ export class AnthropicEngine implements IEngine {
                             }
                             await emitText(text)
                         }
+                        return
+                    }
+                    if (
+                        type === 'content_block_delta' &&
+                        (resp?.delta?.type === 'thinking_delta' || resp?.delta?.type === 'signature_delta')
+                    ) {
+                        return
+                    }
+                    if (
+                        (type === 'content_block_start' || type === 'content_block_stop') &&
+                        resp?.content_block?.type === 'thinking'
+                    ) {
                         return
                     }
                     if (type === 'message_stop') {

@@ -24,11 +24,11 @@
 
 ## 4. Anthropic API Client Updates
 
--   [ ] 4.1 Update the `anthropic` engine to read `thinkingEnabled` and `anthropicThinkingEffort` from the provider config.
--   [ ] 4.2 Send no Anthropic thinking parameters when `thinkingEnabled !== true`, even if `anthropicThinkingEffort` is saved.
--   [ ] 4.3 Implement model classification by id prefix and dispatch the correct thinking shape:
+-   [x] 4.1 Update the `anthropic` engine to read `thinkingEnabled` and `anthropicThinkingEffort` from the provider config.
+-   [x] 4.2 Send no Anthropic thinking parameters when `thinkingEnabled !== true`, even if `anthropicThinkingEffort` is saved.
+-   [x] 4.3 Implement model classification by id prefix and dispatch the correct thinking shape:
     -   Adaptive-only / Adaptive-recommended (`claude-opus-4-7*`, `claude-opus-4-6*`, `claude-sonnet-4-6*`, `claude-mythos-preview*`): inject `thinking: { type: "adaptive", display: "omitted" }` + `output_config: { effort: Y }`.
     -   Manual-only legacy (`claude-3-7-*`, `claude-haiku-4-5*`, Sonnet/Opus 4.5 and earlier): inject `thinking: { type: "enabled", budget_tokens: X, display: "omitted" }`.
--   [ ] 4.4 Implement the Anthropic effort mapping per design.md table: `low → effort:"low" / budget_tokens:1024`; `medium → "medium" / 4096`; `high → "high" / 16384`; `xhigh → "xhigh"` only on `claude-opus-4-7*` else clamp to `"high"`, `budget_tokens:32768` in manual mode; `max → "max"` in adaptive mode and the largest safe manual `budget_tokens` below `max_tokens` (target 64000 when the model output limit allows).
--   [ ] 4.5 If thinking is enabled, dynamically raise `max_tokens` (target 64000, capped per model output limit; use a larger target such as 128000 for manual `max` when supported). In manual mode also enforce `max_tokens > budget_tokens` and `budget_tokens ≥ 1024`.
--   [ ] 4.6 Update the Anthropic SSE parser to explicitly ignore `delta.type === 'thinking_delta'` and `delta.type === 'signature_delta'` chunks, plus `content_block_start`/`content_block_stop` events whose `content_block.type === 'thinking'`, so that no native reasoning tokens leak into the UI even when the upstream proxy does not honor `display: "omitted"`.
+-   [x] 4.4 Implement the Anthropic effort mapping per design.md table: `low → effort:"low" / budget_tokens:1024`; `medium → "medium" / 4096`; `high → "high" / 16384`; `xhigh → "xhigh"` only on `claude-opus-4-7*` else clamp to `"high"`, `budget_tokens:32768` in manual mode; `max → "max"` in adaptive mode and the largest safe manual `budget_tokens` below `max_tokens` (target 64000 when the model output limit allows).
+-   [x] 4.5 If thinking is enabled, dynamically raise `max_tokens` (target 64000, capped per model output limit; use a larger target such as 128000 for manual `max` when supported). In manual mode also enforce `max_tokens > budget_tokens` and `budget_tokens ≥ 1024`.
+-   [x] 4.6 Update the Anthropic SSE parser to explicitly ignore `delta.type === 'thinking_delta'` and `delta.type === 'signature_delta'` chunks, plus `content_block_start`/`content_block_stop` events whose `content_block.type === 'thinking'`, so that no native reasoning tokens leak into the UI even when the upstream proxy does not honor `display: "omitted"`.

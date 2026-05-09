@@ -432,6 +432,116 @@ describe('protocol engines', () => {
         expect(onFinished).toHaveBeenCalledWith('stop')
     })
 
+    it('omits Anthropic thinking parameters when thinking is disabled', async () => {
+        const engine = new AnthropicEngine({
+            ...providerConfig,
+            protocol: 'anthropic',
+            model: 'claude-sonnet-4-6',
+            thinkingEnabled: false,
+            anthropicThinkingEffort: 'max',
+        })
+        const { req } = createRequest()
+
+        vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+            const body = JSON.parse(options.body as string)
+            expect(body.max_tokens).toBe(4096)
+            expect(body).not.toHaveProperty('thinking')
+            expect(body.output_config?.effort).toBeUndefined()
+            await options.onMessage(JSON.stringify({ type: 'message_stop' }))
+        })
+
+        await engine.sendMessage(req)
+    })
+
+    it.each([
+        ['claude-sonnet-4-6', 'high', 'high'],
+        ['claude-sonnet-4-6', 'xhigh', 'high'],
+        ['claude-opus-4-7', 'xhigh', 'xhigh'],
+        ['claude-mythos-preview', 'max', 'max'],
+    ] as const)('uses Anthropic adaptive thinking for %s at %s effort', async (model, effort, expectedEffort) => {
+        const engine = new AnthropicEngine({
+            ...providerConfig,
+            protocol: 'anthropic',
+            model,
+            thinkingEnabled: true,
+            anthropicThinkingEffort: effort,
+        })
+        const { req } = createRequest()
+
+        vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+            const body = JSON.parse(options.body as string)
+            expect(body.max_tokens).toBe(64000)
+            expect(body.thinking).toEqual({ type: 'adaptive', display: 'omitted' })
+            expect(body.output_config).toEqual({ effort: expectedEffort })
+            expect(body.thinking).not.toHaveProperty('budget_tokens')
+            await options.onMessage(JSON.stringify({ type: 'message_stop' }))
+        })
+
+        await engine.sendMessage(req)
+    })
+
+    it.each([
+        ['claude-3-7-sonnet-latest', 'medium', 64000, 4096],
+        ['claude-haiku-4-5', 'xhigh', 64000, 32768],
+        ['claude-sonnet-4-5', 'max', 128000, 64000],
+    ] as const)(
+        'uses Anthropic manual thinking for %s at %s effort',
+        async (model, effort, maxTokens, budgetTokens) => {
+            const engine = new AnthropicEngine({
+                ...providerConfig,
+                protocol: 'anthropic',
+                model,
+                thinkingEnabled: true,
+                anthropicThinkingEffort: effort,
+            })
+            const { req } = createRequest()
+
+            vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+                const body = JSON.parse(options.body as string)
+                expect(body.max_tokens).toBe(maxTokens)
+                expect(body.thinking).toEqual({
+                    type: 'enabled',
+                    budget_tokens: budgetTokens,
+                    display: 'omitted',
+                })
+                expect(body.thinking.budget_tokens).toBeGreaterThanOrEqual(1024)
+                expect(body.max_tokens).toBeGreaterThan(body.thinking.budget_tokens)
+                expect(body.output_config?.effort).toBeUndefined()
+                await options.onMessage(JSON.stringify({ type: 'message_stop' }))
+            })
+
+            await engine.sendMessage(req)
+        }
+    )
+
+    it('ignores Anthropic native thinking deltas and thinking block boundaries', async () => {
+        const engine = new AnthropicEngine({ ...providerConfig, protocol: 'anthropic', model: 'claude-sonnet-4-6' })
+        const { req, onMessage, onFinished } = createRequest()
+
+        vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+            await options.onMessage(
+                JSON.stringify({ type: 'content_block_start', content_block: { type: 'thinking' } })
+            )
+            await options.onMessage(
+                JSON.stringify({ type: 'content_block_delta', delta: { type: 'thinking_delta', thinking: 'hidden' } })
+            )
+            await options.onMessage(
+                JSON.stringify({ type: 'content_block_delta', delta: { type: 'signature_delta', signature: 'sig' } })
+            )
+            await options.onMessage(JSON.stringify({ type: 'content_block_stop', content_block: { type: 'thinking' } }))
+            await options.onMessage(
+                JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: 'visible' } })
+            )
+            await options.onMessage(JSON.stringify({ type: 'message_stop' }))
+        })
+
+        await engine.sendMessage(req)
+
+        expect(onMessage).toHaveBeenCalledTimes(1)
+        expect(onMessage).toHaveBeenCalledWith({ content: 'visible', role: 'assistant' })
+        expect(onFinished).toHaveBeenCalledWith('stop')
+    })
+
     it('reports OpenAI Chat refusals without treating finish_reason stop as success', async () => {
         const engine = new OpenAIChatEngine(providerConfig)
         const { req, onError, onFinished } = createRequest()

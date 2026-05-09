@@ -98,16 +98,28 @@ function normalizeProviderList(providers: unknown): ProviderConfig[] {
     if (!Array.isArray(providers)) {
         return []
     }
+    const openaiReasoningEfforts = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
+    const anthropicThinkingEfforts = new Set(['low', 'medium', 'high', 'xhigh', 'max'])
     return providers.map((provider) => {
-        const item = provider as ProviderConfig
+        const {
+            openaiReasoningEffort: rawOpenAIEffort,
+            anthropicThinkingEffort: rawAnthropicEffort,
+            ...item
+        } = provider as ProviderConfig
         const modelOptions = Array.isArray(item.modelOptions)
             ? item.modelOptions.filter((model): model is string => typeof model === 'string' && model.trim() !== '')
             : []
         const model = typeof item.model === 'string' ? item.model : modelOptions[0] ?? ''
+        const openaiReasoningEffort = openaiReasoningEfforts.has(String(rawOpenAIEffort)) ? rawOpenAIEffort : undefined
+        const anthropicThinkingEffort = anthropicThinkingEfforts.has(String(rawAnthropicEffort))
+            ? rawAnthropicEffort
+            : undefined
         return {
             ...item,
             model,
             modelOptions,
+            ...(openaiReasoningEffort ? { openaiReasoningEffort } : {}),
+            ...(anthropicThinkingEffort ? { anthropicThinkingEffort } : {}),
         }
     })
 }

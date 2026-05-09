@@ -75,6 +75,45 @@ describe('settings schema normalization', () => {
         })
     })
 
+    it('does not invent provider thinking fields for old configs', () => {
+        const provider = {
+            id: 'provider-1',
+            name: 'Primary',
+            protocol: 'openai-chat' as const,
+            apiKey: 'sk-test',
+            model: 'gpt-4o-mini',
+        }
+        const settings = normalizeSettings({
+            providers: [provider],
+            defaultProviderId: provider.id,
+        })
+
+        expect(settings.providers[0]).toEqual({ ...provider, modelOptions: [] })
+        expect(settings.providers[0].thinkingEnabled).not.toBe(true)
+    })
+
+    it('preserves valid provider thinking effort values without inventing missing defaults', () => {
+        const provider = {
+            id: 'provider-1',
+            name: 'Primary',
+            protocol: 'anthropic' as const,
+            apiKey: 'sk-ant',
+            model: 'claude-sonnet-4-6',
+            thinkingEnabled: true,
+            anthropicThinkingEffort: 'max' as const,
+        }
+        const settings = normalizeSettings({
+            providers: [provider],
+            defaultProviderId: provider.id,
+        })
+
+        expect(settings.providers[0]).toEqual({
+            ...provider,
+            modelOptions: [],
+        })
+        expect(settings.providers[0]).not.toHaveProperty('openaiReasoningEffort')
+    })
+
     it('sanitizes writes to the new settings schema', () => {
         const provider = {
             id: 'provider-1',

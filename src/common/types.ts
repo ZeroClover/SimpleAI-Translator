@@ -49,6 +49,8 @@ export type LanguageDetectionEngine = 'google' | 'baidu' | 'bing' | 'local'
 export type ProxyProtocol = 'HTTP' | 'HTTPS'
 
 export type ProviderProtocol = 'openai-chat' | 'openai-responses' | 'anthropic'
+export type OpenAIReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+export type AnthropicThinkingEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 export interface ProviderConfig {
     id: string
@@ -59,6 +61,9 @@ export interface ProviderConfig {
     model: string
     modelOptions?: string[]
     extraHeaders?: Record<string, string>
+    thinkingEnabled?: boolean
+    openaiReasoningEffort?: OpenAIReasoningEffort
+    anthropicThinkingEffort?: AnthropicThinkingEffort
 }
 
 export interface ModelSelection {

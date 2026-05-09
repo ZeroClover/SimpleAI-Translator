@@ -1,11 +1,12 @@
 import { useCallback, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { Button } from 'baseui-sd/button'
+import { Checkbox } from 'baseui-sd/checkbox'
 import { Input } from 'baseui-sd/input'
 import { Select } from 'baseui-sd/select'
 import { Textarea } from 'baseui-sd/textarea'
 import { useTranslation } from 'react-i18next'
-import { ProviderConfig, ProviderProtocol } from '../types'
+import { AnthropicThinkingEffort, OpenAIReasoningEffort, ProviderConfig, ProviderProtocol } from '../types'
 import { useTheme } from '../hooks/useTheme'
 
 const protocolOptions: { id: ProviderProtocol; labelKey: string }[] = [
@@ -19,6 +20,23 @@ const defaultEndpointByProtocol: Record<ProviderProtocol, string> = {
     'openai-responses': 'https://api.openai.com/v1',
     'anthropic': 'https://api.anthropic.com',
 }
+
+const openaiReasoningEffortOptions: { id: OpenAIReasoningEffort; label: string }[] = [
+    { id: 'none', label: 'None' },
+    { id: 'minimal', label: 'Minimal' },
+    { id: 'low', label: 'Low' },
+    { id: 'medium', label: 'Medium' },
+    { id: 'high', label: 'High' },
+    { id: 'xhigh', label: 'Extra High' },
+]
+
+const anthropicThinkingEffortOptions: { id: AnthropicThinkingEffort; label: string }[] = [
+    { id: 'low', label: 'Low' },
+    { id: 'medium', label: 'Medium' },
+    { id: 'high', label: 'High' },
+    { id: 'xhigh', label: 'Extra High' },
+    { id: 'max', label: 'Max' },
+]
 
 export type ProviderFormValue = Omit<ProviderConfig, 'id'> & { id?: string }
 
@@ -67,6 +85,13 @@ export function ProviderForm({ initialValue, onCancel, onSave }: ProviderFormPro
     const [extraHeaders, setExtraHeaders] = useState(
         initialValue?.extraHeaders ? JSON.stringify(initialValue.extraHeaders, null, 2) : ''
     )
+    const [thinkingEnabled, setThinkingEnabled] = useState(initialValue?.thinkingEnabled === true)
+    const [openaiReasoningEffort, setOpenAIReasoningEffort] = useState<OpenAIReasoningEffort | undefined>(
+        initialValue?.openaiReasoningEffort
+    )
+    const [anthropicThinkingEffort, setAnthropicThinkingEffort] = useState<AnthropicThinkingEffort | undefined>(
+        initialValue?.anthropicThinkingEffort
+    )
     const [showAdvanced, setShowAdvanced] = useState(Boolean(initialValue?.extraHeaders))
 
     const translatedProtocolOptions = useMemo(
@@ -77,6 +102,9 @@ export function ProviderForm({ initialValue, onCancel, onSave }: ProviderFormPro
         () => translatedProtocolOptions.find((option) => option.id === protocol),
         [protocol, translatedProtocolOptions]
     )
+    const selectedOpenAIEffort = openaiReasoningEffort ?? 'medium'
+    const selectedAnthropicEffort = anthropicThinkingEffort ?? 'high'
+    const isOpenAIProtocol = protocol === 'openai-chat' || protocol === 'openai-responses'
     const handleSave = useCallback(() => {
         if (!name.trim()) {
             toast(t('Provider name is required.'))
@@ -101,6 +129,9 @@ export function ProviderForm({ initialValue, onCancel, onSave }: ProviderFormPro
                 model: initialValue?.model ?? '',
                 modelOptions: initialValue?.modelOptions ?? [],
                 extraHeaders: parsedHeaders,
+                thinkingEnabled,
+                openaiReasoningEffort: isOpenAIProtocol ? selectedOpenAIEffort : openaiReasoningEffort,
+                anthropicThinkingEffort: protocol === 'anthropic' ? selectedAnthropicEffort : anthropicThinkingEffort,
             })
         } catch (error) {
             toast(error instanceof Error ? t(error.message) : t('Extra headers must be valid JSON.'))
@@ -112,9 +143,15 @@ export function ProviderForm({ initialValue, onCancel, onSave }: ProviderFormPro
         initialValue?.id,
         initialValue?.model,
         initialValue?.modelOptions,
+        isOpenAIProtocol,
         name,
         onSave,
+        openaiReasoningEffort,
         protocol,
+        selectedAnthropicEffort,
+        selectedOpenAIEffort,
+        anthropicThinkingEffort,
+        thinkingEnabled,
         t,
     ])
 
@@ -149,6 +186,72 @@ export function ProviderForm({ initialValue, onCancel, onSave }: ProviderFormPro
             />
             <div style={{ color: theme.colors.contentSecondary, fontSize: 12 }}>
                 {t('Official endpoint')}: {defaultEndpointByProtocol[protocol]}
+            </div>
+            <Checkbox
+                checkmarkType='toggle_round'
+                checked={thinkingEnabled}
+                onChange={(event) => setThinkingEnabled(event.target.checked)}
+            >
+                {t('Thinking Enabled')}
+            </Checkbox>
+            {isOpenAIProtocol && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ color: theme.colors.contentSecondary, fontSize: 12 }}>
+                        {t('OpenAI Reasoning Effort')}
+                    </div>
+                    <Select
+                        size='compact'
+                        clearable={false}
+                        searchable={false}
+                        options={openaiReasoningEffortOptions.map((option) => ({ ...option, label: t(option.label) }))}
+                        value={[
+                            {
+                                id: selectedOpenAIEffort,
+                                label: t(
+                                    openaiReasoningEffortOptions.find((option) => option.id === selectedOpenAIEffort)
+                                        ?.label ?? 'Medium'
+                                ),
+                            },
+                        ]}
+                        onChange={({ option }) =>
+                            option?.id && setOpenAIReasoningEffort(option.id as OpenAIReasoningEffort)
+                        }
+                    />
+                </div>
+            )}
+            {protocol === 'anthropic' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ color: theme.colors.contentSecondary, fontSize: 12 }}>
+                        {t('Anthropic Thinking Effort')}
+                    </div>
+                    <Select
+                        size='compact'
+                        clearable={false}
+                        searchable={false}
+                        options={anthropicThinkingEffortOptions.map((option) => ({
+                            ...option,
+                            label: t(option.label),
+                        }))}
+                        value={[
+                            {
+                                id: selectedAnthropicEffort,
+                                label: t(
+                                    anthropicThinkingEffortOptions.find(
+                                        (option) => option.id === selectedAnthropicEffort
+                                    )?.label ?? 'High'
+                                ),
+                            },
+                        ]}
+                        onChange={({ option }) =>
+                            option?.id && setAnthropicThinkingEffort(option.id as AnthropicThinkingEffort)
+                        }
+                    />
+                </div>
+            )}
+            <div style={{ color: theme.colors.contentSecondary, fontSize: 12 }}>
+                {t(
+                    'Thinking support depends on the selected model and compatible endpoint. OpenAI reasoning models should use the OpenAI Responses protocol.'
+                )}
             </div>
             <Button type='button' size='mini' kind='tertiary' onClick={() => setShowAdvanced((value) => !value)}>
                 {t('Advanced')}

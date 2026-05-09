@@ -150,6 +150,56 @@ describe('protocol engines', () => {
         await engine.sendMessage(req)
     })
 
+    it('sends OpenAI Chat reasoning_effort only when thinking is enabled', async () => {
+        const enabledEngine = new OpenAIChatEngine({
+            ...providerConfig,
+            thinkingEnabled: true,
+            openaiReasoningEffort: 'high',
+        })
+        const disabledEngine = new OpenAIChatEngine({
+            ...providerConfig,
+            thinkingEnabled: false,
+            openaiReasoningEffort: 'high',
+        })
+        const defaultEngine = new OpenAIChatEngine({ ...providerConfig, thinkingEnabled: true })
+
+        for (const [engine, expectedEffort] of [
+            [enabledEngine, 'high'],
+            [disabledEngine, undefined],
+            [defaultEngine, 'medium'],
+        ] as const) {
+            const { req } = createRequest()
+            vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+                const body = JSON.parse(options.body as string)
+                if (expectedEffort) {
+                    expect(body.reasoning_effort).toBe(expectedEffort)
+                } else {
+                    expect(body).not.toHaveProperty('reasoning_effort')
+                }
+                await options.onMessage(' [DONE] ')
+            })
+
+            await engine.sendMessage(req)
+        }
+    })
+
+    it('ignores non-standard OpenAI Chat reasoning_content deltas', async () => {
+        const engine = new OpenAIChatEngine(providerConfig)
+        const { req, onMessage, onFinished } = createRequest()
+
+        vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+            await options.onMessage(JSON.stringify({ choices: [{ delta: { reasoning_content: 'hidden' } }] }))
+            await options.onMessage(JSON.stringify({ choices: [{ delta: { content: 'visible' } }] }))
+            await options.onMessage(' [DONE] ')
+        })
+
+        await engine.sendMessage(req)
+
+        expect(onMessage).toHaveBeenCalledTimes(1)
+        expect(onMessage).toHaveBeenCalledWith({ content: 'visible', role: 'assistant' })
+        expect(onFinished).toHaveBeenCalledWith('stop')
+    })
+
     it('streams OpenAI Responses deltas and finishes on completed', async () => {
         const engine = new OpenAIResponsesEngine({ ...providerConfig, protocol: 'openai-responses' })
         const { req, onMessage, onFinished } = createRequest()
@@ -221,6 +271,48 @@ describe('protocol engines', () => {
         })
 
         await engine.sendMessage(req)
+    })
+
+    it('sends OpenAI Responses reasoning only when thinking is enabled', async () => {
+        const enabledEngine = new OpenAIResponsesEngine({
+            ...providerConfig,
+            protocol: 'openai-responses',
+            thinkingEnabled: true,
+            openaiReasoningEffort: 'none',
+        })
+        const disabledEngine = new OpenAIResponsesEngine({
+            ...providerConfig,
+            protocol: 'openai-responses',
+            thinkingEnabled: false,
+            openaiReasoningEffort: 'high',
+        })
+        const defaultEngine = new OpenAIResponsesEngine({
+            ...providerConfig,
+            protocol: 'openai-responses',
+            thinkingEnabled: true,
+        })
+
+        for (const [engine, expectedEffort] of [
+            [enabledEngine, 'none'],
+            [disabledEngine, undefined],
+            [defaultEngine, 'medium'],
+        ] as const) {
+            const { req } = createRequest()
+            vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+                const body = JSON.parse(options.body as string)
+                if (expectedEffort) {
+                    expect(body.reasoning).toEqual({ effort: expectedEffort })
+                } else {
+                    expect(body).not.toHaveProperty('reasoning')
+                }
+                expect(body).not.toHaveProperty('reasoning_effort')
+                expect(body.reasoning?.summary).toBeUndefined()
+                expect(body.include).toBeUndefined()
+                await options.onMessage(JSON.stringify({ type: 'response.completed' }))
+            })
+
+            await engine.sendMessage(req)
+        }
     })
 
     it('streams Anthropic text deltas and ignores ping events', async () => {

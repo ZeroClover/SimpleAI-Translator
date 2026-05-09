@@ -52,6 +52,13 @@ function getTextFormat(structuredOutput: StructuredOutputRequest | undefined) {
     }
 }
 
+function getReasoning(providerConfig: ProviderConfig) {
+    if (providerConfig.thinkingEnabled !== true) {
+        return undefined
+    }
+    return { effort: providerConfig.openaiReasoningEffort ?? 'medium' }
+}
+
 function getRefusal(resp: unknown): string | null {
     const data = resp as {
         type?: string
@@ -131,6 +138,7 @@ export class OpenAIResponsesEngine implements IEngine {
 
         try {
             const textFormat = getTextFormat(req.structuredOutput)
+            const reasoning = getReasoning(this.providerConfig)
             await fetchSSE(url, {
                 method: 'POST',
                 headers: getHeaders(this.providerConfig),
@@ -138,6 +146,7 @@ export class OpenAIResponsesEngine implements IEngine {
                     model: this.providerConfig.model,
                     input: req.commandPrompt,
                     instructions: req.rolePrompt || undefined,
+                    ...(reasoning ? { reasoning } : {}),
                     ...(textFormat ? { text: { format: textFormat } } : {}),
                     stream: true,
                 }),

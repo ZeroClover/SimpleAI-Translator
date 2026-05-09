@@ -57,6 +57,13 @@ function getResponseFormat(structuredOutput: StructuredOutputRequest | undefined
     }
 }
 
+function getReasoningEffort(providerConfig: ProviderConfig) {
+    if (providerConfig.thinkingEnabled !== true) {
+        return undefined
+    }
+    return providerConfig.openaiReasoningEffort ?? 'medium'
+}
+
 export async function listModels(providerConfig: ProviderConfig): Promise<string[]> {
     try {
         const fetcher = getUniversalFetch()
@@ -131,6 +138,7 @@ export class OpenAIChatEngine implements IEngine {
 
         try {
             const responseFormat = getResponseFormat(req.structuredOutput)
+            const reasoningEffort = getReasoningEffort(this.providerConfig)
             await fetchSSE(url, {
                 method: 'POST',
                 headers: getHeaders(this.providerConfig),
@@ -138,6 +146,7 @@ export class OpenAIChatEngine implements IEngine {
                     model: this.providerConfig.model,
                     messages: [{ role: 'user', content: getPrompt(req) }],
                     stream: true,
+                    ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
                     ...(responseFormat ? { response_format: responseFormat } : {}),
                 }),
                 signal: req.signal,

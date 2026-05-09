@@ -15,12 +15,12 @@
 
 ## 3. OpenAI API Client Updates
 
--   [ ] 3.1 Update the `openai-chat` engine to read `thinkingEnabled` and `openaiReasoningEffort` from the provider config.
--   [ ] 3.2 In `openai-chat`, send top-level `reasoning_effort` only when `thinkingEnabled === true`; map `none|minimal|low|medium|high|xhigh` directly to the OpenAI effort value, using `medium` when enabled and unset. Omit `reasoning_effort` when `thinkingEnabled` is off or unset.
--   [ ] 3.3 Ensure the Chat Completions SSE parser only forwards `choices[0].delta.content`; ignore non-standard OpenAI-compatible fields such as `choices[0].delta.reasoning_content` without describing them as official OpenAI stream fields.
--   [ ] 3.4 Update the `openai-responses` engine to read `thinkingEnabled` and `openaiReasoningEffort` from the provider config.
--   [ ] 3.5 In `openai-responses`, send `reasoning: { effort: ... }` only when `thinkingEnabled === true`; never send top-level `reasoning_effort` to Responses. Omit `reasoning` when `thinkingEnabled` is off or unset.
--   [ ] 3.6 Ensure the Responses request does not set `reasoning.summary` or `include: ["reasoning.encrypted_content"]`, and ensure the parser only forwards `response.output_text.delta` while ignoring any reasoning summary/encrypted reasoning events returned by upstream-compatible services.
+-   [x] 3.1 Update the `openai-chat` engine to read `thinkingEnabled` and `openaiReasoningEffort` from the provider config.
+-   [x] 3.2 In `openai-chat`, send top-level `reasoning_effort` only when `thinkingEnabled === true`; map `none|minimal|low|medium|high|xhigh` directly to the OpenAI effort value, using `medium` when enabled and unset. Omit `reasoning_effort` when `thinkingEnabled` is off or unset.
+-   [x] 3.3 Ensure the Chat Completions SSE parser only forwards `choices[0].delta.content`; ignore non-standard OpenAI-compatible fields such as `choices[0].delta.reasoning_content` without describing them as official OpenAI stream fields.
+-   [x] 3.4 Update the `openai-responses` engine to read `thinkingEnabled` and `openaiReasoningEffort` from the provider config.
+-   [x] 3.5 In `openai-responses`, send `reasoning: { effort: ... }` only when `thinkingEnabled === true`; never send top-level `reasoning_effort` to Responses. Omit `reasoning` when `thinkingEnabled` is off or unset.
+-   [x] 3.6 Ensure the Responses request does not set `reasoning.summary` or `include: ["reasoning.encrypted_content"]`, and ensure the parser only forwards `response.output_text.delta` while ignoring any reasoning summary/encrypted reasoning events returned by upstream-compatible services.
 
 ## 4. Anthropic API Client Updates
 

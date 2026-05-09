@@ -26,7 +26,7 @@ import {
 import { useTheme } from '../hooks/useTheme'
 import { IoSettingsOutline } from 'react-icons/io5'
 import { useTranslation } from 'react-i18next'
-import AppConfig from '../../../package.json'
+import { version as appVersion } from '../../../package.json'
 import { useSettings } from '../hooks/useSettings'
 import { defaultTTSProvider, langCode2TTSLang, ttsLangTestTextMap } from '../tts'
 import { RiDeleteBin5Line } from 'react-icons/ri'
@@ -1402,14 +1402,14 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         }}
                     >
                         SimpleAI Translator
-                        {AppConfig?.version ? (
+                        {appVersion ? (
                             <a
                                 href='https://github.com/nextai-translator/nextai-translator/releases'
                                 target='_blank'
                                 rel='noreferrer'
                                 style={linkStyle}
                             >
-                                {AppConfig.version}
+                                {appVersion}
                             </a>
                         ) : null}
                     </h2>

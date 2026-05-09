@@ -12,6 +12,7 @@ change-package-version:
 build-browser-extension: change-package-version
 	pnpm vite build -c vite.config.chromium.ts
 	pnpm vite build -c vite.config.firefox.ts
+	rm -f dist/browser-extension/chromium.zip dist/browser-extension/firefox.zip
 	cd dist/browser-extension/chromium && zip -r ../chromium.zip .
 	cd dist/browser-extension/firefox && zip -r ../firefox.zip .
 

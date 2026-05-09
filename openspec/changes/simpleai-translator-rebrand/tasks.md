@@ -102,12 +102,12 @@
 
 ## 11. 构建产物验证
 
-- [ ] 11.1 `pnpm build-tauri` 在本地 macOS 完整构建一次
-- [ ] 11.2 `codesign -dv --verbose=4 dist/SimpleAI\ Translator.app` 确认 `Identifier=io.zeroclover.app.simpleai-translator`
-- [ ] 11.3 `defaults read /Applications/SimpleAI\ Translator.app/Contents/Info.plist CFBundleName` 返回 `SimpleAI Translator`,`CFBundleIdentifier` 返回新 ID,`CFBundleDisplayName` 返回 `SimpleAI Translator`
-- [ ] 11.4 `strings dist/SimpleAI\ Translator.app/Contents/MacOS/<binary> | grep -Ei 'aptabase|sentry|googletagmanager|google-analytics|nextai|yetone|openai-translator'` 应无输出(允许不可控第三方 license/debug symbols 例外)
-- [ ] 11.5 `pnpm build-browser-extension` 构建一次,解压输出 zip,`grep -ri 'sentry\|google-analytics\|googletagmanager\|aptabase\|nextai-translator\|yetone' .` 应无输出(license 文件、扩展签名/owner 字段例外);手动检查 `manifest.json` 的 `name` / `description` / `host_permissions`
-- [ ] 11.6 在 Chrome 加载未打包扩展、在 Firefox 用 `web-ext run` 加载,验证 popup / options 页 `<title>`、设置面板渲染保留区、选中文字不弹浮标、扩展所有者/ID未被本变更要求修改
+- [x] 11.1 `pnpm build-tauri` 在本地 macOS 完整构建一次
+- [x] 11.2 `codesign -dv --verbose=4 dist/SimpleAI\ Translator.app` 确认 `Identifier=io.zeroclover.app.simpleai-translator`
+- [x] 11.3 `defaults read /Applications/SimpleAI\ Translator.app/Contents/Info.plist CFBundleName` 返回 `SimpleAI Translator`,`CFBundleIdentifier` 返回新 ID,`CFBundleDisplayName` 返回 `SimpleAI Translator`
+- [x] 11.4 `strings dist/SimpleAI\ Translator.app/Contents/MacOS/<binary> | grep -Ei 'aptabase|sentry|googletagmanager|google-analytics|nextai|yetone|openai-translator'` 应无输出(允许不可控第三方 license/debug symbols 例外)
+- [x] 11.5 `pnpm build-browser-extension` 构建一次,解压输出 zip,`grep -ri 'sentry\|google-analytics\|googletagmanager\|aptabase\|nextai-translator\|yetone' .` 应无输出(license 文件、扩展签名/owner 字段例外);手动检查 `manifest.json` 的 `name` / `description` / `host_permissions`
+- [x] 11.6 在 Chrome 加载未打包扩展、在 Firefox 用 `web-ext run` 加载,验证 popup / options 页 `<title>`、设置面板渲染保留区、选中文字不弹浮标、扩展所有者/ID未被本变更要求修改
 
 ## 12. 归档
 

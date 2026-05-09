@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { getLangConfig, getLangName, LangCode } from '../common/lang'
 import { codeBlock, oneLine, oneLineTrim } from 'common-tags'
 import { getEngine } from './engines'
+import { StructuredOutputMode, StructuredOutputRequest } from './engines/interfaces'
 import { getSettings } from './utils'
 
 export type APIModel =
@@ -22,7 +23,6 @@ export type APIModel =
 
 export interface TranslateQuery {
     text: string
-    selectedWord?: string
     detectFrom: LangCode
     detectTo: LangCode
     providerId?: string
@@ -39,6 +39,17 @@ export interface TranslateResult {
     from?: string
     to?: string
     error?: string
+}
+
+export interface TranslationCacheKeyInput {
+    providerId?: string
+    model?: string
+    sourceLang: LangCode
+    targetLang: LangCode
+    text: string
+    useStructuredOutput?: boolean
+    useStrictSchema?: boolean
+    translationFlag: number
 }
 
 export const isAWord = (langCode: string, text: string) => {
@@ -180,6 +191,152 @@ export class QuoteProcessor {
 
 const chineseLangCodes = ['zh-Hans', 'zh-Hant', 'lzh', 'yue', 'jdbhw', 'xdbhw']
 
+export function getStructuredOutputMode(
+    sourceLangCode: LangCode,
+    targetLangCode: LangCode,
+    text: string
+): StructuredOutputMode {
+    if (isAWord(sourceLangCode, text.trim())) {
+        return 'word'
+    }
+    if (text.length < 5 && chineseLangCodes.indexOf(targetLangCode) >= 0) {
+        return 'short-phrase-to-chinese'
+    }
+    return 'sentence'
+}
+
+export function getTranslationCacheKey(input: TranslationCacheKeyInput): string {
+    const structuredOutputMode = input.useStructuredOutput
+        ? getStructuredOutputMode(input.sourceLang, input.targetLang, input.text)
+        : 'off'
+    return `translate:${input.providerId ?? ''}:${input.model ?? ''}:${input.sourceLang}:${input.targetLang}:${
+        input.text
+    }:structured=${input.useStructuredOutput ?? false}:strict=${
+        input.useStrictSchema ?? true
+    }:mode=${structuredOutputMode}:${input.translationFlag}`
+}
+
+const wordTranslationSchema = {
+    type: 'object',
+    properties: {
+        original_form: { type: 'string' },
+        language: { type: 'string' },
+        phonetics: { type: ['string', 'null'] },
+        senses: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    pos: { type: 'string' },
+                    meaning: { type: 'string' },
+                },
+                required: ['pos', 'meaning'],
+                additionalProperties: false,
+            },
+        },
+        examples: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    sentence: { type: 'string' },
+                    translation: { type: 'string' },
+                },
+                required: ['sentence', 'translation'],
+                additionalProperties: false,
+            },
+        },
+        etymology: { type: ['string', 'null'] },
+        correction_hint: { type: ['string', 'null'] },
+    },
+    required: ['original_form', 'language', 'phonetics', 'senses', 'examples', 'etymology', 'correction_hint'],
+    additionalProperties: false,
+}
+
+const shortPhraseToChineseSchema = {
+    type: 'object',
+    properties: {
+        options: {
+            type: 'array',
+            maxItems: 3,
+            items: {
+                type: 'object',
+                properties: {
+                    translation: { type: 'string' },
+                    context_explanation: { type: 'string' },
+                    phonetics: { type: ['string', 'null'] },
+                    part_of_speech: { type: ['string', 'null'] },
+                    examples: {
+                        type: 'array',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                sentence: { type: 'string' },
+                                translation: { type: 'string' },
+                            },
+                            required: ['sentence', 'translation'],
+                            additionalProperties: false,
+                        },
+                    },
+                },
+                required: ['translation', 'context_explanation', 'phonetics', 'part_of_speech', 'examples'],
+                additionalProperties: false,
+            },
+        },
+    },
+    required: ['options'],
+    additionalProperties: false,
+}
+
+const sentenceTranslationSchema = {
+    type: 'object',
+    properties: {
+        translatedText: { type: 'string' },
+    },
+    required: ['translatedText'],
+    additionalProperties: false,
+}
+
+function getStructuredOutputRequest(mode: StructuredOutputMode, strict: boolean): StructuredOutputRequest {
+    switch (mode) {
+        case 'word':
+            return {
+                mode,
+                schemaName: 'word_translation',
+                schema: wordTranslationSchema,
+                strict,
+            }
+        case 'short-phrase-to-chinese':
+            return {
+                mode,
+                schemaName: 'short_phrase_to_chinese_translation',
+                schema: shortPhraseToChineseSchema,
+                strict,
+            }
+        case 'sentence':
+            return {
+                mode,
+                schemaName: 'sentence_translation',
+                schema: sentenceTranslationSchema,
+                strict,
+            }
+    }
+}
+
+function getStructuredOutputPrompt(mode: StructuredOutputMode, schema: Record<string, unknown>): string {
+    const schemaText = JSON.stringify(schema, null, 2)
+    const modeInstruction =
+        mode === 'sentence'
+            ? 'Return only a JSON object matching the schema. The object must contain only translatedText.'
+            : 'Return only a JSON object matching the schema. Use null for unavailable nullable fields.'
+    return codeBlock`
+        Structured output schema:
+        ${schemaText}
+
+        ${modeInstruction}
+    `
+}
+
 export async function translate(query: TranslateQuery) {
     let rolePrompt = ''
     let commandPrompt = ''
@@ -193,10 +350,12 @@ export async function translate(query: TranslateQuery) {
     const toChinese = chineseLangCodes.indexOf(targetLangCode) >= 0
     const targetLangConfig = getLangConfig(targetLangCode)
     const sourceLangConfig = getLangConfig(sourceLangCode)
+    let structuredOutputMode = getStructuredOutputMode(sourceLangCode, targetLangCode, query.text)
     rolePrompt = targetLangConfig.rolePrompt
     commandPrompt = targetLangConfig.genCommandPrompt(sourceLangConfig)
 
     if (query.text.length < 5 && toChinese) {
+        structuredOutputMode = 'short-phrase-to-chinese'
         // 当用户的默认语言为中文时，查询中文词组（不超过5个字），展示多种翻译结果，并阐述适用语境。
         rolePrompt = codeBlock`
                     ${oneLineTrim`
@@ -215,6 +374,7 @@ export async function translate(query: TranslateQuery) {
     }
     if (isAWord(sourceLangCode, query.text.trim())) {
         isWordMode = true
+        structuredOutputMode = 'word'
         if (toChinese) {
             // 单词模式，可以更详细的翻译结果，包括：音标、词性、含义、双语示例。
             rolePrompt = codeBlock`
@@ -278,35 +438,17 @@ Etymology:
             contentPrompt = `The word is: ${query.text}`
         }
     }
-    if (query.selectedWord) {
-        rolePrompt = codeBlock`
-${oneLine`
-You are an expert in the semantic syntax of the ${sourceLangName} language,
-and you are teaching me the ${sourceLangName} language.
-I will give you a sentence in ${sourceLangName} and a word from that sentence.
-${
-    sourceLangConfig.phoneticNotation &&
-    'Firstly, provide the corresponding phonetic notation or transcription of the word in ' + sourceLangName + '.'
-}
-Then, help me explain in ${targetLangName} what the word means in the sentence, what the sentence itself means,
-and whether the word is part of an idiom in the sentence. If it is, explain the idiom in the sentence.
-Provide 3 to 5 examples in ${sourceLangName} with the same meaning, and explain these examples in ${targetLangName}.
-The answer should follow the format below:
-`}
-
-${oneLine`<word> · /${sourceLangConfig.phoneticNotation && `<${sourceLangConfig.phoneticNotation}>`}/ `}
-${oneLine`<the remaining part>`}
-
-If you understand, say "yes", and then we will begin.`
-        commandPrompt = 'Yes, I understand. Please give me the sentence and the word.'
-        contentPrompt = `the sentence is: ${query.text}\n\nthe word is: ${query.selectedWord}`
-    }
-
     if (contentPrompt) {
         commandPrompt = `Only reply the result and nothing else. ${commandPrompt}:\n\n${contentPrompt.trimEnd()}`
     }
 
     const settings = await getSettings()
+    const structuredOutput = settings.useStructuredOutput
+        ? getStructuredOutputRequest(structuredOutputMode, settings.useStrictSchema ?? true)
+        : undefined
+    if (structuredOutput) {
+        rolePrompt = `${rolePrompt}\n\n${getStructuredOutputPrompt(structuredOutput.mode, structuredOutput.schema)}`
+    }
     const providerId = query.providerId ?? settings.defaultModel?.providerId ?? settings.defaultProviderId
     const providerConfig = settings.providers.find((provider) => provider.id === providerId)
     if (!providerConfig) {
@@ -330,6 +472,7 @@ If you understand, say "yes", and then we will begin.`
             signal: query.signal,
             rolePrompt,
             commandPrompt,
+            structuredOutput,
             onMessage: async (message) => {
                 await query.onMessage({ ...message, isWordMode })
             },

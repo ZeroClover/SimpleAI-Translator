@@ -1,9 +1,10 @@
+/* eslint-disable camelcase */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ProviderConfig } from '../../types'
 import { fetchSSE } from '../../utils'
 import { getUniversalFetch } from '../../universal-fetch'
-import { IMessageRequest } from '../interfaces'
+import { formatStructuredOutput, IMessageRequest } from '../interfaces'
 import { AnthropicEngine, listModels as listAnthropicModels } from './anthropic'
 import { OpenAIChatEngine, listModels as listOpenAIChatModels } from './openai-chat'
 import { OpenAIResponsesEngine, listModels as listOpenAIResponsesModels } from './openai-responses'
@@ -27,7 +28,7 @@ const providerConfig: ProviderConfig = {
     model: 'gpt-4o-mini',
 }
 
-function createRequest(signal = new AbortController().signal) {
+function createRequest(signal = new AbortController().signal, overrides: Partial<IMessageRequest> = {}) {
     const onMessage = vi.fn().mockResolvedValue(undefined)
     const onError = vi.fn()
     const onFinished = vi.fn()
@@ -40,9 +41,24 @@ function createRequest(signal = new AbortController().signal) {
         onFinished,
         onStatusCode,
         signal,
+        ...overrides,
     }
 
     return { req, onMessage, onError, onFinished, onStatusCode }
+}
+
+const sentenceStructuredOutput: IMessageRequest['structuredOutput'] = {
+    mode: 'sentence',
+    schemaName: 'sentence_translation',
+    strict: true,
+    schema: {
+        type: 'object',
+        properties: {
+            translatedText: { type: 'string' },
+        },
+        required: ['translatedText'],
+        additionalProperties: false,
+    },
 }
 
 function jsonResponse(data: unknown, status = 200): Response {
@@ -81,6 +97,57 @@ describe('protocol engines', () => {
         expect(onFinished).toHaveBeenCalledWith('stop')
     })
 
+    it('uses OpenAI Chat strict schema response_format and emits only formatted text', async () => {
+        const engine = new OpenAIChatEngine(providerConfig)
+        const { req, onMessage, onFinished } = createRequest(undefined, {
+            structuredOutput: sentenceStructuredOutput,
+        })
+
+        vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+            expect(JSON.parse(options.body as string)).toMatchObject({
+                response_format: {
+                    type: 'json_schema',
+                    json_schema: {
+                        name: 'sentence_translation',
+                        strict: true,
+                        schema: sentenceStructuredOutput.schema,
+                    },
+                },
+            })
+
+            await options.onMessage(
+                JSON.stringify({ choices: [{ delta: { content: '{"translatedText":"' }, finish_reason: null }] })
+            )
+            await options.onMessage(
+                JSON.stringify({ choices: [{ delta: { content: '你好"}' }, finish_reason: null }] })
+            )
+            await options.onMessage(JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] }))
+        })
+
+        await engine.sendMessage(req)
+
+        expect(onMessage).toHaveBeenCalledTimes(1)
+        expect(onMessage).toHaveBeenCalledWith({ content: '你好', role: 'assistant', isFullText: true })
+        expect(onFinished).toHaveBeenCalledWith('stop')
+    })
+
+    it('uses OpenAI Chat JSON object response_format when strict schema is off', async () => {
+        const engine = new OpenAIChatEngine(providerConfig)
+        const { req } = createRequest(undefined, {
+            structuredOutput: { ...sentenceStructuredOutput, strict: false },
+        })
+
+        vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+            expect(JSON.parse(options.body as string)).toMatchObject({
+                response_format: { type: 'json_object' },
+            })
+            await options.onMessage(JSON.stringify({ choices: [{ delta: { content: '{"translatedText":"你好"}' } }] }))
+            await options.onMessage(' [DONE] ')
+        })
+
+        await engine.sendMessage(req)
+    })
+
     it('streams OpenAI Responses deltas and finishes on completed', async () => {
         const engine = new OpenAIResponsesEngine({ ...providerConfig, protocol: 'openai-responses' })
         const { req, onMessage, onFinished } = createRequest()
@@ -102,6 +169,56 @@ describe('protocol engines', () => {
 
         expect(onMessage).toHaveBeenCalledWith({ content: '好', role: 'assistant' })
         expect(onFinished).toHaveBeenCalledWith('stop')
+    })
+
+    it('uses OpenAI Responses text.format and emits only formatted text', async () => {
+        const engine = new OpenAIResponsesEngine({ ...providerConfig, protocol: 'openai-responses' })
+        const { req, onMessage, onFinished } = createRequest(undefined, {
+            structuredOutput: sentenceStructuredOutput,
+        })
+
+        vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+            expect(JSON.parse(options.body as string)).toMatchObject({
+                text: {
+                    format: {
+                        type: 'json_schema',
+                        name: 'sentence_translation',
+                        strict: true,
+                        schema: sentenceStructuredOutput.schema,
+                    },
+                },
+            })
+
+            await options.onMessage(
+                JSON.stringify({ type: 'response.output_text.delta', delta: '{"translatedText":"' })
+            )
+            await options.onMessage(JSON.stringify({ type: 'response.output_text.delta', delta: '你好"}' }))
+            await options.onMessage(JSON.stringify({ type: 'response.completed' }))
+        })
+
+        await engine.sendMessage(req)
+
+        expect(onMessage).toHaveBeenCalledWith({ content: '你好', role: 'assistant', isFullText: true })
+        expect(onFinished).toHaveBeenCalledWith('stop')
+    })
+
+    it('uses OpenAI Responses JSON object text.format when strict schema is off', async () => {
+        const engine = new OpenAIResponsesEngine({ ...providerConfig, protocol: 'openai-responses' })
+        const { req } = createRequest(undefined, {
+            structuredOutput: { ...sentenceStructuredOutput, strict: false },
+        })
+
+        vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+            expect(JSON.parse(options.body as string)).toMatchObject({
+                text: { format: { type: 'json_object' } },
+            })
+            await options.onMessage(
+                JSON.stringify({ type: 'response.output_text.delta', delta: '{"translatedText":"你好"}' })
+            )
+            await options.onMessage(JSON.stringify({ type: 'response.completed' }))
+        })
+
+        await engine.sendMessage(req)
     })
 
     it('streams Anthropic text deltas and ignores ping events', async () => {
@@ -132,6 +249,85 @@ describe('protocol engines', () => {
 
         expect(onMessage).toHaveBeenCalledWith({ content: '好', role: 'assistant' })
         expect(onFinished).toHaveBeenCalledWith('stop')
+    })
+
+    it('uses Anthropic output_config.format and emits only formatted text', async () => {
+        const engine = new AnthropicEngine({ ...providerConfig, protocol: 'anthropic', model: 'claude-sonnet-4-6' })
+        const { req, onMessage, onFinished } = createRequest(undefined, {
+            structuredOutput: { ...sentenceStructuredOutput, strict: false },
+        })
+
+        vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+            expect(JSON.parse(options.body as string)).toMatchObject({
+                output_config: {
+                    format: {
+                        type: 'json_schema',
+                        schema: sentenceStructuredOutput.schema,
+                    },
+                },
+            })
+
+            await options.onMessage(
+                JSON.stringify({
+                    type: 'content_block_delta',
+                    delta: { type: 'text_delta', text: '{"translatedText":"' },
+                })
+            )
+            await options.onMessage(
+                JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: '你好"}' } })
+            )
+            await options.onMessage(JSON.stringify({ type: 'message_stop' }))
+        })
+
+        await engine.sendMessage(req)
+
+        expect(onMessage).toHaveBeenCalledWith({ content: '你好', role: 'assistant', isFullText: true })
+        expect(onFinished).toHaveBeenCalledWith('stop')
+    })
+
+    it('reports OpenAI Chat refusals without treating finish_reason stop as success', async () => {
+        const engine = new OpenAIChatEngine(providerConfig)
+        const { req, onError, onFinished } = createRequest()
+
+        vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+            await options.onMessage(
+                JSON.stringify({ choices: [{ message: { refusal: 'refused' }, finish_reason: 'stop' }] })
+            )
+        })
+
+        await engine.sendMessage(req)
+
+        expect(onError).toHaveBeenCalledWith('refused')
+        expect(onFinished).toHaveBeenCalledWith('error')
+    })
+
+    it('reports OpenAI Responses refusals', async () => {
+        const engine = new OpenAIResponsesEngine({ ...providerConfig, protocol: 'openai-responses' })
+        const { req, onError, onFinished } = createRequest()
+
+        vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+            await options.onMessage(JSON.stringify({ type: 'response.refusal.delta', delta: 'refused' }))
+            await options.onMessage(JSON.stringify({ type: 'response.completed' }))
+        })
+
+        await engine.sendMessage(req)
+
+        expect(onError).toHaveBeenCalledWith('refused')
+        expect(onFinished).toHaveBeenCalledWith('error')
+    })
+
+    it('reports Anthropic refusals', async () => {
+        const engine = new AnthropicEngine({ ...providerConfig, protocol: 'anthropic', model: 'claude-sonnet-4-6' })
+        const { req, onError, onFinished } = createRequest()
+
+        vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+            await options.onMessage(JSON.stringify({ type: 'message_delta', delta: { stop_reason: 'refusal' } }))
+        })
+
+        await engine.sendMessage(req)
+
+        expect(onError).toHaveBeenCalledWith('The model refused to answer.')
+        expect(onFinished).toHaveBeenCalledWith('error')
     })
 
     it.each([
@@ -202,6 +398,59 @@ describe('protocol engines', () => {
 
         expect(onError).not.toHaveBeenCalled()
         expect(onFinished).toHaveBeenCalledWith('aborted')
+    })
+})
+
+describe('structured output formatting', () => {
+    it('formats word translation JSON without exposing raw JSON', () => {
+        const result = formatStructuredOutput(
+            'word',
+            JSON.stringify({
+                original_form: 'run',
+                language: 'English',
+                phonetics: 'rʌn',
+                senses: [{ pos: 'verb', meaning: '跑' }],
+                examples: [{ sentence: 'I run daily.', translation: '我每天跑步。' }],
+                etymology: 'Old English rinnan.',
+                correction_hint: null,
+            })
+        )
+
+        expect(result).toContain('run')
+        expect(result).toContain('[verb] 跑')
+        expect(result).toContain('I run daily.(我每天跑步。)')
+        expect(result).not.toContain('{')
+        expect(result).not.toContain('}')
+    })
+
+    it('formats short phrase options without exposing raw JSON', () => {
+        const result = formatStructuredOutput(
+            'short-phrase-to-chinese',
+            JSON.stringify({
+                options: [
+                    {
+                        translation: '你好',
+                        context_explanation: '问候语',
+                        phonetics: 'ni hao',
+                        part_of_speech: 'phrase',
+                        examples: [{ sentence: 'Hi there.', translation: '你好。' }],
+                    },
+                    {
+                        translation: '嗨',
+                        context_explanation: '非正式问候',
+                        phonetics: null,
+                        part_of_speech: 'interjection',
+                        examples: [],
+                    },
+                ],
+            })
+        )
+
+        expect(result).toContain('1. 你好')
+        expect(result).toContain('[phrase] 问候语')
+        expect(result).toContain('2. 嗨')
+        expect(result).not.toContain('{')
+        expect(result).not.toContain('}')
     })
 })
 

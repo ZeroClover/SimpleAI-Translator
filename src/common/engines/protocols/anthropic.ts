@@ -2,7 +2,9 @@ import { ProviderConfig } from '../../types'
 import { getUniversalFetch } from '../../universal-fetch'
 import { ANTHROPIC_MESSAGES_API_PATH, normalizeAPIEndpoint } from '../../openai-api-path'
 import { fetchSSE } from '../../utils'
-import { IEngine, IMessageRequest, IModel } from '../interfaces'
+import { formatStructuredOutput, IEngine, IMessageRequest, IModel, StructuredOutputRequest } from '../interfaces'
+
+/* eslint-disable camelcase */
 
 const DEFAULT_ENDPOINT = 'https://api.anthropic.com'
 const MODELS_PATH = '/v1/models'
@@ -36,6 +38,18 @@ function getErrorMessage(error: unknown): string {
 
 function isAbort(req: IMessageRequest, error: unknown): boolean {
     return req.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')
+}
+
+function getOutputConfig(structuredOutput: StructuredOutputRequest | undefined) {
+    if (!structuredOutput) {
+        return undefined
+    }
+    return {
+        format: {
+            type: 'json_schema',
+            schema: structuredOutput.schema,
+        },
+    }
 }
 
 export async function listModels(providerConfig: ProviderConfig): Promise<string[]> {
@@ -72,8 +86,23 @@ export class AnthropicEngine implements IEngine {
         const url = normalizeAPIEndpoint(this.providerConfig.endpoint, ANTHROPIC_MESSAGES_API_PATH, DEFAULT_ENDPOINT)
         let finished = false
         let hasError = false
+        let structuredContent = ''
+        let structuredContentEmitted = false
+
+        const emitStructuredContent = async () => {
+            if (!req.structuredOutput || structuredContentEmitted) {
+                return
+            }
+            structuredContentEmitted = true
+            await req.onMessage({
+                content: formatStructuredOutput(req.structuredOutput.mode, structuredContent),
+                role: 'assistant',
+                isFullText: true,
+            })
+        }
 
         try {
+            const outputConfig = getOutputConfig(req.structuredOutput)
             await fetchSSE(url, {
                 method: 'POST',
                 headers: getHeaders(this.providerConfig),
@@ -81,6 +110,7 @@ export class AnthropicEngine implements IEngine {
                     model: this.providerConfig.model,
                     ['max_tokens']: 4096,
                     messages: [{ role: 'user', content: getPrompt(req) }],
+                    ...(outputConfig ? { output_config: outputConfig } : {}),
                     stream: true,
                 }),
                 signal: req.signal,
@@ -88,15 +118,28 @@ export class AnthropicEngine implements IEngine {
                     if (finished) return
                     const resp = JSON.parse(message)
                     const type = resp?.type
+                    const stopReason = resp?.delta?.stop_reason ?? resp?.message?.stop_reason ?? resp?.stop_reason
+                    if (stopReason === 'refusal') {
+                        hasError = true
+                        finished = true
+                        req.onError('The model refused to answer.')
+                        req.onFinished('error')
+                        return
+                    }
 
                     if (type === 'content_block_delta' && resp?.delta?.type === 'text_delta') {
                         const text = resp?.delta?.text
                         if (text) {
+                            if (req.structuredOutput) {
+                                structuredContent += text
+                                return
+                            }
                             await req.onMessage({ content: text, role: 'assistant' })
                         }
                         return
                     }
                     if (type === 'message_stop') {
+                        await emitStructuredContent()
                         finished = true
                         req.onFinished('stop')
                         return

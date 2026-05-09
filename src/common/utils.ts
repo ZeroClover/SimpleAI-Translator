@@ -9,7 +9,6 @@ import { commands } from '@/tauri/bindings'
 import toast from 'react-hot-toast'
 
 export const defaultTargetLanguage = 'zh-Hans'
-export const defaultReadSelectedWordsFromInputElementsText = false
 export const defaulti18n = 'en'
 
 type RawSettings = Partial<ISettings> & Record<string, unknown>
@@ -20,6 +19,8 @@ const settingKeys = {
     providers: 1,
     defaultProviderId: 1,
     defaultModel: 1,
+    useStructuredOutput: 1,
+    useStrictSchema: 1,
     enableMica: 1,
     enableBackgroundBlur: 1,
     defaultTargetLanguage: 1,
@@ -28,7 +29,6 @@ const settingKeys = {
     tts: 1,
     restorePreviousPosition: 1,
     runAtStartup: 1,
-    readSelectedWordsFromInputElementsText: 1,
     allowUsingClipboardWhenSelectedTextNotAvailable: 1,
     pinned: 1,
     languageDetectionEngine: 1,
@@ -186,6 +186,8 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
         providers,
         defaultProviderId,
         defaultModel: normalizeDefaultModel(rawSettings.defaultModel, providers),
+        useStructuredOutput: rawSettings.useStructuredOutput ?? false,
+        useStrictSchema: rawSettings.useStrictSchema ?? true,
         enableMica: rawSettings.enableMica ?? false,
         enableBackgroundBlur:
             rawSettings.enableBackgroundBlur === undefined || rawSettings.enableBackgroundBlur === null
@@ -197,11 +199,6 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
         tts: normalizeTTSSettings(rawSettings.tts, providers),
         restorePreviousPosition: rawSettings.restorePreviousPosition,
         runAtStartup: rawSettings.runAtStartup,
-        readSelectedWordsFromInputElementsText:
-            rawSettings.readSelectedWordsFromInputElementsText === undefined ||
-            rawSettings.readSelectedWordsFromInputElementsText === null
-                ? defaultReadSelectedWordsFromInputElementsText
-                : rawSettings.readSelectedWordsFromInputElementsText,
         allowUsingClipboardWhenSelectedTextNotAvailable: rawSettings.allowUsingClipboardWhenSelectedTextNotAvailable,
         pinned: rawSettings.pinned,
         languageDetectionEngine: rawSettings.languageDetectionEngine || 'local',

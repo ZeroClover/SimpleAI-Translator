@@ -3,7 +3,13 @@ import { getEngine } from '../engines'
 import { IEngine } from '../engines/interfaces'
 import { ProviderConfig } from '../types'
 import { getSettings } from '../utils'
-import { QuoteProcessor, TranslateQuery, translate } from '../translate'
+import {
+    getStructuredOutputMode,
+    getTranslationCacheKey,
+    QuoteProcessor,
+    TranslateQuery,
+    translate,
+} from '../translate'
 
 vi.mock('../engines', () => ({ getEngine: vi.fn() }))
 vi.mock('../utils', () => ({ getSettings: vi.fn() }))
@@ -91,6 +97,66 @@ describe('translate', () => {
         await translate(query)
 
         expect(query.onMessage).toHaveBeenCalledWith({ content: '你好', role: 'assistant', isWordMode: true })
+    })
+
+    it('passes structured output schema and strict flag to the engine', async () => {
+        vi.mocked(getSettings).mockResolvedValue({
+            providers: [provider],
+            defaultProviderId: provider.id,
+            useStructuredOutput: true,
+            useStrictSchema: false,
+        } as Awaited<ReturnType<typeof getSettings>>)
+        const sendMessage = vi.fn(async (req) => {
+            expect(req.structuredOutput).toMatchObject({
+                mode: 'sentence',
+                schemaName: 'sentence_translation',
+                strict: false,
+                schema: {
+                    required: ['translatedText'],
+                    additionalProperties: false,
+                },
+            })
+            expect(req.rolePrompt).toContain('Structured output schema')
+            expect(req.rolePrompt).not.toContain('literalMeaning')
+            await req.onMessage({ content: '你好', role: 'assistant' })
+            req.onFinished('stop')
+        })
+        vi.mocked(getEngine).mockReturnValue(createMockEngine(sendMessage))
+
+        await translate(createTranslateQuery())
+
+        expect(sendMessage).toHaveBeenCalledOnce()
+    })
+
+    it('preserves structured output mode priority', () => {
+        expect(getStructuredOutputMode('en', 'zh-Hans', 'hello')).toBe('word')
+        expect(getStructuredOutputMode('en', 'zh-Hans', 'hi!')).toBe('short-phrase-to-chinese')
+        expect(getStructuredOutputMode('en', 'zh-Hans', 'hello world')).toBe('sentence')
+    })
+
+    it('isolates cache keys by structured output settings and selected mode', () => {
+        const base = {
+            providerId: provider.id,
+            model: provider.model,
+            sourceLang: 'en' as const,
+            targetLang: 'zh-Hans' as const,
+            text: 'hello',
+            translationFlag: 0,
+        }
+
+        expect(getTranslationCacheKey({ ...base, useStructuredOutput: false })).toContain('mode=off')
+        expect(getTranslationCacheKey({ ...base, useStructuredOutput: true, useStrictSchema: true })).toContain(
+            'structured=true:strict=true:mode=word'
+        )
+        expect(getTranslationCacheKey({ ...base, useStructuredOutput: true, useStrictSchema: false })).toContain(
+            'structured=true:strict=false:mode=word'
+        )
+        expect(getTranslationCacheKey({ ...base, useStructuredOutput: false })).not.toEqual(
+            getTranslationCacheKey({ ...base, useStructuredOutput: true, useStrictSchema: true })
+        )
+        expect(
+            getTranslationCacheKey({ ...base, text: 'hi!', useStructuredOutput: true, useStrictSchema: true })
+        ).toContain('mode=short-phrase-to-chinese')
     })
 
     it('finishes as aborted when the request is aborted', async () => {

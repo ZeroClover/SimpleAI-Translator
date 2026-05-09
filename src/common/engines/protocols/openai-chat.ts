@@ -2,7 +2,9 @@ import { ProviderConfig } from '../../types'
 import { getUniversalFetch } from '../../universal-fetch'
 import { fetchSSE } from '../../utils'
 import { normalizeAPIEndpoint, OPENAI_CHAT_COMPLETIONS_API_PATH } from '../../openai-api-path'
-import { IEngine, IMessageRequest, IModel } from '../interfaces'
+import { formatStructuredOutput, IEngine, IMessageRequest, IModel, StructuredOutputRequest } from '../interfaces'
+
+/* eslint-disable camelcase */
 
 const DEFAULT_ENDPOINT = 'https://api.openai.com/v1'
 const MODELS_PATH = '/v1/models'
@@ -35,6 +37,23 @@ function getErrorMessage(error: unknown): string {
 
 function isAbort(req: IMessageRequest, error: unknown): boolean {
     return req.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')
+}
+
+function getResponseFormat(structuredOutput: StructuredOutputRequest | undefined) {
+    if (!structuredOutput) {
+        return undefined
+    }
+    if (!structuredOutput.strict) {
+        return { type: 'json_object' }
+    }
+    return {
+        type: 'json_schema',
+        json_schema: {
+            name: structuredOutput.schemaName,
+            strict: true,
+            schema: structuredOutput.schema,
+        },
+    }
 }
 
 export async function listModels(providerConfig: ProviderConfig): Promise<string[]> {
@@ -75,8 +94,23 @@ export class OpenAIChatEngine implements IEngine {
         )
         let finished = false
         let hasError = false
+        let structuredContent = ''
+        let structuredContentEmitted = false
+
+        const emitStructuredContent = async () => {
+            if (!req.structuredOutput || structuredContentEmitted) {
+                return
+            }
+            structuredContentEmitted = true
+            await req.onMessage({
+                content: formatStructuredOutput(req.structuredOutput.mode, structuredContent),
+                role: 'assistant',
+                isFullText: true,
+            })
+        }
 
         try {
+            const responseFormat = getResponseFormat(req.structuredOutput)
             await fetchSSE(url, {
                 method: 'POST',
                 headers: getHeaders(this.providerConfig),
@@ -84,11 +118,13 @@ export class OpenAIChatEngine implements IEngine {
                     model: this.providerConfig.model,
                     messages: [{ role: 'user', content: getPrompt(req) }],
                     stream: true,
+                    ...(responseFormat ? { response_format: responseFormat } : {}),
                 }),
                 signal: req.signal,
                 onMessage: async (message) => {
                     if (finished) return
                     if (message.trim() === '[DONE]') {
+                        await emitStructuredContent()
                         finished = true
                         req.onFinished('stop')
                         return
@@ -99,15 +135,29 @@ export class OpenAIChatEngine implements IEngine {
                     if (!Array.isArray(choices) || choices.length === 0) {
                         return
                     }
-                    const finishReason = choices[0]?.finish_reason
+                    const choice = choices[0]
+                    const refusal = choice?.message?.refusal ?? choice?.delta?.refusal
+                    if (refusal) {
+                        hasError = true
+                        finished = true
+                        req.onError(typeof refusal === 'string' ? refusal : 'The model refused to answer.')
+                        req.onFinished('error')
+                        return
+                    }
+                    const finishReason = choice?.finish_reason
                     if (finishReason) {
+                        await emitStructuredContent()
                         finished = true
                         req.onFinished(finishReason)
                         return
                     }
-                    const content = choices[0]?.delta?.content
+                    const content = choice?.delta?.content
                     if (content) {
-                        await req.onMessage({ content, role: choices[0]?.delta?.role ?? 'assistant' })
+                        if (req.structuredOutput) {
+                            structuredContent += content
+                            return
+                        }
+                        await req.onMessage({ content, role: choice?.delta?.role ?? 'assistant' })
                     }
                 },
                 onError: (error) => {

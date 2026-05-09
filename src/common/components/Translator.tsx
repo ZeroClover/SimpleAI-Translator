@@ -11,7 +11,7 @@ import { TiArrowBack } from 'react-icons/ti'
 import { TbArrowsExchange } from 'react-icons/tb'
 import { MdHistory } from 'react-icons/md'
 import { detectLang, getLangConfig, sourceLanguages, targetLanguages, LangCode } from '../lang'
-import { translate } from '../translate'
+import { getTranslationCacheKey, translate } from '../translate'
 import { Select, Value, Option } from 'baseui-sd/select'
 import { RxEraser, RxEnter, RxReload, RxStop } from 'react-icons/rx'
 import { clsx } from 'clsx'
@@ -30,7 +30,6 @@ import { InnerSettings } from './Settings'
 import { containerID, popupCardInnerContainerId } from '../../browser-extension/content_script/consts'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import IpLocationNotification from '../components/IpLocationNotification'
-import { HighlightInTextarea } from '../highlight-in-textarea'
 import { LRUCache } from 'lru-cache'
 import { ISettings, IThemedStyleProps, ModelSelection } from '../types'
 import { useTheme } from '../hooks/useTheme'
@@ -537,9 +536,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const lastHistoryKeyRef = useRef<string | null>(null)
 
     const editorRef = useRef<HTMLTextAreaElement>(null)
-    const isCompositing = useRef(false)
-    const [selectedWord, setSelectedWord] = useState('')
-    const highlightRef = useRef<HighlightInTextarea | null>(null)
     const { t, i18n } = useTranslation()
     const { settings, setSettings } = useSettings()
     const [selectedModel, setSelectedModel] = useState<ModelSelection | null>(() => resolveModelSelection(settings))
@@ -587,22 +583,11 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const [autoFocus, setAutoFocus] = useState(false)
 
     useEffect(() => {
-        if (highlightRef.current) {
-            if (props.autoFocus) {
-                setAutoFocus(false)
-                setTimeout(() => {
-                    setAutoFocus(true)
-                }, 500)
-            }
-            return
-        }
-        const editor = editorRef.current
-        if (!editor) {
-            return undefined
-        }
-        highlightRef.current = new HighlightInTextarea(editor, { highlight: [] })
         if (props.autoFocus) {
-            editor.focus()
+            setAutoFocus(false)
+            setTimeout(() => {
+                setAutoFocus(true)
+            }, 500)
         }
     }, [props.autoFocus])
 
@@ -637,18 +622,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         }
     }, [])
 
-    useEffect(() => {
-        if (!highlightRef.current?.highlight) {
-            return
-        }
-        if (selectedWord) {
-            highlightRef.current.highlight.highlight = [selectedWord]
-        } else {
-            highlightRef.current.highlight.highlight = []
-        }
-        highlightRef.current.handleInput()
-    }, [selectedWord])
-
     const headerRef = useRef<HTMLDivElement>(null)
 
     const logoWithTextRef = useRef<LogoWithTextRef>(null)
@@ -662,40 +635,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const translatedContentRef = useRef<HTMLDivElement>(null)
 
     const actionButtonsRef = useRef<HTMLDivElement>(null)
-
-    useEffect(() => {
-        const editor = editorRef.current
-        if (!editor) {
-            return undefined
-        }
-        const onCompositionStart = () => {
-            isCompositing.current = true
-        }
-        const onCompositionEnd = () => {
-            isCompositing.current = false
-        }
-        const onMouseUp = () => {
-            if (editor.selectionStart === 0 && editor.selectionEnd === editor.value.length) {
-                setSelectedWord('')
-                return
-            }
-            const selectedWord_ = editor.value.substring(editor.selectionStart, editor.selectionEnd).trim()
-            setSelectedWord(selectedWord_)
-        }
-        const onBlur = onMouseUp
-
-        editor.addEventListener('compositionstart', onCompositionStart)
-        editor.addEventListener('compositionend', onCompositionEnd)
-        editor.addEventListener('mouseup', onMouseUp)
-        editor.addEventListener('blur', onBlur)
-
-        return () => {
-            editor.removeEventListener('compositionstart', onCompositionStart)
-            editor.removeEventListener('compositionend', onCompositionEnd)
-            editor.removeEventListener('mouseup', onMouseUp)
-            editor.removeEventListener('blur', onBlur)
-        }
-    }, [])
 
     const { theme, themeType } = useTheme()
 
@@ -797,7 +736,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         getTranslateDeps(externalOriginalText).then((v) => {
             setTranslateDeps(v)
         })
-        setSelectedWord('')
     }, [externalOriginalText, getTranslateDeps, props.uuid])
 
     useEffect(() => {
@@ -892,7 +830,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     }, [showSettings])
 
     const translateText = useDeepCompareCallback(
-        async (selectedWord: string, signal: AbortSignal) => {
+        async (signal: AbortSignal) => {
             if (skipNextTranslateRef.current) {
                 skipNextTranslateRef.current = false
                 return
@@ -976,9 +914,16 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 }
             }
             beforeTranslate()
-            const cachedKey = `translate:${translateDeps.providerId ?? ''}:${
-                translateDeps.engineModel ?? ''
-            }:${sourceLang}:${targetLang}:${text}:${selectedWord}:${translationFlag}`
+            const cachedKey = getTranslationCacheKey({
+                providerId: translateDeps.providerId,
+                model: translateDeps.engineModel,
+                sourceLang,
+                targetLang,
+                text,
+                useStructuredOutput: settings.useStructuredOutput,
+                useStrictSchema: settings.useStrictSchema,
+                translationFlag,
+            })
             const cachedValue = cache.get(cachedKey)
             if (cachedValue) {
                 const cachedText = cachedValue as string
@@ -993,7 +938,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 await translate({
                     signal,
                     text,
-                    selectedWord,
                     detectFrom: sourceLang,
                     detectTo: targetLang,
                     providerId: translateDeps.providerId ?? selectedModel?.providerId,
@@ -1040,18 +984,28 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 }
             }
         },
-        [selectedModel?.model, selectedModel?.providerId, translateDeps, translationFlag, startLoading, stopLoading, t]
+        [
+            selectedModel?.model,
+            selectedModel?.providerId,
+            translateDeps,
+            translationFlag,
+            settings.useStructuredOutput,
+            settings.useStrictSchema,
+            startLoading,
+            stopLoading,
+            t,
+        ]
     )
 
     const translateControllerRef = useRef<AbortController | null>(null)
     useEffect(() => {
         translateControllerRef.current = new AbortController()
         const { signal } = translateControllerRef.current
-        translateText(selectedWord, signal)
+        translateText(signal)
         return () => {
             translateControllerRef.current?.abort()
         }
-    }, [translateText, selectedWord])
+    }, [translateText])
 
     const handleHistoryRestore = useCallback(
         (item: HistoryItem) => {
@@ -1064,7 +1018,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             setTranslatedText(item.translatedText)
             setActionStr('')
             setErrorMessage('')
-            setSelectedWord('')
             setTranslateDeps((prev) => {
                 const providerIdFromHistory = settings.providers.some((provider) => provider.id === item.providerId)
                     ? item.providerId
@@ -1114,16 +1067,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             setShowSettings(true)
         }
     }, [props.defaultShowSettings, setShowSettings, settings])
-
-    const editableTextSpeakingIconRef = useRef<HTMLDivElement>(null)
-
-    useEffect(() => {
-        if (selectedWord === '' || settings?.readSelectedWordsFromInputElementsText === false) {
-            return
-        }
-        console.debug('speak selected word', selectedWord)
-        editableTextSpeakingIconRef.current?.click()
-    }, [selectedWord, settings.readSelectedWordsFromInputElementsText])
 
     const handleStopGenerating = () => {
         translateControllerRef.current?.abort('stop')
@@ -1594,9 +1537,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                             <div className={styles.actionButton}>
                                                 <SpeakerIcon
                                                     size={15}
-                                                    divRef={editableTextSpeakingIconRef}
                                                     provider={settings.tts?.provider}
-                                                    text={selectedWord ? selectedWord : editableText}
+                                                    text={editableText}
                                                     lang={sourceLang}
                                                     voice={
                                                         settings.tts?.voices?.find((item) => item.lang === sourceLang)

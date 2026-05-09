@@ -71,6 +71,8 @@ export interface ISettings {
     providers: ProviderConfig[]
     defaultProviderId: string | null
     defaultModel: ModelSelection | null
+    useStructuredOutput?: boolean
+    useStrictSchema?: boolean
     enableBackgroundBlur: boolean
     enableMica: boolean // deprecated, please use enableBackgroundBlur
     defaultTargetLanguage: string
@@ -87,7 +89,6 @@ export interface ISettings {
         openai?: OpenAITTSSettings
     }
     restorePreviousPosition?: boolean
-    readSelectedWordsFromInputElementsText?: boolean
     runAtStartup?: boolean
     allowUsingClipboardWhenSelectedTextNotAvailable?: boolean
     pinned?: boolean

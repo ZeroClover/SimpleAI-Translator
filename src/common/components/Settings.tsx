@@ -903,18 +903,49 @@ interface MyCheckboxProps {
     value?: boolean
     onChange?: (value: boolean) => void
     onBlur?: () => void
+    disabled?: boolean
 }
 
-function MyCheckbox({ value, onChange, onBlur }: MyCheckboxProps) {
+function MyCheckbox({ value, onChange, onBlur, disabled }: MyCheckboxProps) {
     return (
         <Checkbox
             checkmarkType='toggle_round'
             checked={value}
+            disabled={disabled}
             onChange={(e) => {
                 onChange?.(e.target.checked)
                 onBlur?.()
             }}
         />
+    )
+}
+
+interface SettingsToggleProps extends MyCheckboxProps {
+    label?: React.ReactNode
+    caption?: React.ReactNode
+}
+
+function SettingsToggle({ value, onChange, onBlur, disabled, label, caption }: SettingsToggleProps) {
+    const { theme } = useTheme()
+    return (
+        <div style={{ opacity: disabled ? 0.55 : 1 }}>
+            <Checkbox
+                checkmarkType='toggle_round'
+                checked={value}
+                disabled={disabled}
+                onChange={(e) => {
+                    onChange?.(e.target.checked)
+                    onBlur?.()
+                }}
+            >
+                {label}
+            </Checkbox>
+            {caption && (
+                <div style={{ color: theme.colors.contentSecondary, fontSize: '0.85em', paddingLeft: 44 }}>
+                    {caption}
+                </div>
+            )}
+        </div>
     )
 }
 
@@ -936,29 +967,6 @@ function RestorePreviousPositionCheckbox({ value, onChange, onBlur }: RestorePre
         />
     )
 }
-interface ReadSelectedWordsFromInputElementsProps {
-    value?: boolean
-    onChange?: (value: boolean) => void
-    onBlur?: () => void
-}
-
-function ReadSelectedWordsFromInputElementsCheckbox({
-    value,
-    onChange,
-    onBlur,
-}: ReadSelectedWordsFromInputElementsProps) {
-    return (
-        <Checkbox
-            checkmarkType='toggle_round'
-            checked={value}
-            onChange={(e) => {
-                onChange?.(e.target.checked)
-                onBlur?.()
-            }}
-        />
-    )
-}
-
 interface RunAtStartupCheckboxProps {
     value?: boolean
     onChange?: (value: boolean) => void
@@ -1760,6 +1768,18 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         <FormItem name='defaultTargetLanguage' label={t('Default target language')}>
                             <LanguageSelector onBlur={onBlur} />
                         </FormItem>
+                        <FormItem name='useStructuredOutput' label={t('Use Structured Output')}>
+                            <SettingsToggle onBlur={onBlur} />
+                        </FormItem>
+                        <FormItem name='useStrictSchema' label={t('Strict JSON Schema')}>
+                            <SettingsToggle
+                                onBlur={onBlur}
+                                disabled={!values.useStructuredOutput}
+                                caption={t(
+                                    'Some older or third-party models only support JSON Object mode and may fail with Strict Schema enabled.'
+                                )}
+                            />
+                        </FormItem>
                         <FormItem name='languageDetectionEngine' label={t('Language detection engine')}>
                             <LanguageDetectionEngineSelector onBlur={onBlur} />
                         </FormItem>
@@ -1838,12 +1858,6 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                             display: activeTab === 'tts' ? 'block' : 'none',
                         }}
                     >
-                        <FormItem
-                            name='readSelectedWordsFromInputElementsText'
-                            label={t('Read the selected words in input')}
-                        >
-                            <ReadSelectedWordsFromInputElementsCheckbox onBlur={onBlur} />
-                        </FormItem>
                         <FormItem name='tts' label={t('TTS')}>
                             <TTSVoicesSettings providers={values.providers ?? []} onBlur={onBlur} />
                         </FormItem>

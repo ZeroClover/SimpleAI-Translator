@@ -29,10 +29,10 @@
 
 ## 4. 删除从旧 Bundle ID 迁移配置目录的代码
 
-- [ ] 4.1 在 `src-tauri/src/config.rs` 中找到从 `xyz.yetone.apps.openai-translator` → `xyz.yetone.apps.nextai-translator` 的目录复制 / 迁移逻辑(约 line 95–115)
-- [ ] 4.2 整段删除该迁移函数与对其的调用;删除任何引用旧 Bundle ID 的常量字符串
-- [ ] 4.3 确认应用首次启动时不再读取旧目录(本地手动启动测试:删除新 Bundle ID 数据目录后启动,观察行为)
-- [ ] 4.4 `cargo check --manifest-path src-tauri/Cargo.toml` 通过
+- [x] 4.1 在 `src-tauri/src/config.rs` 中找到从 `xyz.yetone.apps.openai-translator` → `xyz.yetone.apps.nextai-translator` 的目录复制 / 迁移逻辑(约 line 95–115)
+- [x] 4.2 整段删除该迁移函数与对其的调用;删除任何引用旧 Bundle ID 的常量字符串
+- [x] 4.3 确认应用首次启动时不再读取旧目录(本地手动启动测试:删除新 Bundle ID 数据目录后启动,观察行为)
+- [x] 4.4 `cargo check --manifest-path src-tauri/Cargo.toml` 通过
 
 ## 5. 删除快捷键功能
 

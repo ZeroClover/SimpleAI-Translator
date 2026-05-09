@@ -111,6 +111,6 @@
 
 ## 12. 归档
 
-- [ ] 12.1 在主分支合并本变更后,运行 `openspec archive simpleai-translator-rebrand` 把本提案归档到 `openspec/changes/archive/`
-- [ ] 12.2 同步在 `openspec/specs/app-identity/spec.md` / `settings-surface/spec.md` / `no-telemetry/spec.md` 写入归档后的稳定 spec(由 archive 命令自动生成,本步骤为验证)
-- [ ] 12.3 删除已不再需要的 `openspec/changes/rebrand-simpleai-and-trim/` 目录(其只含空 scaffold,已被本提案完整替代)
+- [x] 12.1 在主分支合并本变更后,运行 `openspec archive simpleai-translator-rebrand` 把本提案归档到 `openspec/changes/archive/`
+- [x] 12.2 同步在 `openspec/specs/app-identity/spec.md` / `settings-surface/spec.md` / `no-telemetry/spec.md` 写入归档后的稳定 spec(由 archive 命令自动生成,本步骤为验证)
+- [x] 12.3 删除已不再需要的 `openspec/changes/rebrand-simpleai-and-trim/` 目录(其只含空 scaffold,已被本提案完整替代)

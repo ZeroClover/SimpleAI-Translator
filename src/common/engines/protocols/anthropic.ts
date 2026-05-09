@@ -3,6 +3,7 @@ import { getUniversalFetch } from '../../universal-fetch'
 import { ANTHROPIC_MESSAGES_API_PATH, normalizeAPIEndpoint } from '../../openai-api-path'
 import { fetchSSE } from '../../utils'
 import { formatStructuredOutput, IEngine, IMessageRequest, IModel, StructuredOutputRequest } from '../interfaces'
+import { ThinkingFilter } from '../thinking-filter'
 
 /* eslint-disable camelcase */
 
@@ -88,17 +89,36 @@ export class AnthropicEngine implements IEngine {
         let hasError = false
         let structuredContent = ''
         let structuredContentEmitted = false
+        const thinkingFilter = new ThinkingFilter()
 
         const emitStructuredContent = async () => {
             if (!req.structuredOutput || structuredContentEmitted) {
                 return
             }
             structuredContentEmitted = true
+            structuredContent += thinkingFilter.finish()
             await req.onMessage({
                 content: formatStructuredOutput(req.structuredOutput.mode, structuredContent),
                 role: 'assistant',
                 isFullText: true,
             })
+        }
+
+        const emitText = async (content: string) => {
+            const filtered = thinkingFilter.push(content)
+            if (filtered) {
+                await req.onMessage({ content: filtered, role: 'assistant' })
+            }
+        }
+
+        const emitRemainingText = async () => {
+            if (req.structuredOutput) {
+                return
+            }
+            const content = thinkingFilter.finish()
+            if (content) {
+                await req.onMessage({ content, role: 'assistant' })
+            }
         }
 
         try {
@@ -131,15 +151,16 @@ export class AnthropicEngine implements IEngine {
                         const text = resp?.delta?.text
                         if (text) {
                             if (req.structuredOutput) {
-                                structuredContent += text
+                                structuredContent += thinkingFilter.push(text)
                                 return
                             }
-                            await req.onMessage({ content: text, role: 'assistant' })
+                            await emitText(text)
                         }
                         return
                     }
                     if (type === 'message_stop') {
                         await emitStructuredContent()
+                        await emitRemainingText()
                         finished = true
                         req.onFinished('stop')
                         return

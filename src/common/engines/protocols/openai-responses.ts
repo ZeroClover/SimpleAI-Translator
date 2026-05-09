@@ -2,6 +2,7 @@ import { ProviderConfig } from '../../types'
 import { normalizeAPIEndpoint, OPENAI_RESPONSES_API_PATH } from '../../openai-api-path'
 import { fetchSSE } from '../../utils'
 import { formatStructuredOutput, IEngine, IMessageRequest, IModel, StructuredOutputRequest } from '../interfaces'
+import { ThinkingFilter } from '../thinking-filter'
 import { listModels as listOpenAIModels } from './openai-chat'
 
 const DEFAULT_ENDPOINT = 'https://api.openai.com/v1'
@@ -96,17 +97,36 @@ export class OpenAIResponsesEngine implements IEngine {
         let structuredContent = ''
         let refusalContent = ''
         let structuredContentEmitted = false
+        const thinkingFilter = new ThinkingFilter()
 
         const emitStructuredContent = async () => {
             if (!req.structuredOutput || structuredContentEmitted) {
                 return
             }
             structuredContentEmitted = true
+            structuredContent += thinkingFilter.finish()
             await req.onMessage({
                 content: formatStructuredOutput(req.structuredOutput.mode, structuredContent),
                 role: 'assistant',
                 isFullText: true,
             })
+        }
+
+        const emitText = async (content: string) => {
+            const filtered = thinkingFilter.push(content)
+            if (filtered) {
+                await req.onMessage({ content: filtered, role: 'assistant' })
+            }
+        }
+
+        const emitRemainingText = async () => {
+            if (req.structuredOutput) {
+                return
+            }
+            const content = thinkingFilter.finish()
+            if (content) {
+                await req.onMessage({ content, role: 'assistant' })
+            }
         }
 
         try {
@@ -136,10 +156,10 @@ export class OpenAIResponsesEngine implements IEngine {
                         const delta = resp?.delta
                         if (delta) {
                             if (req.structuredOutput) {
-                                structuredContent += delta
+                                structuredContent += thinkingFilter.push(delta)
                                 return
                             }
-                            await req.onMessage({ content: delta, role: 'assistant' })
+                            await emitText(delta)
                         }
                         return
                     }
@@ -152,6 +172,7 @@ export class OpenAIResponsesEngine implements IEngine {
                             return
                         }
                         await emitStructuredContent()
+                        await emitRemainingText()
                         finished = true
                         req.onFinished('stop')
                         return

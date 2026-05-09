@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProviderConfig } from '../../types'
 import { fetchSSE } from '../../utils'
 import { getUniversalFetch } from '../../universal-fetch'
-import { formatStructuredOutput, IMessageRequest } from '../interfaces'
+import { formatStructuredOutput, IEngine, IMessageRequest } from '../interfaces'
 import { AnthropicEngine, listModels as listAnthropicModels } from './anthropic'
 import { OpenAIChatEngine, listModels as listOpenAIChatModels } from './openai-chat'
 import { OpenAIResponsesEngine, listModels as listOpenAIResponsesModels } from './openai-responses'
@@ -19,6 +19,8 @@ interface MockFetchSSEOptions {
     onError: (error: unknown) => void
     onStatusCode?: (statusCode: number) => void
 }
+
+type ProtocolThinkingFilterCase = [string, () => IEngine, (options: MockFetchSSEOptions) => Promise<void>]
 
 const providerConfig: ProviderConfig = {
     id: 'provider-1',
@@ -248,6 +250,59 @@ describe('protocol engines', () => {
         await engine.sendMessage(req)
 
         expect(onMessage).toHaveBeenCalledWith({ content: '好', role: 'assistant' })
+        expect(onFinished).toHaveBeenCalledWith('stop')
+    })
+
+    it.each<ProtocolThinkingFilterCase>([
+        [
+            'OpenAI Chat',
+            () => new OpenAIChatEngine(providerConfig),
+            async (options: MockFetchSSEOptions) => {
+                await options.onMessage(JSON.stringify({ choices: [{ delta: { content: '<thi' } }] }))
+                await options.onMessage(
+                    JSON.stringify({ choices: [{ delta: { content: 'nking>hidden</thinking>ok' } }] })
+                )
+                await options.onMessage(' [DONE] ')
+            },
+        ],
+        [
+            'OpenAI Responses',
+            () => new OpenAIResponsesEngine({ ...providerConfig, protocol: 'openai-responses' }),
+            async (options: MockFetchSSEOptions) => {
+                await options.onMessage(JSON.stringify({ type: 'response.output_text.delta', delta: '<thi' }))
+                await options.onMessage(
+                    JSON.stringify({ type: 'response.output_text.delta', delta: 'nking>hidden</thinking>ok' })
+                )
+                await options.onMessage(JSON.stringify({ type: 'response.completed' }))
+            },
+        ],
+        [
+            'Anthropic',
+            () => new AnthropicEngine({ ...providerConfig, protocol: 'anthropic', model: 'claude-sonnet-4-6' }),
+            async (options: MockFetchSSEOptions) => {
+                await options.onMessage(
+                    JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: '<thi' } })
+                )
+                await options.onMessage(
+                    JSON.stringify({
+                        type: 'content_block_delta',
+                        delta: { type: 'text_delta', text: 'nking>hidden</thinking>ok' },
+                    })
+                )
+                await options.onMessage(JSON.stringify({ type: 'message_stop' }))
+            },
+        ],
+    ])('filters legacy thinking XML before emitting text deltas for %s', async (_name, createEngine, sendMessages) => {
+        const { req, onMessage, onFinished } = createRequest()
+
+        vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+            await sendMessages(options)
+        })
+
+        await createEngine().sendMessage(req)
+
+        expect(onMessage).toHaveBeenCalledTimes(1)
+        expect(onMessage).toHaveBeenCalledWith({ content: 'ok', role: 'assistant' })
         expect(onFinished).toHaveBeenCalledWith('stop')
     })
 

@@ -3,6 +3,7 @@ import { getUniversalFetch } from '../../universal-fetch'
 import { fetchSSE } from '../../utils'
 import { normalizeAPIEndpoint, OPENAI_CHAT_COMPLETIONS_API_PATH } from '../../openai-api-path'
 import { formatStructuredOutput, IEngine, IMessageRequest, IModel, StructuredOutputRequest } from '../interfaces'
+import { ThinkingFilter } from '../thinking-filter'
 
 /* eslint-disable camelcase */
 
@@ -96,17 +97,36 @@ export class OpenAIChatEngine implements IEngine {
         let hasError = false
         let structuredContent = ''
         let structuredContentEmitted = false
+        const thinkingFilter = new ThinkingFilter()
 
         const emitStructuredContent = async () => {
             if (!req.structuredOutput || structuredContentEmitted) {
                 return
             }
             structuredContentEmitted = true
+            structuredContent += thinkingFilter.finish()
             await req.onMessage({
                 content: formatStructuredOutput(req.structuredOutput.mode, structuredContent),
                 role: 'assistant',
                 isFullText: true,
             })
+        }
+
+        const emitText = async (content: string, role = 'assistant') => {
+            const filtered = thinkingFilter.push(content)
+            if (filtered) {
+                await req.onMessage({ content: filtered, role })
+            }
+        }
+
+        const emitRemainingText = async () => {
+            if (req.structuredOutput) {
+                return
+            }
+            const content = thinkingFilter.finish()
+            if (content) {
+                await req.onMessage({ content, role: 'assistant' })
+            }
         }
 
         try {
@@ -125,6 +145,7 @@ export class OpenAIChatEngine implements IEngine {
                     if (finished) return
                     if (message.trim() === '[DONE]') {
                         await emitStructuredContent()
+                        await emitRemainingText()
                         finished = true
                         req.onFinished('stop')
                         return
@@ -147,6 +168,7 @@ export class OpenAIChatEngine implements IEngine {
                     const finishReason = choice?.finish_reason
                     if (finishReason) {
                         await emitStructuredContent()
+                        await emitRemainingText()
                         finished = true
                         req.onFinished(finishReason)
                         return
@@ -154,10 +176,10 @@ export class OpenAIChatEngine implements IEngine {
                     const content = choice?.delta?.content
                     if (content) {
                         if (req.structuredOutput) {
-                            structuredContent += content
+                            structuredContent += thinkingFilter.push(content)
                             return
                         }
-                        await req.onMessage({ content, role: choice?.delta?.role ?? 'assistant' })
+                        await emitText(content, choice?.delta?.role ?? 'assistant')
                     }
                 },
                 onError: (error) => {

@@ -8,10 +8,10 @@
 
 ## 2. Streaming Response Filter
 
--   [ ] 2.1 Implement a shared engine-level streaming filter (for example `src/common/engines/thinking-filter.ts`) for legacy XML `<thinking>...</thinking>` text.
--   [ ] 2.2 The XML filter must handle tags split across chunks, repeated thinking blocks, nested thinking blocks, unclosed thinking blocks at stream end, case-insensitive tag names, and optional whitespace inside tag delimiters such as `< thinking >`.
--   [ ] 2.3 Integrate the XML filter in protocol engines before calling `req.onMessage`; do not put the filter in `universal-fetch.ts`.
--   [ ] 2.4 Add focused tests for cross-chunk tags, unclosed tags, multiple blocks, case/whitespace variants, nested blocks, and normal text with no thinking tags.
+-   [x] 2.1 Implement a shared engine-level streaming filter (for example `src/common/engines/thinking-filter.ts`) for legacy XML `<thinking>...</thinking>` text.
+-   [x] 2.2 The XML filter must handle tags split across chunks, repeated thinking blocks, nested thinking blocks, unclosed thinking blocks at stream end, case-insensitive tag names, and optional whitespace inside tag delimiters such as `< thinking >`.
+-   [x] 2.3 Integrate the XML filter in protocol engines before calling `req.onMessage`; do not put the filter in `universal-fetch.ts`.
+-   [x] 2.4 Add focused tests for cross-chunk tags, unclosed tags, multiple blocks, case/whitespace variants, nested blocks, and normal text with no thinking tags.
 
 ## 3. OpenAI API Client Updates
 

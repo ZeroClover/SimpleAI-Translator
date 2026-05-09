@@ -9,14 +9,14 @@
 
 ## 2. 应用身份与可见产品名
 
-- [ ] 2.1 修改 `src-tauri/tauri.conf.json`:`productName` → `"SimpleAI Translator"`、`identifier` → `"io.zeroclover.app.simpleai-translator"`;不要修改 `updater.endpoints`
-- [ ] 2.2 修改 `src-tauri/Cargo.toml` 的 `[package]`:确认 `description` 与产品名一致(若为空则填 `SimpleAI Translator desktop application`);`name` 字段与构建脚本耦合,若改动需同步更新 `tauri build` / CI
-- [ ] 2.3 修改 `src-tauri/src/windows.rs`:把 `"NextAI Translator"` / `"NextAI Translator History"` / `"NextAI Translator Settings"` / `"NextAI Translator Updater"` 四处字面量改为以 `SimpleAI Translator` 为前缀的对应字符串
-- [ ] 2.4 修改 `src/tauri/index.html`、`src/browser-extension/options/index.html`、`src/browser-extension/popup/index.html` 三处 `<title>` 标签
-- [ ] 2.5 修改 `package.json` 的 package `name` / `description`;同步处理 legacy Electron `build.appId` / `build.productName` / `build.extraMetadata.name`(若确认 Electron build 块无用,可删除该块);不要修改 `repository.url`
-- [ ] 2.6 修改 `src/browser-extension/manifest.ts` 的可见字段:`name` 为 `'SimpleAI Translator'`, `description` 删除 ChatGPT / NextAI 过时措辞;不要修改 Firefox `gecko.id` / `applications.gecko.id`
-- [ ] 2.7 修改运行时代码中的产品名展示:`src/browser-extension/background/index.ts` 右键菜单 title、`src/common/components/LogoWithText.tsx`、`src/common/tts/index.ts` welcome 文本、`src/tauri/windows/UpdaterWindow.tsx` header、`Settings.tsx` header;不要修改 GitHub 链接
-- [ ] 2.8 在 `pnpm dev-tauri` 启动一次,确认 Dock 图标 / 窗口标题显示新身份;发布构建后再检查 `Info.plist CFBundleIdentifier`
+- [x] 2.1 修改 `src-tauri/tauri.conf.json`:`productName` → `"SimpleAI Translator"`、`identifier` → `"io.zeroclover.app.simpleai-translator"`;不要修改 `updater.endpoints`
+- [x] 2.2 修改 `src-tauri/Cargo.toml` 的 `[package]`:确认 `description` 与产品名一致(若为空则填 `SimpleAI Translator desktop application`);`name` 字段与构建脚本耦合,若改动需同步更新 `tauri build` / CI
+- [x] 2.3 修改 `src-tauri/src/windows.rs`:把 `"NextAI Translator"` / `"NextAI Translator History"` / `"NextAI Translator Settings"` / `"NextAI Translator Updater"` 四处字面量改为以 `SimpleAI Translator` 为前缀的对应字符串
+- [x] 2.4 修改 `src/tauri/index.html`、`src/browser-extension/options/index.html`、`src/browser-extension/popup/index.html` 三处 `<title>` 标签
+- [x] 2.5 修改 `package.json` 的 package `name` / `description`;同步处理 legacy Electron `build.appId` / `build.productName` / `build.extraMetadata.name`(若确认 Electron build 块无用,可删除该块);不要修改 `repository.url`
+- [x] 2.6 修改 `src/browser-extension/manifest.ts` 的可见字段:`name` 为 `'SimpleAI Translator'`, `description` 删除 ChatGPT / NextAI 过时措辞;不要修改 Firefox `gecko.id` / `applications.gecko.id`
+- [x] 2.7 修改运行时代码中的产品名展示:`src/browser-extension/background/index.ts` 右键菜单 title、`src/common/components/LogoWithText.tsx`、`src/common/tts/index.ts` welcome 文本、`src/tauri/windows/UpdaterWindow.tsx` header、`Settings.tsx` header;不要修改 GitHub 链接
+- [x] 2.8 在 `pnpm dev-tauri` 启动一次,确认 Dock 图标 / 窗口标题显示新身份;发布构建后再检查 `Info.plist CFBundleIdentifier`
 
 ## 3. 命名空间前缀切换
 

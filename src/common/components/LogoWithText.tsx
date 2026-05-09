@@ -66,7 +66,7 @@ const LogoWithText = forwardRef<LogoWithTextRef, unknown>(function LogoWithText(
         <div data-tauri-drag-region className={styles.iconContainer}>
             <img data-tauri-drag-region className={styles.icon} src={getAssetUrl(icon)} />
             <div data-tauri-drag-region className={styles.iconText} ref={logoTextRef}>
-                NextAI Translator
+                SimpleAI Translator
             </div>
         </div>
     )

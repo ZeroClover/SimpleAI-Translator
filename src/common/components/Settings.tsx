@@ -1608,7 +1608,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                             gap: 6,
                         }}
                     >
-                        NextAI Translator
+                        SimpleAI Translator
                         {AppConfig?.version ? (
                             <a
                                 href='https://github.com/nextai-translator/nextai-translator/releases'
@@ -1700,7 +1700,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                     }}
                 >
                     {t(
-                        'It is recommended to download the desktop application of NextAI Translator to enjoy the wonderful experience of word translation in all software!'
+                        'It is recommended to download the desktop application of SimpleAI Translator to enjoy the wonderful experience of word translation in all software!'
                     )}{' '}
                     <a
                         target='_blank'

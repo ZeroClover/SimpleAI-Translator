@@ -103,7 +103,7 @@ export function UpdaterWindow() {
                     data-tauri-drag-region
                 >
                     <img className={styles.icon} src={getAssetUrl(icon)} />
-                    NextAI Translator {t('Updater')}
+                    SimpleAI Translator {t('Updater')}
                 </div>
                 <div
                     style={{

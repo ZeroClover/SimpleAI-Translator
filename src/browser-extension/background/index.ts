@@ -8,7 +8,7 @@ browser.contextMenus?.create(
     {
         id: 'open-translator',
         type: 'normal',
-        title: 'NextAI Translator',
+        title: 'SimpleAI Translator',
         contexts: ['page', 'selection'],
     },
     () => {

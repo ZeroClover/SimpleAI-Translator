@@ -15,6 +15,8 @@
     "build-browser-extension": "tsc && make build-browser-extension",
     "build-userscript": "make build-userscript",
     "clean": "make clean",
+    "check:no-telemetry": "scripts/check-no-telemetry.sh",
+    "check:no-old-identity": "scripts/check-no-old-identity.sh",
     "test": "vitest test",
     "test:e2e": "playwright test",
     "lint": "eslint \"src/**/*.{ts,tsx}\" --cache",

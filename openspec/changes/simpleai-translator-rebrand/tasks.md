@@ -93,12 +93,12 @@
 
 ## 10. 测试与守卫脚本
 
-- [ ] 10.1 删除引用已删除字段的所有单元测试(`*.spec.ts` / `*.test.ts`):快捷键、Buy me a coffee、autoTranslate、alwaysShowIcons、hideTheIconInTheDock、autoHideWindowWhenOutOfFocus、selectInputElementsText、disableCollectingStatistics、analysis 相关测试
-- [ ] 10.2 新增 `scripts/check-no-telemetry.sh`:对 `src/` `src-tauri/src/` `src-tauri/capabilities/` `src-tauri/gen/schemas/` `package.json` `pnpm-lock.yaml` `src-tauri/Cargo.toml` `src-tauri/Cargo.lock` `src/browser-extension/manifest.ts` grep `sentry|aptabase|googletagmanager|google-analytics|react-ga|@sentry|@aptabase`,命中即 exit 1
-- [ ] 10.3 新增 `scripts/check-no-old-identity.sh`:检查运行时代码、构建身份字段和自有命名空间中不含 `yetone|nextai-translator|NextAI Translator|openai-translator|xyz\.yetone`;脚本必须排除 `package.json.repository.url`、Tauri updater endpoint URL、README 历史说明、浏览器插件所有者/签名身份字段
-- [ ] 10.4 在 `package.json` `scripts` 中加 `"check:no-telemetry"` 与 `"check:no-old-identity"`,并在 CI workflow 中作为合并阻塞 step
-- [ ] 10.5 新增/更新一个桌面端集成测试或手动 release checklist:启动后 60 秒内监听 outbound TCP/UDP 连接,确认无指向 sentry.io / google-analytics.com / googletagmanager.com / aptabase.* 的连接(若环境不支持自动化,用 `nettop` 手动验证)
-- [ ] 10.6 `pnpm test` 通过
+- [x] 10.1 删除引用已删除字段的所有单元测试(`*.spec.ts` / `*.test.ts`):快捷键、Buy me a coffee、autoTranslate、alwaysShowIcons、hideTheIconInTheDock、autoHideWindowWhenOutOfFocus、selectInputElementsText、disableCollectingStatistics、analysis 相关测试
+- [x] 10.2 新增 `scripts/check-no-telemetry.sh`:对 `src/` `src-tauri/src/` `src-tauri/capabilities/` `src-tauri/gen/schemas/` `package.json` `pnpm-lock.yaml` `src-tauri/Cargo.toml` `src-tauri/Cargo.lock` `src/browser-extension/manifest.ts` grep `sentry|aptabase|googletagmanager|google-analytics|react-ga|@sentry|@aptabase`,命中即 exit 1
+- [x] 10.3 新增 `scripts/check-no-old-identity.sh`:检查运行时代码、构建身份字段和自有命名空间中不含 `yetone|nextai-translator|NextAI Translator|openai-translator|xyz\.yetone`;脚本必须排除 `package.json.repository.url`、Tauri updater endpoint URL、README 历史说明、浏览器插件所有者/签名身份字段
+- [x] 10.4 在 `package.json` `scripts` 中加 `"check:no-telemetry"` 与 `"check:no-old-identity"`,并在 CI workflow 中作为合并阻塞 step
+- [x] 10.5 新增/更新一个桌面端集成测试或手动 release checklist:启动后 60 秒内监听 outbound TCP/UDP 连接,确认无指向 sentry.io / google-analytics.com / googletagmanager.com / aptabase.* 的连接(若环境不支持自动化,用 `nettop` 手动验证)
+- [x] 10.6 `pnpm test` 通过
 
 ## 11. 构建产物验证
 

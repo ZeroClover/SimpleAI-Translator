@@ -9,6 +9,17 @@ on:
       - main
 
 jobs:
+  rebrand-guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check telemetry residue
+        run: scripts/check-no-telemetry.sh
+
+      - name: Check old identity residue
+        run: scripts/check-no-old-identity.sh
+
   typos-check:
     name: Spell Check with Typos
     runs-on: ubuntu-latest

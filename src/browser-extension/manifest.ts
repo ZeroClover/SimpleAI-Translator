@@ -41,16 +41,6 @@ export function getManifest(browser: 'firefox' | 'chromium') {
 
         permissions: ['storage', 'contextMenus'],
 
-        commands: {
-            'open-popup': {
-                suggested_key: {
-                    default: 'Ctrl+Shift+Y',
-                    mac: 'Command+Shift+Y',
-                },
-                description: 'Open the popup',
-            },
-        },
-
         host_permissions: [
             'https://api.openai.com/*',
             'https://api.anthropic.com/*',

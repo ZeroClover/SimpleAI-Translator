@@ -1,6 +1,5 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::config::get_config;
 use crate::insertion::remember_active_window;
 use crate::windows::{
     set_translator_window_always_on_top, show_settings_window, show_updater_window,
@@ -35,7 +34,6 @@ impl PinnedFromWindowEvent {
 pub static TRAY_EVENT_REGISTERED: AtomicBool = AtomicBool::new(false);
 
 pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    let config = get_config().unwrap();
     let check_for_updates_i = MenuItem::with_id(
         app,
         "check_for_updates",
@@ -49,7 +47,7 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
             .unwrap();
     }
     let settings_i = MenuItem::with_id(app, "settings", "Settings", true, Some("CmdOrCtrl+,"))?;
-    let show_i = MenuItem::with_id(app, "show", "Show", true, config.display_window_hotkey)?;
+    let show_i = MenuItem::with_id(app, "show", "Show", true, None::<String>)?;
     let hide_i = PredefinedMenuItem::hide(app, Some("Hide"))?;
     let pin_i = MenuItem::with_id(app, "pin", "Pin", true, None::<String>)?;
     if ALWAYS_ON_TOP.load(Ordering::Acquire) {

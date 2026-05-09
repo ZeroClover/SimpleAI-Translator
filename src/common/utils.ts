@@ -26,8 +26,6 @@ const settingKeys = {
     autoTranslate: 1,
     defaultTargetLanguage: 1,
     alwaysShowIcons: 1,
-    hotkey: 1,
-    displayWindowHotkey: 1,
     themeType: 1,
     i18n: 1,
     tts: 1,
@@ -170,8 +168,6 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
             rawSettings.alwaysShowIcons === undefined || rawSettings.alwaysShowIcons === null
                 ? !isTauri()
                 : rawSettings.alwaysShowIcons,
-        hotkey: rawSettings.hotkey,
-        displayWindowHotkey: rawSettings.displayWindowHotkey,
         themeType: rawSettings.themeType || 'followTheSystem',
         i18n: rawSettings.i18n || defaulti18n,
         tts: normalizeTTSSettings(rawSettings.tts, providers),

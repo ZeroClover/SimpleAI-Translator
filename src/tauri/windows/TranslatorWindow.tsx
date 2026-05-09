@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Translator } from '../../common/components/Translator'
 import { Client as Styletron } from 'styletron-engine-atomic'
 import { listen, type Event, type UnlistenFn } from '@tauri-apps/api/event'
-import { bindDisplayWindowHotkey, bindHotkey, onSettingsSave } from '../utils'
+import { onSettingsSave } from '../utils'
 import { v4 as uuidv4 } from 'uuid'
 import { PREFIX } from '../../common/constants'
 import { useSettings } from '../../common/hooks/useSettings'
@@ -106,11 +106,6 @@ export function TranslatorWindow() {
             unlisten?.()
         }
     }, [pinned, settings.autoHideWindowWhenOutOfFocus])
-
-    useEffect(() => {
-        bindHotkey()
-        bindDisplayWindowHotkey()
-    }, [])
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 

@@ -10,7 +10,6 @@ import preset from 'jss-preset-default'
 import { JssProvider, createGenerateId } from 'react-jss'
 import { Client as Styletron } from 'styletron-engine-atomic'
 import { createRoot, Root } from 'react-dom/client'
-import hotkeys from 'hotkeys-js'
 import '@/common/i18n.js'
 import { PREFIX } from '@/common/constants'
 import { getCaretNodeType, getClientX, getClientY, getPageX, getPageY, UserEventType } from '@/common/user-event'
@@ -239,32 +238,6 @@ async function main() {
     }
     document.addEventListener('mousedown', mouseDownHandler)
     document.addEventListener('touchstart', mouseDownHandler)
-
-    const settings = await utils.getSettings()
-
-    await bindHotKey(settings.hotkey)
-}
-
-export async function bindHotKey(hotkey_: string | undefined) {
-    const hotkey = hotkey_?.trim().replace(/-/g, '+')
-
-    if (!hotkey) {
-        return
-    }
-
-    hotkeys(hotkey, (event) => {
-        event.preventDefault()
-        const sel = window.getSelection()
-        let text = (sel?.toString() ?? '').trim()
-        if (!text) {
-            if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-                const elem = event.target
-                text = elem.value.substring(elem.selectionStart ?? 0, elem.selectionEnd ?? 0)
-            }
-        }
-        const selRange = sel?.getRangeAt(0)
-        selRange && showPopupCard({ getBoundingClientRect: () => selRange.getBoundingClientRect() }, text)
-    })
 }
 
 if (utils.isFirefox()) {

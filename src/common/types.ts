@@ -69,8 +69,6 @@ export interface ISettings {
     autoTranslate: boolean
     defaultTargetLanguage: string
     alwaysShowIcons: boolean
-    hotkey?: string
-    displayWindowHotkey?: string
     themeType?: ThemeType
     i18n?: string
     tts?: {

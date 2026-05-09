@@ -36,17 +36,17 @@
 
 ## 5. 删除快捷键功能
 
-- [ ] 5.1 从 `src/common/types.ts` 的 `ISettings` 接口删除 `hotkey?` 与 `displayWindowHotkey?` 字段
-- [ ] 5.2 从 `src/common/utils.ts` 删除上述两个字段在默认值 / 规范化逻辑中的映射
-- [ ] 5.3 从 `src-tauri/src/config.rs` 的 `Config` 结构删除 `hotkey` 与 `display_window_hotkey` 字段
-- [ ] 5.4 从 `src-tauri/src/tray.rs` 删除菜单项 `MenuItem::with_id(...)` 调用中的 `config.display_window_hotkey` 参数,改为传 `None`
-- [ ] 5.5 从 `src-tauri/src/main.rs`(及其它 Tauri 入口)删除任何 `tauri::GlobalShortcutManager` / `tauri-plugin-global-shortcut` 注册逻辑;若 `Cargo.toml` 中存在对应插件依赖,移除之;同步移除 `src-tauri/capabilities/migrated.json` 中 `global-shortcut:*` permissions 并重新生成/更新 `src-tauri/gen/schemas/*`
-- [ ] 5.6 从 `src/common/components/Settings.tsx` 删除 `useHotkeyRecorderStyles`、`HotkeyRecorder` 组件、`hotkey` / `displayWindowHotkey` FormItem、`useRecordHotkeys` import 与所有引用
-- [ ] 5.7 从 `src/tauri/windows/TranslatorWindow.tsx` 删除 `bindHotkey()` / `bindDisplayWindowHotkey()` 调用与对应 import;若调用所在 effect 仅服务这两个函数,整段删除
-- [ ] 5.8 删除 `src/tauri/utils.ts` 中 `bindHotkey` / `bindDisplayWindowHotkey` / `isMissingNormalKey` 等全局快捷键 helper;删除或重写 `src/tauri/utils.spec.ts` 中对应单元测试
-- [ ] 5.9 删除浏览器插件快捷键触发链路:`src/browser-extension/content_script/index.tsx` 的 `hotkeys-js` import / `bindHotKey` 函数 / `settings.hotkey` 调用,以及 `src/browser-extension/background/index.ts` 的 `browser.commands.onCommand` 监听;同步移除 manifest `commands`
-- [ ] 5.10 若无其它使用,执行 `pnpm remove react-hotkeys-hook hotkeys-js @tauri-apps/plugin-global-shortcut`;若保留任一依赖,在 PR 中说明剩余非快捷键用途
-- [ ] 5.11 `pnpm exec tsc --noEmit` 与 `cargo check --manifest-path src-tauri/Cargo.toml` 通过
+- [x] 5.1 从 `src/common/types.ts` 的 `ISettings` 接口删除 `hotkey?` 与 `displayWindowHotkey?` 字段
+- [x] 5.2 从 `src/common/utils.ts` 删除上述两个字段在默认值 / 规范化逻辑中的映射
+- [x] 5.3 从 `src-tauri/src/config.rs` 的 `Config` 结构删除 `hotkey` 与 `display_window_hotkey` 字段
+- [x] 5.4 从 `src-tauri/src/tray.rs` 删除菜单项 `MenuItem::with_id(...)` 调用中的 `config.display_window_hotkey` 参数,改为传 `None`
+- [x] 5.5 从 `src-tauri/src/main.rs`(及其它 Tauri 入口)删除任何 `tauri::GlobalShortcutManager` / `tauri-plugin-global-shortcut` 注册逻辑;若 `Cargo.toml` 中存在对应插件依赖,移除之;同步移除 `src-tauri/capabilities/migrated.json` 中 `global-shortcut:*` permissions 并重新生成/更新 `src-tauri/gen/schemas/*`
+- [x] 5.6 从 `src/common/components/Settings.tsx` 删除 `useHotkeyRecorderStyles`、`HotkeyRecorder` 组件、`hotkey` / `displayWindowHotkey` FormItem、`useRecordHotkeys` import 与所有引用
+- [x] 5.7 从 `src/tauri/windows/TranslatorWindow.tsx` 删除 `bindHotkey()` / `bindDisplayWindowHotkey()` 调用与对应 import;若调用所在 effect 仅服务这两个函数,整段删除
+- [x] 5.8 删除 `src/tauri/utils.ts` 中 `bindHotkey` / `bindDisplayWindowHotkey` / `isMissingNormalKey` 等全局快捷键 helper;删除或重写 `src/tauri/utils.spec.ts` 中对应单元测试
+- [x] 5.9 删除浏览器插件快捷键触发链路:`src/browser-extension/content_script/index.tsx` 的 `hotkeys-js` import / `bindHotKey` 函数 / `settings.hotkey` 调用,以及 `src/browser-extension/background/index.ts` 的 `browser.commands.onCommand` 监听;同步移除 manifest `commands`
+- [x] 5.10 若无其它使用,执行 `pnpm remove react-hotkeys-hook hotkeys-js @tauri-apps/plugin-global-shortcut`;若保留任一依赖,在 PR 中说明剩余非快捷键用途
+- [x] 5.11 `pnpm exec tsc --noEmit` 与 `cargo check --manifest-path src-tauri/Cargo.toml` 通过
 
 ## 6. 删除 Buy me a coffee / 赞助路径
 

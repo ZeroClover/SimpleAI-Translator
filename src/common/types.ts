@@ -85,7 +85,6 @@ export interface ISettings {
     selectInputElementsText?: boolean
     readSelectedWordsFromInputElementsText?: boolean
     runAtStartup?: boolean
-    disableCollectingStatistics?: boolean
     allowUsingClipboardWhenSelectedTextNotAvailable?: boolean
     pinned?: boolean
     hideTheIconInTheDock?: boolean

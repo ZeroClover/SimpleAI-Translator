@@ -13,7 +13,6 @@ import { MdBrowserUpdated } from 'react-icons/md'
 import { IoIosCloseCircleOutline } from 'react-icons/io'
 import { useTranslation } from 'react-i18next'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { trackEvent } from '@aptabase/tauri'
 import { UpdateResult, commands, events } from '../bindings'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 
@@ -30,10 +29,6 @@ const useStyles = createUseStyles({
 })
 
 export function UpdaterWindow() {
-    useEffect(() => {
-        trackEvent('screen_view', { name: 'Updater' })
-    }, [])
-
     const { theme, themeType } = useTheme()
     const styles = useStyles()
     const [isChecking, setIsChecking] = useState(true)

@@ -2534,26 +2534,6 @@
         {
           "type": "string",
           "enum": [
-            "aptabase:default"
-          ]
-        },
-        {
-          "description": "aptabase:allow-track-event -> Enables the track_event command without any pre-configured scope.",
-          "type": "string",
-          "enum": [
-            "aptabase:allow-track-event"
-          ]
-        },
-        {
-          "description": "aptabase:deny-track-event -> Denies the track_event command without any pre-configured scope.",
-          "type": "string",
-          "enum": [
-            "aptabase:deny-track-event"
-          ]
-        },
-        {
-          "type": "string",
-          "enum": [
             "autostart:default"
           ]
         },

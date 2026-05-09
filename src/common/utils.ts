@@ -33,7 +33,6 @@ const settingKeys = {
     runAtStartup: 1,
     selectInputElementsText: 1,
     readSelectedWordsFromInputElementsText: 1,
-    disableCollectingStatistics: 1,
     allowUsingClipboardWhenSelectedTextNotAvailable: 1,
     pinned: 1,
     hideTheIconInTheDock: 1,
@@ -182,7 +181,6 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
             rawSettings.readSelectedWordsFromInputElementsText === null
                 ? defaultReadSelectedWordsFromInputElementsText
                 : rawSettings.readSelectedWordsFromInputElementsText,
-        disableCollectingStatistics: rawSettings.disableCollectingStatistics ?? false,
         allowUsingClipboardWhenSelectedTextNotAvailable: rawSettings.allowUsingClipboardWhenSelectedTextNotAvailable,
         pinned: rawSettings.pinned,
         hideTheIconInTheDock:

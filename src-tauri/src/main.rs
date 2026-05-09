@@ -18,12 +18,10 @@ use insertion::{
     insert_translation_into_previous_input, remember_active_window, remember_active_window_command,
 };
 use parking_lot::Mutex;
-use serde_json::json;
 use std::env;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use sysinfo::{CpuExt, System, SystemExt};
-use tauri_plugin_aptabase::EventTracker;
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_updater::UpdaterExt;
 use tauri_specta::Event;
@@ -362,23 +360,6 @@ fn main() {
 
     #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
     let mut app = tauri::Builder::default()
-        .plugin(
-            tauri_plugin_aptabase::Builder::new("A-US-9856842764")
-                .with_panic_hook(Box::new(|client, info, msg| {
-                    let location = info
-                        .location()
-                        .map(|loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()))
-                        .unwrap_or_else(|| "".to_string());
-
-                    let _ = client.track_event(
-                        "panic",
-                        Some(json!({
-                            "info": format!("{} ({})", msg, location),
-                        })),
-                    );
-                }))
-                .build(),
-        )
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
@@ -504,12 +485,7 @@ fn main() {
     }
 
     app.run(|app, event| match event {
-        tauri::RunEvent::Exit { .. } => {
-            let _ = app.track_event("app_exited", None);
-            app.flush_events_blocking();
-        }
         tauri::RunEvent::Ready => {
-            let _ = app.track_event("app_started", None);
             bind_mouse_hook();
             let handle = app.clone();
             tauri::async_runtime::spawn(async move {

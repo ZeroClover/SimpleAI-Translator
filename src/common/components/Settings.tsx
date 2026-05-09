@@ -1181,25 +1181,6 @@ export function Settings({ engine, ...props }: ISettingsProps) {
 
 export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProps) {
     const isTauri = utils.isTauri()
-    const trackTauriEvent = useCallback(
-        async (eventName: string, payload?: Record<string, string | number>) => {
-            if (!isTauri) {
-                return
-            }
-            try {
-                const { trackEvent } = await import('@aptabase/tauri')
-                await trackEvent(eventName, payload)
-            } catch (error) {
-                console.error(`Failed to track event ${eventName}`, error)
-            }
-        },
-        [isTauri]
-    )
-
-    useEffect(() => {
-        void trackTauriEvent('screen_view', { name: 'Settings' })
-    }, [trackTauriEvent])
-
     const { theme, themeType } = useTheme()
 
     const { refreshThemeType } = useThemeType()
@@ -1261,8 +1242,6 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                 refreshThemeType()
             }
 
-            void trackTauriEvent('save_settings')
-
             toast(t('Saved'), {
                 icon: '👍',
                 duration: 3000,
@@ -1271,7 +1250,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
             setSettings(data)
             onSave?.(oldSettings)
         },
-        [isTauri, onSave, setSettings, refreshThemeType, t, trackTauriEvent]
+        [isTauri, onSave, setSettings, refreshThemeType, t]
     )
 
     const persistSettings = useCallback(
@@ -1678,15 +1657,6 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                             }}
                             name='automaticCheckForUpdates'
                             label={t('Automatic check for updates')}
-                        >
-                            <MyCheckbox onBlur={onBlur} />
-                        </FormItem>
-                        <FormItem
-                            style={{
-                                display: isDesktopApp ? 'block' : 'none',
-                            }}
-                            name='disableCollectingStatistics'
-                            label={t('disable collecting statistics')}
                         >
                             <MyCheckbox onBlur={onBlur} />
                         </FormItem>

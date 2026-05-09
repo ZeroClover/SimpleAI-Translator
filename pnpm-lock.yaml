@@ -8,15 +8,9 @@ importers:
 
   .:
     dependencies:
-      '@aptabase/tauri':
-        specifier: ^0.4.1
-        version: 0.4.1
       '@floating-ui/dom':
         specifier: ^1.5.1
         version: 1.5.1
-      '@sentry/react':
-        specifier: ^7.61.0
-        version: 7.61.0(react@18.2.0)
       '@tauri-apps/api':
         specifier: ^2.8.0
         version: 2.8.0
@@ -143,9 +137,6 @@ importers:
       react-error-boundary:
         specifier: ^4.0.10
         version: 4.0.10(react@18.2.0)
-      react-ga4:
-        specifier: ^2.1.0
-        version: 2.1.0
       react-hooks-global-state:
         specifier: ^2.1.0
         version: 2.1.0(react@18.2.0)
@@ -349,9 +340,6 @@ packages:
   '@ampproject/remapping@2.2.1':
     resolution: {integrity: sha512-lFMjJTrFL3j7L9yBxwYfCq2k6qqwHyzuUl/XBnif78PWTJYyL/dfowQHWE3sp6U6ZzqWiiIZnpTMO96zhkjwtg==}
     engines: {node: '>=6.0.0'}
-
-  '@aptabase/tauri@0.4.1':
-    resolution: {integrity: sha512-ZjCtPN1Tw0y90nxMLR64UqFjgikxfc9NZouxqXlqZFkfpF8D/tPf1xUn0Anu8nvERGND/hAkO3x7ZLyLGI1HRg==}
 
   '@babel/code-frame@7.22.10':
     resolution: {integrity: sha512-/KKIMG4UEL35WmI9OlvMhurwtytjvXoFcGNrOvyG9zIzA8YmPjVtIZUf7b05+TPO7G7/GEmLHDaoCgACHl9hhA==}
@@ -878,36 +866,6 @@ packages:
     peerDependencies:
       vite: ^4.0.3
 
-  '@sentry-internal/tracing@7.61.0':
-    resolution: {integrity: sha512-zTr+MXEG4SxNxif42LIgm2RQn+JRXL2NuGhRaKSD2i4lXKFqHVGlVdoWqY5UfqnnJPokiTWIj9ejR8I5HV8Ogw==}
-    engines: {node: '>=8'}
-
-  '@sentry/browser@7.61.0':
-    resolution: {integrity: sha512-IGEkJZRP16Oe5CkXkmhU3QdV5RugW6Vds16yJFFYsgp87NprWtRZgqzldFDYkINStfBHVdctj/Rh/ZrLf8QlkQ==}
-    engines: {node: '>=8'}
-
-  '@sentry/core@7.61.0':
-    resolution: {integrity: sha512-zl0ZKRjIoYJQWYTd3K/U6zZfS4GDY9yGd2EH4vuYO4kfYtEp/nJ8A+tfAeDo0c9FGxZ0Q+5t5F4/SfwbgyyQzg==}
-    engines: {node: '>=8'}
-
-  '@sentry/react@7.61.0':
-    resolution: {integrity: sha512-17ZPDdzx3hzJSHsVFAiw4hUT701LUVIcm568q38sPlSUmnOmNmPeHx/xcQkuxMoVsw/xgf/82B/BKKnIP5/diA==}
-    engines: {node: '>=8'}
-    peerDependencies:
-      react: 15.x || 16.x || 17.x || 18.x
-
-  '@sentry/replay@7.61.0':
-    resolution: {integrity: sha512-1ugk0yZssOPkSg6uTVcysjxlBydycXiOgV0PCU7DsXCFOV1ua5YpyPZFReTz9iFTtwD0LwGFM1LW9wJeQ67Fzg==}
-    engines: {node: '>=12'}
-
-  '@sentry/types@7.61.0':
-    resolution: {integrity: sha512-/GLlIBNR35NKPE/SfWi9W10dK9hE8qTShzsuPVn5wAJxpT3Lb4+dkwmKCTLUYxdkmvRDEudkfOxgalsfQGTAWA==}
-    engines: {node: '>=8'}
-
-  '@sentry/utils@7.61.0':
-    resolution: {integrity: sha512-jfj14d0XBFiCU0G6dZZ12SizATiF5Mt4stBGzkM5iS9nXFj8rh1oTT7/p+aZoYzP2JTF+sDzkNjWxyKZkcTo0Q==}
-    engines: {node: '>=8'}
-
   '@sinclair/typebox@0.27.8':
     resolution: {integrity: sha512-+Fj43pSMwJs4KRrH/938Uf+uAELIgVBmQzg/q1YG10djyfA3TnrU8N8XzqCh/okZdszqBQTZf96idMfE5lnwTA==}
 
@@ -986,10 +944,6 @@ packages:
   '@szmarczak/http-timer@4.0.6':
     resolution: {integrity: sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w==}
     engines: {node: '>=10'}
-
-  '@tauri-apps/api@1.6.0':
-    resolution: {integrity: sha512-rqI++FWClU5I2UBp4HXFvl+sBWkdigBkxnpJDQUWttNyG7IZP4FwQGhTNL5EOw0vI8i6eSAJ5frLqO7n7jbJdg==}
-    engines: {node: '>= 14.6.0', npm: '>= 6.6.0', yarn: '>= 1.19.1'}
 
   '@tauri-apps/api@2.8.0':
     resolution: {integrity: sha512-ga7zdhbS2GXOMTIZRT0mYjKJtR9fivsXzsyq5U3vjDL0s6DTMwYRm0UHNjzTY5dh4+LSC68Sm/7WEiimbQNYlw==}
@@ -3466,9 +3420,6 @@ packages:
       '@types/react':
         optional: true
 
-  react-ga4@2.1.0:
-    resolution: {integrity: sha512-ZKS7PGNFqqMd3PJ6+C2Jtz/o1iU9ggiy8Y8nUeksgVuvNISbmrQtJiZNvC/TjDsqD0QlU5Wkgs7i+w9+OjHhhQ==}
-
   react-hooks-global-state@2.1.0:
     resolution: {integrity: sha512-tLSRhB5pD3QiNsGOo893m8lVZXDuIkdin8PKKmGqnJniAaD/tzl3BdAkba1vOv1/q1bpuN+9zrqqAHkRJhXzJw==}
     peerDependencies:
@@ -4436,10 +4387,6 @@ snapshots:
       '@jridgewell/gen-mapping': 0.3.3
       '@jridgewell/trace-mapping': 0.3.18
 
-  '@aptabase/tauri@0.4.1':
-    dependencies:
-      '@tauri-apps/api': 1.6.0
-
   '@babel/code-frame@7.22.10':
     dependencies:
       '@babel/highlight': 7.22.10
@@ -4894,50 +4841,6 @@ snapshots:
       magic-string: 0.30.0
       vite: 4.3.9(@types/node@20.5.9)(terser@5.44.1)
 
-  '@sentry-internal/tracing@7.61.0':
-    dependencies:
-      '@sentry/core': 7.61.0
-      '@sentry/types': 7.61.0
-      '@sentry/utils': 7.61.0
-      tslib: 2.6.2
-
-  '@sentry/browser@7.61.0':
-    dependencies:
-      '@sentry-internal/tracing': 7.61.0
-      '@sentry/core': 7.61.0
-      '@sentry/replay': 7.61.0
-      '@sentry/types': 7.61.0
-      '@sentry/utils': 7.61.0
-      tslib: 2.6.2
-
-  '@sentry/core@7.61.0':
-    dependencies:
-      '@sentry/types': 7.61.0
-      '@sentry/utils': 7.61.0
-      tslib: 2.6.2
-
-  '@sentry/react@7.61.0(react@18.2.0)':
-    dependencies:
-      '@sentry/browser': 7.61.0
-      '@sentry/types': 7.61.0
-      '@sentry/utils': 7.61.0
-      hoist-non-react-statics: 3.3.2
-      react: 18.2.0
-      tslib: 2.5.2
-
-  '@sentry/replay@7.61.0':
-    dependencies:
-      '@sentry/core': 7.61.0
-      '@sentry/types': 7.61.0
-      '@sentry/utils': 7.61.0
-
-  '@sentry/types@7.61.0': {}
-
-  '@sentry/utils@7.61.0':
-    dependencies:
-      '@sentry/types': 7.61.0
-      tslib: 2.6.2
-
   '@sinclair/typebox@0.27.8': {}
 
   '@sindresorhus/is@4.6.0': {}
@@ -5015,8 +4918,6 @@ snapshots:
   '@szmarczak/http-timer@4.0.6':
     dependencies:
       defer-to-connect: 2.0.1
-
-  '@tauri-apps/api@1.6.0': {}
 
   '@tauri-apps/api@2.8.0': {}
 
@@ -7837,8 +7738,6 @@ snapshots:
       use-sidecar: 1.1.2(@types/react@18.2.18)(react@18.2.0)
     optionalDependencies:
       '@types/react': 18.2.18
-
-  react-ga4@2.1.0: {}
 
   react-hooks-global-state@2.1.0(react@18.2.0):
     dependencies:

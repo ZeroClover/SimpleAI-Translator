@@ -56,19 +56,19 @@
 
 ## 7. 删除遥测(Sentry + Google Analytics + Aptabase)
 
-- [ ] 7.1 删除 `src/common/analysis.ts` 整文件
-- [ ] 7.2 删除所有 `import { setupAnalysis }` 与对它的调用(当前至少包含 `src/tauri/windows/TranslatorWindow.tsx`;若浏览器插件入口仍有调用也一并删除)
-- [ ] 7.3 在 `package.json` 中 `pnpm remove @sentry/react react-ga4 @aptabase/tauri`
-- [ ] 7.4 在 `src-tauri/Cargo.toml` 删除 `tauri-plugin-aptabase = "..."` 依赖行;同步更新 `src-tauri/Cargo.lock`
-- [ ] 7.5 在 `src-tauri/src/main.rs` 删除 `use tauri_plugin_aptabase::EventTracker;`、Aptabase plugin 初始化、`app.track_event("app_exited", None)` / `app.track_event("app_started", None)`
-- [ ] 7.6 在 `src/tauri/windows/HistoryWindow.tsx` / `UpdaterWindow.tsx` / `src/tauri/components/Window.tsx` 删除 `import { trackEvent } from '@aptabase/tauri'` 与所有 `trackEvent(...)` 调用
-- [ ] 7.7 在 `Settings.tsx` 删除 `trackTauriEvent` `useCallback` 与所有调用点(`screen_view`、`save_settings`、`buy_me_a_coffee_clicked` 等)
-- [ ] 7.8 删除 `ISettings.disableCollectingStatistics` 字段(`src/common/types.ts`)、`src/common/utils.ts` 默认/规范化逻辑与 `Settings.tsx` 对应 FormItem
-- [ ] 7.9 在 `src/browser-extension/manifest.ts` 删除 host permissions 中的 `https://*.ingest.sentry.io/*` / `https://*.googletagmanager.com/*` / `https://*.google-analytics.com/*`(与 `*.aptabase.*`,若有)
-- [ ] 7.10 在所有 i18n locale 文件删除 `disable collecting statistics` / `Disable collecting statistics` key
-- [ ] 7.11 从 `src-tauri/capabilities/migrated.json` 删除 `aptabase:allow-track-event`;重新生成或同步更新 `src-tauri/gen/schemas/*` 中 Aptabase plugin schema 残留
-- [ ] 7.12 全仓库 `git grep -i 'sentry\|aptabase\|googletagmanager\|google-analytics\|react-ga\|@sentry\|@aptabase' -- src/ src-tauri/src/ src-tauri/capabilities/ src-tauri/gen/schemas/ package.json pnpm-lock.yaml src-tauri/Cargo.toml src-tauri/Cargo.lock src/browser-extension/manifest.ts` 应 0 命中
-- [ ] 7.13 `pnpm install` + `pnpm exec tsc --noEmit` + `cargo check --manifest-path src-tauri/Cargo.toml` 全部通过
+- [x] 7.1 删除 `src/common/analysis.ts` 整文件
+- [x] 7.2 删除所有 `import { setupAnalysis }` 与对它的调用(当前至少包含 `src/tauri/windows/TranslatorWindow.tsx`;若浏览器插件入口仍有调用也一并删除)
+- [x] 7.3 在 `package.json` 中 `pnpm remove @sentry/react react-ga4 @aptabase/tauri`
+- [x] 7.4 在 `src-tauri/Cargo.toml` 删除 `tauri-plugin-aptabase = "..."` 依赖行;同步更新 `src-tauri/Cargo.lock`
+- [x] 7.5 在 `src-tauri/src/main.rs` 删除 `use tauri_plugin_aptabase::EventTracker;`、Aptabase plugin 初始化、`app.track_event("app_exited", None)` / `app.track_event("app_started", None)`
+- [x] 7.6 在 `src/tauri/windows/HistoryWindow.tsx` / `UpdaterWindow.tsx` / `src/tauri/components/Window.tsx` 删除 `import { trackEvent } from '@aptabase/tauri'` 与所有 `trackEvent(...)` 调用
+- [x] 7.7 在 `Settings.tsx` 删除 `trackTauriEvent` `useCallback` 与所有调用点(`screen_view`、`save_settings`、`buy_me_a_coffee_clicked` 等)
+- [x] 7.8 删除 `ISettings.disableCollectingStatistics` 字段(`src/common/types.ts`)、`src/common/utils.ts` 默认/规范化逻辑与 `Settings.tsx` 对应 FormItem
+- [x] 7.9 在 `src/browser-extension/manifest.ts` 删除 host permissions 中的 `https://*.ingest.sentry.io/*` / `https://*.googletagmanager.com/*` / `https://*.google-analytics.com/*`(与 `*.aptabase.*`,若有)
+- [x] 7.10 在所有 i18n locale 文件删除 `disable collecting statistics` / `Disable collecting statistics` key
+- [x] 7.11 从 `src-tauri/capabilities/migrated.json` 删除 `aptabase:allow-track-event`;重新生成或同步更新 `src-tauri/gen/schemas/*` 中 Aptabase plugin schema 残留
+- [x] 7.12 全仓库 `git grep -i 'sentry\|aptabase\|googletagmanager\|google-analytics\|react-ga\|@sentry\|@aptabase' -- src/ src-tauri/src/ src-tauri/capabilities/ src-tauri/gen/schemas/ package.json pnpm-lock.yaml src-tauri/Cargo.toml src-tauri/Cargo.lock src/browser-extension/manifest.ts` 应 0 命中
+- [x] 7.13 `pnpm install` + `pnpm exec tsc --noEmit` + `cargo check --manifest-path src-tauri/Cargo.toml` 全部通过
 
 ## 8. 删除 alwaysShowIcons / autoTranslate / selectInputElementsText / hideTheIconInTheDock / autoHideWindowWhenOutOfFocus
 

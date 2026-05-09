@@ -6,8 +6,6 @@ import { Select } from 'baseui-sd/select'
 import { Textarea } from 'baseui-sd/textarea'
 import { useTranslation } from 'react-i18next'
 import { ProviderConfig, ProviderProtocol } from '../types'
-import { getEngine } from '../engines'
-import { filterChatModels } from '../engines/model-filter'
 import { useTheme } from '../hooks/useTheme'
 
 const protocolOptions: { id: ProviderProtocol; labelKey: string }[] = [
@@ -66,13 +64,9 @@ export function ProviderForm({ initialValue, onCancel, onSave }: ProviderFormPro
     const [protocol, setProtocol] = useState<ProviderProtocol>(initialValue?.protocol ?? 'openai-chat')
     const [apiKey, setAPIKey] = useState(initialValue?.apiKey ?? '')
     const [endpoint, setEndpoint] = useState(initialValue?.endpoint ?? '')
-    const [model, setModel] = useState(initialValue?.model ?? '')
     const [extraHeaders, setExtraHeaders] = useState(
         initialValue?.extraHeaders ? JSON.stringify(initialValue.extraHeaders, null, 2) : ''
     )
-    const [modelOptions, setModelOptions] = useState<string[]>(initialValue?.model ? [initialValue.model] : [])
-    const [isRefreshingModels, setIsRefreshingModels] = useState(false)
-    const [hasAutoRefreshed, setHasAutoRefreshed] = useState(Boolean(initialValue))
     const [showAdvanced, setShowAdvanced] = useState(Boolean(initialValue?.extraHeaders))
 
     const translatedProtocolOptions = useMemo(
@@ -83,40 +77,6 @@ export function ProviderForm({ initialValue, onCancel, onSave }: ProviderFormPro
         () => translatedProtocolOptions.find((option) => option.id === protocol),
         [protocol, translatedProtocolOptions]
     )
-    const selectedModelOption = useMemo(() => (model ? [{ id: model, label: model }] : []), [model])
-
-    const refreshModels = useCallback(async () => {
-        if (!apiKey.trim()) {
-            return
-        }
-        setIsRefreshingModels(true)
-        try {
-            const engine = getEngine({
-                id: initialValue?.id ?? 'preview-provider',
-                name: name.trim() || 'Provider',
-                protocol,
-                apiKey: apiKey.trim(),
-                endpoint: endpoint.trim() || undefined,
-                model: model.trim() || 'model',
-                extraHeaders: parseExtraHeaders(extraHeaders),
-            })
-            const models = await engine.listModels()
-            const ids = filterChatModels(models.map((item) => item.id))
-            setModelOptions(ids)
-            if (!model && ids[0]) {
-                setModel(ids[0])
-            }
-            if (ids.length === 0) {
-                toast(t('Unable to fetch model list. Please enter the model name manually.'))
-            }
-        } catch (error) {
-            toast(error instanceof Error ? t(error.message) : t('Unable to fetch model list. Please enter manually.'))
-        } finally {
-            setIsRefreshingModels(false)
-            setHasAutoRefreshed(true)
-        }
-    }, [apiKey, endpoint, extraHeaders, initialValue?.id, model, name, protocol, t])
-
     const handleSave = useCallback(() => {
         if (!name.trim()) {
             toast(t('Provider name is required.'))
@@ -124,10 +84,6 @@ export function ProviderForm({ initialValue, onCancel, onSave }: ProviderFormPro
         }
         if (!apiKey.trim()) {
             toast(t('API Key is required.'))
-            return
-        }
-        if (!model.trim()) {
-            toast(t('Model name is required.'))
             return
         }
         if (!isValidEndpoint(endpoint)) {
@@ -142,13 +98,25 @@ export function ProviderForm({ initialValue, onCancel, onSave }: ProviderFormPro
                 protocol,
                 apiKey: apiKey.trim(),
                 endpoint: endpoint.trim() || undefined,
-                model: model.trim(),
+                model: initialValue?.model ?? '',
+                modelOptions: initialValue?.modelOptions ?? [],
                 extraHeaders: parsedHeaders,
             })
         } catch (error) {
             toast(error instanceof Error ? t(error.message) : t('Extra headers must be valid JSON.'))
         }
-    }, [apiKey, endpoint, extraHeaders, initialValue?.id, model, name, onSave, protocol, t])
+    }, [
+        apiKey,
+        endpoint,
+        extraHeaders,
+        initialValue?.id,
+        initialValue?.model,
+        initialValue?.modelOptions,
+        name,
+        onSave,
+        protocol,
+        t,
+    ])
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -161,6 +129,7 @@ export function ProviderForm({ initialValue, onCancel, onSave }: ProviderFormPro
             <Select
                 size='compact'
                 clearable={false}
+                searchable={false}
                 options={translatedProtocolOptions}
                 value={selectedProtocolOption ? [selectedProtocolOption] : []}
                 onChange={({ option }) => option?.id && setProtocol(option.id as ProviderProtocol)}
@@ -171,11 +140,6 @@ export function ProviderForm({ initialValue, onCancel, onSave }: ProviderFormPro
                 value={apiKey}
                 placeholder={t('API Key')}
                 onChange={(event) => setAPIKey(event.currentTarget.value)}
-                onBlur={() => {
-                    if (!hasAutoRefreshed) {
-                        void refreshModels()
-                    }
-                }}
             />
             <Input
                 size='compact'
@@ -185,29 +149,6 @@ export function ProviderForm({ initialValue, onCancel, onSave }: ProviderFormPro
             />
             <div style={{ color: theme.colors.contentSecondary, fontSize: 12 }}>
                 {t('Official endpoint')}: {defaultEndpointByProtocol[protocol]}
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1 }}>
-                    <Select
-                        size='compact'
-                        creatable
-                        options={modelOptions.map((id) => ({ id, label: id }))}
-                        value={selectedModelOption}
-                        placeholder={t('Model')}
-                        onChange={({ value }) => {
-                            const nextModel = value[0]?.id
-                            setModel(typeof nextModel === 'string' ? nextModel : '')
-                        }}
-                    />
-                </div>
-                <Button
-                    type='button'
-                    size='compact'
-                    isLoading={isRefreshingModels}
-                    onClick={() => void refreshModels()}
-                >
-                    {t('Refresh')}
-                </Button>
             </div>
             <Button type='button' size='mini' kind='tertiary' onClick={() => setShowAdvanced((value) => !value)}>
                 {t('Advanced')}

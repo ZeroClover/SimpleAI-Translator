@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import _ from 'underscore'
 import { Tabs, Tab, StyledTabList, StyledTabPanel } from 'baseui-sd/tabs-motion'
 import icon from '../assets/images/icon-large.png'
@@ -19,6 +19,7 @@ import {
     ISettings,
     IThemedStyleProps,
     LanguageDetectionEngine,
+    ModelSelection,
     ProviderConfig,
     ProxyProtocol,
     ThemeType,
@@ -47,7 +48,7 @@ import { ProxyTester } from './ProxyTester'
 import NumberInput from './NumberInput'
 import { ProviderForm, ProviderFormValue } from './ProviderForm'
 import { v4 as uuidv4 } from 'uuid'
-import { filterTTSModels } from '../engines/model-filter'
+import { filterChatModels, filterTTSModels } from '../engines/model-filter'
 import { getEngine } from '../engines'
 
 const langOptions: Value = supportedLanguages.reduce((acc, [id, label]) => {
@@ -1011,14 +1012,74 @@ const useStyles = createUseStyles({
 interface LLMProvidersSettingsProps {
     providers: ProviderConfig[]
     defaultProviderId: string | null
-    onChange(providers: ProviderConfig[], defaultProviderId: string | null): void
+    defaultModel: ModelSelection | null
+    onChange(providers: ProviderConfig[], defaultProviderId: string | null, defaultModel: ModelSelection | null): void
 }
 
-function LLMProvidersSettings({ providers, defaultProviderId, onChange }: LLMProvidersSettingsProps) {
+function LLMProvidersSettings({ providers, defaultProviderId, defaultModel, onChange }: LLMProvidersSettingsProps) {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const [editingProvider, setEditingProvider] = useState<ProviderConfig | null>(null)
     const [isAddingProvider, setIsAddingProvider] = useState(false)
+    const [refreshingProviderId, setRefreshingProviderId] = useState<string | null>(null)
+    const activeProviderId = defaultModel?.providerId ?? defaultProviderId
+    const activeProvider = useMemo(
+        () => providers.find((provider) => provider.id === activeProviderId),
+        [activeProviderId, providers]
+    )
+
+    const modelOptions = useMemo(() => {
+        if (!activeProvider) {
+            return []
+        }
+        const models = Array.from(
+            new Set([activeProvider.model, ...(activeProvider.modelOptions ?? [])].filter(Boolean))
+        )
+        return models.map((model) => ({
+            id: `${activeProvider.id}:${model}`,
+            label: model,
+            providerId: activeProvider.id,
+            model,
+        }))
+    }, [activeProvider])
+    const selectedModelOption = useMemo(
+        () =>
+            defaultModel
+                ? modelOptions.find(
+                      (option) => option.providerId === defaultModel.providerId && option.model === defaultModel.model
+                  ) ?? {
+                      id: `${defaultModel.providerId}:${defaultModel.model}`,
+                      label: defaultModel.model,
+                      providerId: defaultModel.providerId,
+                      model: defaultModel.model,
+                  }
+                : undefined,
+        [defaultModel, modelOptions]
+    )
+    const dropdownOverrides = useMemo(
+        () => ({
+            ValueContainer: {
+                style: {
+                    minWidth: 0,
+                    overflow: 'hidden',
+                },
+            },
+            SingleValue: {
+                style: {
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                },
+            },
+            Dropdown: {
+                props: {
+                    onWheel: (event: React.WheelEvent) => event.stopPropagation(),
+                },
+            },
+        }),
+        []
+    )
 
     const closeForm = useCallback(() => {
         setEditingProvider(null)
@@ -1034,10 +1095,10 @@ function LLMProvidersSettings({ providers, defaultProviderId, onChange }: LLMPro
             const nextProviders = value.id
                 ? providers.map((item) => (item.id === value.id ? provider : item))
                 : [...providers, provider]
-            onChange(nextProviders, defaultProviderId ?? provider.id)
+            onChange(nextProviders, defaultProviderId ?? provider.id, defaultModel)
             closeForm()
         },
-        [closeForm, defaultProviderId, onChange, providers]
+        [closeForm, defaultModel, defaultProviderId, onChange, providers]
     )
 
     const deleteProvider = useCallback(
@@ -1045,9 +1106,82 @@ function LLMProvidersSettings({ providers, defaultProviderId, onChange }: LLMPro
             const nextProviders = providers.filter((provider) => provider.id !== providerId)
             const nextDefaultProviderId =
                 defaultProviderId === providerId ? nextProviders[0]?.id ?? null : defaultProviderId
-            onChange(nextProviders, nextDefaultProviderId)
+            const fallbackProvider = nextProviders.find((provider) => provider.model)
+            const nextDefaultModel =
+                defaultModel?.providerId === providerId && fallbackProvider
+                    ? {
+                          providerId: fallbackProvider.id,
+                          model: fallbackProvider.model,
+                      }
+                    : defaultModel?.providerId === providerId
+                    ? null
+                    : defaultModel
+            onChange(nextProviders, nextDefaultProviderId, nextDefaultModel)
         },
-        [defaultProviderId, onChange, providers]
+        [defaultModel, defaultProviderId, onChange, providers]
+    )
+
+    const activateProvider = useCallback(
+        (provider: ProviderConfig) => {
+            const model = provider.modelOptions?.[0] ?? provider.model
+            onChange(
+                providers,
+                provider.id,
+                model
+                    ? {
+                          providerId: provider.id,
+                          model,
+                      }
+                    : defaultModel
+            )
+        },
+        [defaultModel, onChange, providers]
+    )
+
+    const refreshProviderModels = useCallback(
+        async (provider: ProviderConfig) => {
+            if (!provider.apiKey.trim()) {
+                toast(t('API Key is required.'))
+                return
+            }
+            setRefreshingProviderId(provider.id)
+            try {
+                const models = await getEngine({
+                    ...provider,
+                    model: provider.model || 'model',
+                }).listModels()
+                const ids = filterChatModels(models.map((model) => model.id))
+                const nextProviders = providers.map((item) => {
+                    if (item.id !== provider.id) {
+                        return item
+                    }
+                    return {
+                        ...item,
+                        modelOptions: ids,
+                        model: item.model || ids[0] || '',
+                    }
+                })
+                const nextDefaultModel =
+                    defaultModel && defaultModel.providerId === provider.id
+                        ? ids.includes(defaultModel.model)
+                            ? defaultModel
+                            : ids[0]
+                            ? { providerId: provider.id, model: ids[0] }
+                            : defaultModel
+                        : defaultModel ?? (ids[0] ? { providerId: provider.id, model: ids[0] } : null)
+                onChange(nextProviders, defaultProviderId ?? provider.id, nextDefaultModel)
+                if (ids.length === 0) {
+                    toast(t('Unable to fetch model list. Please enter the model name manually.'))
+                }
+            } catch (error) {
+                toast(
+                    error instanceof Error ? t(error.message) : t('Unable to fetch model list. Please enter manually.')
+                )
+            } finally {
+                setRefreshingProviderId(null)
+            }
+        },
+        [defaultModel, defaultProviderId, onChange, providers, t]
     )
 
     return (
@@ -1072,34 +1206,67 @@ function LLMProvidersSettings({ providers, defaultProviderId, onChange }: LLMPro
                     key={provider.id}
                     style={{
                         display: 'flex',
-                        alignItems: 'center',
+                        alignItems: 'flex-start',
                         justifyContent: 'space-between',
                         gap: 10,
                         padding: '8px 10px',
-                        border: `1px solid ${theme.colors.borderOpaque}`,
+                        border: `1px solid ${
+                            provider.id === activeProviderId ? theme.colors.accent : theme.colors.borderOpaque
+                        }`,
                         borderRadius: 8,
+                        background:
+                            provider.id === activeProviderId
+                                ? theme.colors.backgroundSecondary
+                                : theme.colors.backgroundPrimary,
                     }}
                 >
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <div style={{ color: theme.colors.contentPrimary, fontWeight: 600 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                color: theme.colors.contentPrimary,
+                                fontWeight: 600,
+                            }}
+                        >
                             {provider.name}
-                            {provider.id === defaultProviderId ? ` · ${t('Default')}` : ''}
-                        </div>
-                        <div style={{ color: theme.colors.contentSecondary, fontSize: 12 }}>
-                            {provider.protocol} · {provider.endpoint || t('Official endpoint')} · {provider.model}
+                            {provider.id === activeProviderId && (
+                                <span
+                                    style={{
+                                        borderRadius: 999,
+                                        padding: '2px 8px',
+                                        color: theme.colors.accent,
+                                        background: theme.colors.backgroundPrimary,
+                                        fontSize: 11,
+                                        fontWeight: 600,
+                                    }}
+                                >
+                                    {t('In use')}
+                                </span>
+                            )}
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                        {provider.id !== defaultProviderId && (
+                        {provider.id !== activeProviderId && (
                             <Button
                                 type='button'
                                 size='mini'
                                 kind='secondary'
-                                onClick={() => onChange(providers, provider.id)}
+                                onClick={() => activateProvider(provider)}
                             >
-                                {t('Set default')}
+                                {t('Use')}
                             </Button>
                         )}
+                        <Button
+                            type='button'
+                            size='mini'
+                            kind='secondary'
+                            isLoading={refreshingProviderId === provider.id}
+                            onClick={() => void refreshProviderModels(provider)}
+                        >
+                            {t('Refresh')}
+                        </Button>
                         <Button type='button' size='mini' kind='secondary' onClick={() => setEditingProvider(provider)}>
                             {t('Edit')}
                         </Button>
@@ -1109,6 +1276,49 @@ function LLMProvidersSettings({ providers, defaultProviderId, onChange }: LLMPro
                     </div>
                 </div>
             ))}
+            {providers.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ color: theme.colors.contentPrimary, fontWeight: 600 }}>{t('Model')}</div>
+                    <Select
+                        size='compact'
+                        creatable
+                        options={modelOptions}
+                        value={selectedModelOption ? [selectedModelOption] : []}
+                        placeholder={t('Model')}
+                        overrides={dropdownOverrides}
+                        getValueLabel={({ option }) => (
+                            <div
+                                style={{
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                }}
+                                title={String(option.label ?? '')}
+                            >
+                                {option.label}
+                            </div>
+                        )}
+                        onChange={({ value }) => {
+                            const option = value[0]
+                            if (!option) {
+                                onChange(providers, defaultProviderId, null)
+                                return
+                            }
+                            const providerId = option.providerId as string | undefined
+                            const model = option.model as string | undefined
+                            if (providerId && model) {
+                                onChange(providers, providerId, { providerId, model })
+                                return
+                            }
+                            const selectedModel = option.id
+                            if (typeof selectedModel === 'string') {
+                                const providerId = defaultModel?.providerId ?? defaultProviderId ?? providers[0].id
+                                onChange(providers, providerId, { providerId, model: selectedModel })
+                            }
+                        }}
+                    />
+                </div>
+            )}
             {(isAddingProvider || editingProvider) && (
                 <ProviderForm initialValue={editingProvider ?? undefined} onCancel={closeForm} onSave={saveProvider} />
             )}
@@ -1152,6 +1362,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
     const { settings, setSettings } = useSettings()
     const [values, setValues] = useState<ISettings>(settings)
     const [prevValues, setPrevValues] = useState<ISettings>(values)
+    const valuesRef = useRef(values)
 
     const [form] = useForm()
 
@@ -1166,19 +1377,37 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                     const { isEnabled: autostartIsEnabled } = await import('@tauri-apps/plugin-autostart')
                     settings.runAtStartup = await autostartIsEnabled()
                 }
+                valuesRef.current = settings
                 setValues(settings)
                 setPrevValues(settings)
             })()
         }
     }, [isTauri, settings])
 
-    const onChange = useCallback((_changes: Partial<ISettings>, values_: ISettings) => {
-        setValues(values_)
+    const mergeFormValues = useCallback((baseValues: ISettings, formValues: ISettings) => {
+        return utils.normalizeSettings({
+            ...baseValues,
+            ...formValues,
+            proxy: formValues.proxy ? { ...baseValues.proxy, ...formValues.proxy } : baseValues.proxy,
+            tts: formValues.tts ? { ...baseValues.tts, ...formValues.tts } : baseValues.tts,
+        })
     }, [])
+
+    const onChange = useCallback(
+        (_changes: Partial<ISettings>, values_: ISettings) => {
+            setValues((currentValues) => {
+                const nextValues = mergeFormValues(currentValues, values_)
+                valuesRef.current = nextValues
+                return nextValues
+            })
+        },
+        [mergeFormValues]
+    )
 
     const onSubmit = useCallback(
         async (data: ISettings) => {
             setLoading(true)
+            const nextSettings = mergeFormValues(valuesRef.current, data)
             const oldSettings = await utils.getSettings()
             if (isTauri) {
                 try {
@@ -1187,19 +1416,19 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         disable: autostartDisable,
                         isEnabled: autostartIsEnabled,
                     } = await import('@tauri-apps/plugin-autostart')
-                    if (data.runAtStartup) {
+                    if (nextSettings.runAtStartup) {
                         await autostartEnable()
                     } else {
                         await autostartDisable()
                     }
-                    data.runAtStartup = await autostartIsEnabled()
+                    nextSettings.runAtStartup = await autostartIsEnabled()
                 } catch (e) {
                     console.log('err', e)
                 }
             }
-            await utils.setSettings(data)
+            await utils.setSettings(nextSettings)
 
-            if (data.themeType) {
+            if (nextSettings.themeType) {
                 refreshThemeType()
             }
 
@@ -1208,15 +1437,18 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                 duration: 3000,
             })
             setLoading(false)
-            setSettings(data)
+            valuesRef.current = nextSettings
+            setPrevValues(nextSettings)
+            setSettings(nextSettings)
             onSave?.(oldSettings)
         },
-        [isTauri, onSave, setSettings, refreshThemeType, t]
+        [isTauri, onSave, setSettings, refreshThemeType, t, mergeFormValues]
     )
 
     const persistSettings = useCallback(
         async (nextValues: ISettings) => {
             await utils.setSettings(nextValues)
+            valuesRef.current = nextValues
             setPrevValues(nextValues)
             setSettings(nextValues)
         },
@@ -1230,16 +1462,19 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
     }, [persistSettings, prevValues, values])
 
     const handleLLMProvidersChange = useCallback(
-        (providers: ProviderConfig[], defaultProviderId: string | null) => {
+        (providers: ProviderConfig[], defaultProviderId: string | null, defaultModel: ModelSelection | null) => {
             const nextValues = {
                 ...values,
                 providers,
                 defaultProviderId,
+                defaultModel,
             }
             form.setFieldsValue({
                 providers,
                 defaultProviderId,
+                defaultModel,
             })
+            valuesRef.current = nextValues
             setValues(nextValues)
             void persistSettings(nextValues)
         },
@@ -1518,6 +1753,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                             <LLMProvidersSettings
                                 providers={values.providers ?? []}
                                 defaultProviderId={values.defaultProviderId ?? null}
+                                defaultModel={values.defaultModel ?? null}
                                 onChange={handleLLMProvidersChange}
                             />
                         </div>
@@ -1632,6 +1868,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         }}
                     />
                     <Button
+                        type='button'
                         isLoading={loading}
                         size='mini'
                         startEnhancer={<IoIosSave size={12} />}

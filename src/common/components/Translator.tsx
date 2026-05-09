@@ -18,14 +18,21 @@ import { clsx } from 'clsx'
 import { Button } from 'baseui-sd/button'
 import { ErrorBoundary } from 'react-error-boundary'
 import { ErrorFallback } from '../components/ErrorFallback'
-import { isOpenAIOfficialProvider, isDesktopApp, isTauri, isBrowserExtensionContentScript, isMacOS } from '../utils'
+import {
+    isOpenAIOfficialProvider,
+    isDesktopApp,
+    isTauri,
+    isBrowserExtensionContentScript,
+    isMacOS,
+    setSettings as persistSettings,
+} from '../utils'
 import { InnerSettings } from './Settings'
 import { containerID, popupCardInnerContainerId } from '../../browser-extension/content_script/consts'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import IpLocationNotification from '../components/IpLocationNotification'
 import { HighlightInTextarea } from '../highlight-in-textarea'
 import { LRUCache } from 'lru-cache'
-import { ISettings, IThemedStyleProps } from '../types'
+import { ISettings, IThemedStyleProps, ModelSelection } from '../types'
 import { useTheme } from '../hooks/useTheme'
 import { Tooltip } from './Tooltip'
 import { useSettings } from '../hooks/useSettings'
@@ -69,6 +76,39 @@ function genLangOptions(langs: [LangCode, string][]): Value {
 }
 const sourceLangOptions = genLangOptions(sourceLanguages)
 const targetLangOptions = genLangOptions(targetLanguages)
+
+function getProviderModelOptions(provider: ISettings['providers'][number] | undefined) {
+    if (!provider) {
+        return []
+    }
+    const models = Array.from(new Set([provider.model, ...(provider.modelOptions ?? [])].filter(Boolean)))
+    return models.map((model) => ({
+        id: `${provider.id}:${model}`,
+        label: model,
+        providerId: provider.id,
+        model,
+    }))
+}
+
+function resolveModelSelection(settings: ISettings): ModelSelection | null {
+    if (
+        settings.defaultModel &&
+        settings.providers.some((provider) => provider.id === settings.defaultModel?.providerId) &&
+        settings.defaultModel.model
+    ) {
+        return settings.defaultModel
+    }
+    const provider =
+        settings.providers.find((item) => item.id === settings.defaultProviderId && item.model) ??
+        settings.providers.find((item) => item.model)
+    if (!provider) {
+        return null
+    }
+    return {
+        providerId: provider.id,
+        model: provider.model,
+    }
+}
 
 const useStyles = createUseStyles({
     'popupCard': {
@@ -201,9 +241,11 @@ const useStyles = createUseStyles({
     'popupCardHeaderActionsContainer': (props: IThemedStyleProps) => ({
         'box-sizing': 'border-box',
         'display': 'flex',
-        'flexShrink': 0,
+        'flex': 1,
+        'minWidth': 0,
         'flexDirection': 'row',
         'alignItems': 'center',
+        'justifyContent': 'flex-end',
         'padding': props.showLogo ? '5px 10px' : '5px 10px 5px 0px',
         'gap': '10px',
         '@media screen and (max-width: 460px)': {
@@ -499,31 +541,40 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const [selectedWord, setSelectedWord] = useState('')
     const highlightRef = useRef<HighlightInTextarea | null>(null)
     const { t, i18n } = useTranslation()
-    const { settings } = useSettings()
-    const providerOptions = useMemo(
-        () =>
-            settings.providers.map((provider) => ({
-                id: provider.id,
-                label: provider.name,
-            })),
-        [settings.providers]
-    )
-    const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
-        settings.defaultProviderId ?? settings.providers[0]?.id ?? null
-    )
+    const { settings, setSettings } = useSettings()
+    const [selectedModel, setSelectedModel] = useState<ModelSelection | null>(() => resolveModelSelection(settings))
     const selectedProvider = useMemo(
-        () => settings.providers.find((provider) => provider.id === selectedProviderId),
-        [selectedProviderId, settings.providers]
+        () => settings.providers.find((provider) => provider.id === selectedModel?.providerId),
+        [selectedModel?.providerId, settings.providers]
+    )
+    const modelOptions = useMemo(() => getProviderModelOptions(selectedProvider), [selectedProvider])
+    const selectedModelOption = useMemo(
+        () =>
+            selectedModel
+                ? modelOptions.find(
+                      (option) => option.providerId === selectedModel.providerId && option.model === selectedModel.model
+                  ) ?? {
+                      id: `${selectedModel.providerId}:${selectedModel.model}`,
+                      label: selectedModel.model,
+                      providerId: selectedModel.providerId,
+                      model: selectedModel.model,
+                  }
+                : undefined,
+        [modelOptions, selectedModel]
     )
 
     useEffect(() => {
-        setSelectedProviderId((currentProviderId) => {
-            if (currentProviderId && settings.providers.some((provider) => provider.id === currentProviderId)) {
-                return currentProviderId
+        setSelectedModel((currentModel) => {
+            if (
+                currentModel &&
+                settings.providers.some((provider) => provider.id === currentModel.providerId) &&
+                currentModel.model
+            ) {
+                return currentModel
             }
-            return settings.defaultProviderId ?? settings.providers[0]?.id ?? null
+            return resolveModelSelection(settings)
         })
-    }, [settings.defaultProviderId, settings.providers])
+    }, [settings])
 
     useEffect(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -676,10 +727,24 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     useEffect(() => {
         setTranslateDeps((prev) => ({
             ...prev,
-            providerId: selectedProvider?.id,
-            engineModel: selectedProvider?.model,
+            providerId: selectedModel?.providerId,
+            engineModel: selectedModel?.model,
         }))
-    }, [selectedProvider?.id, selectedProvider?.model])
+    }, [selectedModel?.model, selectedModel?.providerId])
+
+    const changeSelectedModel = useCallback(
+        (model: ModelSelection) => {
+            setSelectedModel(model)
+            const nextSettings = {
+                ...settings,
+                defaultProviderId: model.providerId,
+                defaultModel: model,
+            }
+            setSettings(nextSettings)
+            void persistSettings(nextSettings)
+        },
+        [setSettings, settings]
+    )
 
     const getTranslateDeps = useCallback(
         async function (text: string): Promise<typeof translateDeps> {
@@ -709,8 +774,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             sourceLang: newSourceLang,
                             targetLang: newTargetLang,
                             text,
-                            providerId: selectedProvider?.id,
-                            engineModel: selectedProvider?.model,
+                            providerId: selectedModel?.providerId,
+                            engineModel: selectedModel?.model,
                         }
                         resolve(newV)
                         return oldV
@@ -719,7 +784,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 })
             })
         },
-        [selectedProvider?.id, selectedProvider?.model, settings.defaultTargetLanguage]
+        [selectedModel?.model, selectedModel?.providerId, settings.defaultTargetLanguage]
     )
 
     const { externalOriginalText } = useTranslatorStore()
@@ -744,7 +809,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             ;(async () => {
                 // use dynamic import to reduce bundle size
                 const { countTokens } = await import('../token')
-                setTokenCount(countTokens(editableText, selectedProvider?.model))
+                setTokenCount(countTokens(editableText, selectedModel?.model))
             })()
         },
         [editableText],
@@ -762,8 +827,14 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         setIsLoading(false)
     }, [])
     const [sourceLang, setSourceLang] = useState<LangCode>('en')
-    const [targetLang, setTargetLang] = useState<LangCode>()
+    const [targetLang, setTargetLang] = useState<LangCode>(settings.defaultTargetLanguage as LangCode)
     const stopAutomaticallyChangeTargetLang = useRef(false)
+
+    useEffect(() => {
+        if (!stopAutomaticallyChangeTargetLang.current) {
+            setTargetLang(settings.defaultTargetLanguage as LangCode)
+        }
+    }, [settings.defaultTargetLanguage])
 
     const [actionStr, setActionStr] = useState('')
 
@@ -854,8 +925,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             translatedText: resultText,
                         })
                     } else {
-                        const providerId = translateDeps.providerId ?? selectedProvider?.id
-                        const model = translateDeps.engineModel ?? selectedProvider?.model
+                        const providerId = translateDeps.providerId ?? selectedModel?.providerId
+                        const model = translateDeps.engineModel ?? selectedModel?.model
                         if (!providerId || !model) {
                             return
                         }
@@ -925,7 +996,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     selectedWord,
                     detectFrom: sourceLang,
                     detectTo: targetLang,
-                    providerId: translateDeps.providerId ?? selectedProvider?.id,
+                    providerId: translateDeps.providerId ?? selectedModel?.providerId,
+                    model: translateDeps.engineModel ?? selectedModel?.model,
                     onStatusCode: () => {},
                     onMessage: async (message) => {
                         if (!message.content) {
@@ -968,7 +1040,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 }
             }
         },
-        [selectedProvider?.id, selectedProvider?.model, translateDeps, translationFlag, startLoading, stopLoading, t]
+        [selectedModel?.model, selectedModel?.providerId, translateDeps, translationFlag, startLoading, stopLoading, t]
     )
 
     const translateControllerRef = useRef<AbortController | null>(null)
@@ -998,19 +1070,22 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     ? item.providerId
                     : undefined
                 if (providerIdFromHistory) {
-                    setSelectedProviderId(providerIdFromHistory)
+                    setSelectedModel({
+                        providerId: providerIdFromHistory,
+                        model: item.model,
+                    })
                 }
                 return {
                     ...prev,
                     text: item.sourceText,
                     sourceLang: item.fromLang,
                     targetLang: item.toLang,
-                    providerId: providerIdFromHistory ?? prev.providerId ?? selectedProviderId ?? undefined,
+                    providerId: providerIdFromHistory ?? prev.providerId ?? selectedModel?.providerId ?? undefined,
                     engineModel: item.model ?? prev.engineModel,
                 }
             })
         },
-        [selectedProviderId, settings.providers]
+        [selectedModel?.providerId, settings.providers]
     )
 
     useEffect(() => {
@@ -1121,7 +1196,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             return false
         }
 
-        if (!selectedProvider) {
+        if (!selectedProvider || !selectedModel?.model) {
             return false
         }
 
@@ -1136,9 +1211,9 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         (e: React.SyntheticEvent<HTMLButtonElement> | React.KeyboardEvent<HTMLTextAreaElement>) => {
             e.preventDefault()
             e.stopPropagation()
-            if (!selectedProvider) {
+            if (!selectedProvider || !selectedModel?.model) {
                 setActionStr('Error')
-                setErrorMessage(t('Please add an LLM Provider in settings first.'))
+                setErrorMessage(t('Please select a model in settings first.'))
                 return
             }
             const text = editorRef.current?.value ?? ''
@@ -1146,7 +1221,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 setTranslateDeps(v)
             })
         },
-        [getTranslateDeps, selectedProvider, t]
+        [getTranslateDeps, selectedModel?.model, selectedProvider, t]
     )
 
     const getFooterBackgroundColor = useCallback(() => {
@@ -1269,27 +1344,63 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                     }}
                                 />
                             </div>
-                            {providerOptions.length > 0 && (
-                                <div className={styles.to}>
+                            {modelOptions.length > 0 && (
+                                <div
+                                    className={styles.to}
+                                    style={{
+                                        flex: '1 1 0',
+                                        minWidth: 0,
+                                    }}
+                                >
                                     <Select
                                         size='mini'
                                         clearable={false}
-                                        options={providerOptions}
-                                        value={
-                                            selectedProvider
-                                                ? [{ id: selectedProvider.id, label: selectedProvider.name }]
-                                                : []
-                                        }
+                                        options={modelOptions}
+                                        value={selectedModelOption ? [selectedModelOption] : []}
+                                        getValueLabel={({ option }) => (
+                                            <div
+                                                style={{
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap',
+                                                }}
+                                                title={String(option.label ?? '')}
+                                            >
+                                                {option.label}
+                                            </div>
+                                        )}
                                         overrides={{
                                             Root: {
                                                 style: {
-                                                    minWidth: '130px',
+                                                    width: '100%',
+                                                    minWidth: 0,
+                                                },
+                                            },
+                                            ValueContainer: {
+                                                style: {
+                                                    minWidth: 0,
+                                                    overflow: 'hidden',
+                                                },
+                                            },
+                                            SingleValue: {
+                                                style: {
+                                                    minWidth: 0,
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap',
                                                 },
                                             },
                                         }}
                                         onChange={({ value }) => {
-                                            const providerId = value.length > 0 ? value[0].id : providerOptions[0].id
-                                            setSelectedProviderId(providerId as string)
+                                            const option = value[0]
+                                            if (!option) {
+                                                return
+                                            }
+                                            const providerId = option.providerId
+                                            const model = option.model
+                                            if (typeof providerId === 'string' && typeof model === 'string') {
+                                                changeSelectedModel({ providerId, model })
+                                            }
                                         }}
                                     />
                                 </div>
@@ -1307,7 +1418,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                 <IpLocationNotification showSettings={showSettings} />
                             </div>
                         )}
-                        {providerOptions.length === 0 && (
+                        {settings.providers.length === 0 && (
                             <div
                                 style={{
                                     margin: '0 0 10px',
@@ -1699,7 +1810,9 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     {!showSettings && (
                         <div className={styles.poweredBy}>
                             {selectedProvider
-                                ? `${t('Provider')}: ${selectedProvider.name} · ${selectedProvider.model}`
+                                ? `${t('Provider')}: ${selectedProvider.name} · ${t('Model')}: ${
+                                      selectedModel?.model ?? ''
+                                  }`
                                 : t('No LLM Provider')}
                         </div>
                     )}

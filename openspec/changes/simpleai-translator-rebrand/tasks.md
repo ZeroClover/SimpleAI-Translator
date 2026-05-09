@@ -86,10 +86,10 @@
 
 ## 9. 产品名 i18n 与文档替换
 
-- [ ] 9.1 在所有 `src/common/i18n/locales/<lang>/translation.json` 中,把 value 字符串中的 `NextAI Translator` 替换为 `SimpleAI Translator`
-- [ ] 9.2 检查每个 locale 文件 key 集合一致(可用 `jq -r 'keys' file.json | sort` 比较各 locale 文件)
-- [ ] 9.3 可更新 `README.md` / `README-CN.md` 的产品名、功能列表与升级说明;不得修改 GitHub 远程 URL、徽章链接或 Releases 链接
-- [ ] 9.4 更新 `AGENTS.md` 中的产品名引用、隐私/遥测描述、保留功能清单(若该文件在本仓库需要同步)
+- [x] 9.1 在所有 `src/common/i18n/locales/<lang>/translation.json` 中,把 value 字符串中的 `NextAI Translator` 替换为 `SimpleAI Translator`
+- [x] 9.2 检查每个 locale 文件 key 集合一致(可用 `jq -r 'keys' file.json | sort` 比较各 locale 文件)
+- [x] 9.3 可更新 `README.md` / `README-CN.md` 的产品名、功能列表与升级说明;不得修改 GitHub 远程 URL、徽章链接或 Releases 链接
+- [x] 9.4 更新 `AGENTS.md` 中的产品名引用、隐私/遥测描述、保留功能清单(若该文件在本仓库需要同步)
 
 ## 10. 测试与守卫脚本
 

@@ -1,10 +1,10 @@
-# NextAI Translator
+# SimpleAI Translator
 
 <p align="center">
     <br> <a href="README.md">English</a> | 中文
 </p>
 
-NextAI Translator 是同时支持浏览器扩展和桌面端的翻译工具。1.0 版本重新聚焦于翻译、语言检测、翻译历史与文本朗读。
+SimpleAI Translator 是同时支持浏览器扩展和桌面端的翻译工具。1.0 版本重新聚焦于翻译、语言检测、翻译历史与文本朗读。
 
 ## 功能
 
@@ -19,7 +19,7 @@ NextAI Translator 是同时支持浏览器扩展和桌面端的翻译工具。1.
 
 ## LLM Provider
 
-NextAI Translator 1.0 按协议配置 Provider，不再按厂商模板配置。当前支持三种协议：
+SimpleAI Translator 1.0 按协议配置 Provider，不再按厂商模板配置。当前支持三种协议：
 
 -   `openai-chat`：兼容 OpenAI Chat Completions API。
 -   `openai-responses`：兼容 OpenAI Responses API。
@@ -41,7 +41,9 @@ OpenAI TTS 会复用已有的 `openai-chat` 或 `openai-responses` Provider，�
 
 ## 1.0 破坏性变更
 
-1.0 版本移除了 OCR、写作助手、生词本、自定义 Action、远程推广提示，以及旧的润色、总结、分析、代码解释模式。旧 Provider 设置和旧历史数据不会迁移。全新启动时默认没有 Provider，需要先在设置中添加 LLM Provider 后才能翻译。
+1.0 版本将桌面端 Bundle ID 改为 `io.zeroclover.app.simpleai-translator`，并按全新应用处理。旧 Provider 设置和旧历史数据不会迁移；全新启动时默认没有 Provider，需要先在设置中添加 LLM Provider 后才能翻译。
+
+1.0 版本移除了 OCR、写作助手、生词本、自定义 Action、远程推广提示、赞助入口、遥测、全局快捷键、自动翻译，以及选中文字后弹出浮标的触发路径。
 
 如需继续使用旧功能，可切换到 `v-pre-slim` 源码 tag：
 
@@ -58,14 +60,14 @@ https://github.com/nextai-translator/nextai-translator/tree/v-pre-slim
 ### macOS
 
 1. 在 [Latest Release](https://github.com/nextai-translator/nextai-translator/releases/latest) 页面下载对应芯片的 `.dmg` 安装包。
-2. 打开 `.dmg`，将 `NextAI Translator` 拖入 `Applications`。
+2. 打开 `.dmg`，将 `SimpleAI Translator` 拖入 `Applications`。
 
 如果 macOS 提示开发者无法验证，请打开 `设置` -> `隐私与安全性`，点击 `仍要打开`，再确认 `打开`。
 
 如果 Apple Silicon 版本提示文件损坏，请运行：
 
 ```sh
-sudo xattr -d com.apple.quarantine /Applications/NextAI\ Translator.app
+sudo xattr -d com.apple.quarantine /Applications/SimpleAI\ Translator.app
 ```
 
 ### 浏览器扩展

@@ -12,11 +12,13 @@
 - `src/common/components/Settings.tsx` and `src/common/components/ProviderForm.tsx` own LLM Provider management, model refresh, default Provider selection, and OpenAI TTS settings.
 - `src/common/tts/` owns TTS backends. OpenAI TTS is implemented in `openai-tts.ts` and reuses an existing OpenAI-compatible Provider instead of storing a separate API key.
 - `src/browser-extension/manifest.ts` and `src/common/universal-fetch.ts` cover extension permissions and fetch behavior, including optional host permissions for custom endpoints.
-- `src-tauri/` keeps native shell behavior such as global shortcuts, windows, tray, updates, and packaging; removed OCR and writing commands should not be reintroduced.
+- `src-tauri/` keeps native shell behavior such as windows, tray, updates, and packaging; removed global shortcuts, OCR, and writing commands should not be reintroduced.
 
 ## Removed Modules
 - OCR and screenshot translation have been removed, including Tesseract integration, screenshot windows, OCR hotkeys, and OCR native binaries.
 - Writing assistant, writing hotkeys, vocabulary book, custom Action management, and the old polishing/summarize/analyze/explain-code/big-bang modes have been removed.
+- Global shortcuts, automatic translation, selection-triggered floating icons, input word-selection triggers, Dock hiding, and auto-hide-on-blur behavior have been removed.
+- Telemetry and analytics integrations have been removed, including Sentry, Google Analytics, and Aptabase. Do not add passive analytics or telemetry SDKs.
 - Vendor-specific LLM engines and templates have been removed. Do not add Azure, Gemini, MiniMax, DeepSeek, Moonshot, ChatGLM, Cohere, Groq, Cerebras, Kimi, Ollama, or ChatGPT Web as built-in engines; use `openai-chat`, `openai-responses`, or `anthropic` with a user-supplied endpoint.
 - Remote promotion banners, promotion storage keys, and promotion analytics have been removed.
 

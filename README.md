@@ -1,10 +1,10 @@
-# NextAI Translator
+# SimpleAI Translator
 
 <p align="center">
     <br> English | <a href="README-CN.md">中文</a>
 </p>
 
-NextAI Translator is a cross-platform translator for browser extensions and desktop. Version 1.0 refocuses the app on translation, language detection, translation history, and text-to-speech.
+SimpleAI Translator is a cross-platform translator for browser extensions and desktop. Version 1.0 refocuses the app on translation, language detection, translation history, and text-to-speech.
 
 ## Features
 
@@ -19,7 +19,7 @@ NextAI Translator is a cross-platform translator for browser extensions and desk
 
 ## LLM Providers
 
-NextAI Translator 1.0 supports provider configuration by protocol, not by vendor template. The supported protocols are:
+SimpleAI Translator 1.0 supports provider configuration by protocol, not by vendor template. The supported protocols are:
 
 -   `openai-chat`: OpenAI Chat Completions compatible APIs.
 -   `openai-responses`: OpenAI Responses API compatible APIs.
@@ -41,7 +41,9 @@ OpenAI TTS reuses an existing `openai-chat` or `openai-responses` provider. It d
 
 ## Breaking Changes in 1.0
 
-Version 1.0 removes OCR, writing assistant, vocabulary book, custom actions, promotion banners, and the old polishing/summarize/analyze/explain-code modes. Old provider settings and old history data are not migrated. A fresh install starts with no provider configured; add an LLM Provider in settings before translating.
+Version 1.0 changes the desktop Bundle ID to `io.zeroclover.app.simpleai-translator` and treats the app as a fresh install. Old provider settings and old history data are not migrated; add an LLM Provider in settings before translating.
+
+Version 1.0 removes OCR, writing assistant, vocabulary book, custom actions, promotion banners, sponsor prompts, telemetry, global shortcuts, automatic translation, and selection-triggered floating icons.
 
 If you need the previous feature set, use the `v-pre-slim` source tag:
 
@@ -58,14 +60,14 @@ https://github.com/nextai-translator/nextai-translator/tree/v-pre-slim
 ### macOS
 
 1. Download the `.dmg` for your CPU from the [Latest Release](https://github.com/nextai-translator/nextai-translator/releases/latest) page.
-2. Open the `.dmg` and move `NextAI Translator` to `Applications`.
+2. Open the `.dmg` and move `SimpleAI Translator` to `Applications`.
 
 If macOS reports that the app cannot be opened because the developer cannot be verified, open `Settings` -> `Privacy & Security`, choose `Still Open`, then confirm `Open`.
 
 If Apple Silicon macOS reports that the app is damaged, run:
 
 ```sh
-sudo xattr -d com.apple.quarantine /Applications/NextAI\ Translator.app
+sudo xattr -d com.apple.quarantine /Applications/SimpleAI\ Translator.app
 ```
 
 ### Browser Extension

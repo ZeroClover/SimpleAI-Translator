@@ -37,4 +37,4 @@
 - [x] 4.6 Add a build or import-shape regression check that the desktop Edge path no longer bundles/imports `edge-tts-universal` synthesis code.
 - [x] 4.7 Run `pnpm test` for affected TypeScript tests.
 - [x] 4.8 Run `cargo test` or the Tauri build/test command available in `src-tauri` for the Rust Edge TTS helpers.
-- [ ] 4.9 Manually verify desktop Edge TTS voice refresh, voice-list 403 retry, proxy configuration, one short synthesis, long-text synthesis, and stopping while synthesis is still pending in `pnpm dev-tauri`.
+- [x] 4.9 Manually verify desktop Edge TTS voice refresh, voice-list 403 retry, proxy configuration, one short synthesis, long-text synthesis, and stopping while synthesis is still pending in `pnpm dev-tauri`.

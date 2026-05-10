@@ -4,6 +4,7 @@
 )]
 
 mod config;
+mod edge_tts;
 mod fetch;
 mod insertion;
 mod lang;
@@ -28,6 +29,7 @@ use tray::{PinnedFromTrayEvent, PinnedFromWindowEvent};
 use windows::{get_translator_window, CheckUpdateEvent, CheckUpdateResultEvent};
 
 use crate::config::{clear_config_cache, get_config_content, ConfigUpdatedEvent};
+use crate::edge_tts::{edge_tts_list_voices, edge_tts_synthesize};
 use crate::fetch::fetch_stream;
 use crate::lang::detect_lang;
 use crate::windows::{
@@ -132,6 +134,8 @@ fn main() {
             show_history_window,
             get_translator_window_always_on_top,
             fetch_stream,
+            edge_tts_list_voices,
+            edge_tts_synthesize,
             insert_translation_into_previous_input,
             remember_active_window_command,
             detect_lang,

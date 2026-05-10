@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fmt;
+use std::future::Future;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use time::{Month, OffsetDateTime, Weekday};
@@ -130,6 +131,15 @@ impl EdgeTtsError {
         Self::new(EdgeTtsErrorKind::NoAudio, message)
     }
 
+    fn forbidden_with_server_date(message: impl Into<String>, server_date: Option<String>) -> Self {
+        Self {
+            kind: EdgeTtsErrorKind::Auth,
+            message: message.into(),
+            status: Some(StatusCode::FORBIDDEN),
+            server_date,
+        }
+    }
+
     fn forbidden(message: impl Into<String>, response: &Response) -> Self {
         let server_date = response
             .headers()
@@ -137,12 +147,7 @@ impl EdgeTtsError {
             .and_then(|value| value.to_str().ok())
             .map(ToOwned::to_owned);
 
-        Self {
-            kind: EdgeTtsErrorKind::Auth,
-            message: message.into(),
-            status: Some(StatusCode::FORBIDDEN),
-            server_date,
-        }
+        Self::forbidden_with_server_date(message, server_date)
     }
 
     fn can_retry_with_clock_skew(&self) -> bool {
@@ -215,14 +220,7 @@ pub async fn edge_tts_synthesize(
 
 async fn list_voices() -> Result<Vec<EdgeTtsVoice>, EdgeTtsError> {
     let client = edge_client()?;
-
-    match fetch_voice_list_once(&client).await {
-        Err(error) if error.can_retry_with_clock_skew() => {
-            apply_clock_skew_retry(&error)?;
-            fetch_voice_list_once(&client).await
-        }
-        result => result,
-    }
+    retry_once_after_clock_skew(|| fetch_voice_list_once(&client)).await
 }
 
 async fn synthesize(
@@ -237,8 +235,10 @@ async fn synthesize(
 
     let mut audio_segments = Vec::with_capacity(text_segments.len());
     for text_segment in text_segments {
-        let audio = synthesize_segment_with_retry(&client, &request, &text_segment).await?;
-        audio_segments.push(general_purpose::STANDARD.encode(audio));
+        push_encoded_audio_segment(
+            synthesize_segment_with_retry(&client, &request, &text_segment).await,
+            &mut audio_segments,
+        )?;
     }
 
     Ok(EdgeTtsSynthesizeResult {
@@ -351,13 +351,30 @@ async fn synthesize_segment_with_retry(
     request: &EdgeTtsSynthesizeRequest,
     escaped_text: &str,
 ) -> Result<Vec<u8>, EdgeTtsError> {
-    match synthesize_segment_once(client, request, escaped_text).await {
+    retry_once_after_clock_skew(|| synthesize_segment_once(client, request, escaped_text)).await
+}
+
+async fn retry_once_after_clock_skew<T, F, Fut>(mut operation: F) -> Result<T, EdgeTtsError>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T, EdgeTtsError>>,
+{
+    match operation().await {
         Err(error) if error.can_retry_with_clock_skew() => {
             apply_clock_skew_retry(&error)?;
-            synthesize_segment_once(client, request, escaped_text).await
+            operation().await
         }
         result => result,
     }
+}
+
+fn push_encoded_audio_segment(
+    result: Result<Vec<u8>, EdgeTtsError>,
+    audio_segments: &mut Vec<String>,
+) -> Result<(), EdgeTtsError> {
+    let audio = result?;
+    audio_segments.push(general_purpose::STANDARD.encode(audio));
+    Ok(())
 }
 
 async fn synthesize_segment_once(
@@ -420,12 +437,7 @@ async fn synthesize_segment_once(
         match message.map_err(EdgeTtsError::from)? {
             Message::Text(text) => match parse_text_frame(&text)? {
                 TextFrame::AudioMetadata | TextFrame::Response | TextFrame::TurnStart => {}
-                TextFrame::TurnEnd => {
-                    if audio.is_empty() {
-                        return Err(EdgeTtsError::no_audio("Edge TTS completed without audio"));
-                    }
-                    return Ok(audio);
-                }
+                TextFrame::TurnEnd => return finish_segment_audio(audio),
             },
             Message::Binary(data) => {
                 if let Some(chunk) = parse_binary_audio_frame(data.as_ref())? {
@@ -440,6 +452,14 @@ async fn synthesize_segment_once(
             Message::Ping(_) | Message::Pong(_) => {}
         }
     }
+}
+
+fn finish_segment_audio(audio: Vec<u8>) -> Result<Vec<u8>, EdgeTtsError> {
+    if audio.is_empty() {
+        return Err(EdgeTtsError::no_audio("Edge TTS completed without audio"));
+    }
+
+    Ok(audio)
 }
 
 fn edge_voice_list_url() -> Result<Url, EdgeTtsError> {
@@ -846,4 +866,283 @@ fn parse_header_block(data: &[u8]) -> Result<(HashMap<String, String>, &[u8]), E
     }
 
     Ok((headers, payload))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
+    use std::sync::Mutex as StdMutex;
+
+    static CLOCK_SKEW_TEST_LOCK: StdMutex<()> = StdMutex::new(());
+
+    fn header_value(headers: &HeaderMap, name: &'static str) -> String {
+        headers
+            .get(HeaderName::from_static(name))
+            .and_then(|value| value.to_str().ok())
+            .unwrap()
+            .to_string()
+    }
+
+    fn assert_muid_cookie_shape(cookie: &str) {
+        let muid = cookie
+            .strip_prefix("muid=")
+            .and_then(|value| value.strip_suffix(';'))
+            .unwrap();
+        assert_eq!(muid.len(), 32);
+        assert!(muid
+            .chars()
+            .all(|character| character.is_ascii_hexdigit() && !character.is_ascii_lowercase()));
+    }
+
+    fn binary_frame(headers: &[(&str, &str)], payload: &[u8]) -> Vec<u8> {
+        let mut header_block = headers
+            .iter()
+            .map(|(key, value)| format!("{key}:{value}"))
+            .collect::<Vec<_>>()
+            .join("\r\n");
+        header_block.push_str("\r\n\r\n");
+
+        let mut frame = Vec::new();
+        frame.extend_from_slice(&(header_block.len() as u16).to_be_bytes());
+        frame.extend_from_slice(header_block.as_bytes());
+        frame.extend_from_slice(payload);
+        frame
+    }
+
+    #[test]
+    fn generates_sec_ms_gec_from_fixed_timestamp() {
+        assert_eq!(
+            generate_sec_ms_gec_for_unix_millis(1_700_000_000_000),
+            "42301B335578FEFDAE2637DED1ABD614505D432559EC08032B82048483726AFF"
+        );
+    }
+
+    #[test]
+    fn updates_process_clock_skew_from_server_date() {
+        let _guard = CLOCK_SKEW_TEST_LOCK.lock().unwrap();
+        CLOCK_SKEW_MILLIS.store(0, Ordering::Release);
+        let server_date = httpdate::fmt_http_date(SystemTime::now() + Duration::from_secs(60));
+
+        update_clock_skew_from_server_date(&server_date).unwrap();
+
+        let skew = CLOCK_SKEW_MILLIS.load(Ordering::Acquire);
+        assert!((58_000..=61_000).contains(&skew));
+        CLOCK_SKEW_MILLIS.store(0, Ordering::Release);
+    }
+
+    #[test]
+    fn builds_muid_and_required_headers() {
+        let muid = generate_muid();
+        assert_eq!(muid.len(), 32);
+        assert!(muid
+            .chars()
+            .all(|character| character.is_ascii_hexdigit() && !character.is_ascii_lowercase()));
+
+        let voice_headers = voice_headers();
+        assert_eq!(
+            header_value(&voice_headers, "authority"),
+            "speech.platform.bing.com"
+        );
+        assert_eq!(header_value(&voice_headers, "sec-ch-ua-mobile"), "?0");
+        assert!(header_value(&voice_headers, "user-agent").contains("Edg/143.0.0.0"));
+        assert_muid_cookie_shape(&header_value(&voice_headers, "cookie"));
+
+        let wss_headers = wss_headers();
+        assert_eq!(header_value(&wss_headers, "origin"), EDGE_ORIGIN);
+        assert_eq!(header_value(&wss_headers, "sec-websocket-version"), "13");
+        assert!(wss_headers.get("sec-websocket-extensions").is_none());
+        assert_muid_cookie_shape(&header_value(&wss_headers, "cookie"));
+    }
+
+    #[test]
+    fn cleans_escapes_and_safely_splits_text() {
+        assert_eq!(
+            remove_incompatible_characters("a\u{000B}b\u{001F}c"),
+            "a b c"
+        );
+        assert_eq!(
+            prepare_text_segments("A & B < C > D").unwrap(),
+            vec!["A &amp; B &lt; C &gt; D".to_string()]
+        );
+
+        let entity_chunks = split_escaped_text_by_byte_length("aaaa &amp; bbbb", 8).unwrap();
+        assert_eq!(
+            entity_chunks,
+            vec!["aaaa".to_string(), "&amp;".to_string(), "bbbb".to_string()]
+        );
+
+        let utf8_chunks = split_escaped_text_by_byte_length("你好世界", 5).unwrap();
+        assert!(utf8_chunks.iter().all(|chunk| chunk.len() <= 5));
+        assert_eq!(utf8_chunks.concat(), "你好世界");
+    }
+
+    #[test]
+    fn parses_expected_text_frames() {
+        assert_eq!(
+            parse_text_frame("Path:audio.metadata\r\n\r\n{}").unwrap(),
+            TextFrame::AudioMetadata
+        );
+        assert_eq!(
+            parse_text_frame("Path:response\r\n\r\n{}").unwrap(),
+            TextFrame::Response
+        );
+        assert_eq!(
+            parse_text_frame("Path:turn.start\r\n\r\n{}").unwrap(),
+            TextFrame::TurnStart
+        );
+        assert_eq!(
+            parse_text_frame("Path:turn.end\r\n\r\n").unwrap(),
+            TextFrame::TurnEnd
+        );
+        assert_eq!(
+            parse_text_frame("Path:unknown\r\n\r\n").unwrap_err().kind,
+            EdgeTtsErrorKind::Protocol
+        );
+    }
+
+    #[test]
+    fn parses_binary_audio_frames() {
+        let valid = binary_frame(
+            &[("Path", "audio"), ("Content-Type", "audio/mpeg")],
+            &[1, 2, 3],
+        );
+        assert_eq!(
+            parse_binary_audio_frame(&valid).unwrap(),
+            Some(vec![1, 2, 3])
+        );
+
+        let terminator = binary_frame(&[("Path", "audio")], &[]);
+        assert_eq!(parse_binary_audio_frame(&terminator).unwrap(), None);
+
+        let non_empty_without_content_type = binary_frame(&[("Path", "audio")], &[1]);
+        assert_eq!(
+            parse_binary_audio_frame(&non_empty_without_content_type)
+                .unwrap_err()
+                .kind,
+            EdgeTtsErrorKind::Protocol
+        );
+
+        let empty_audio = binary_frame(&[("Path", "audio"), ("Content-Type", "audio/mpeg")], &[]);
+        assert_eq!(
+            parse_binary_audio_frame(&empty_audio).unwrap_err().kind,
+            EdgeTtsErrorKind::Protocol
+        );
+
+        let wrong_path = binary_frame(
+            &[("Path", "metadata"), ("Content-Type", "audio/mpeg")],
+            &[1],
+        );
+        assert_eq!(
+            parse_binary_audio_frame(&wrong_path).unwrap_err().kind,
+            EdgeTtsErrorKind::Protocol
+        );
+    }
+
+    #[test]
+    fn returns_no_audio_when_turn_ends_without_audio() {
+        assert_eq!(
+            finish_segment_audio(Vec::new()).unwrap_err().kind,
+            EdgeTtsErrorKind::NoAudio
+        );
+        assert_eq!(finish_segment_audio(vec![1, 2, 3]).unwrap(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn retries_voice_list_after_403_clock_skew_update() {
+        let _guard = CLOCK_SKEW_TEST_LOCK.lock().unwrap();
+        CLOCK_SKEW_MILLIS.store(0, Ordering::Release);
+        let calls = AtomicUsize::new(0);
+        let server_date = httpdate::fmt_http_date(SystemTime::now() + Duration::from_secs(45));
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let result = runtime
+            .block_on(retry_once_after_clock_skew(|| {
+                let server_date = server_date.clone();
+                let calls = &calls;
+                async move {
+                    if calls.fetch_add(1, AtomicOrdering::SeqCst) == 0 {
+                        Err(EdgeTtsError::forbidden_with_server_date(
+                            "voice list 403",
+                            Some(server_date),
+                        ))
+                    } else {
+                        Ok(vec![EdgeTtsVoice {
+                            short_name: "en-US-JennyNeural".to_string(),
+                            friendly_name: "Jenny".to_string(),
+                            locale: "en-US".to_string(),
+                        }])
+                    }
+                }
+            }))
+            .unwrap();
+
+        assert_eq!(calls.load(AtomicOrdering::SeqCst), 2);
+        assert_eq!(result[0].short_name, "en-US-JennyNeural");
+        assert!(CLOCK_SKEW_MILLIS.load(Ordering::Acquire) > 40_000);
+        CLOCK_SKEW_MILLIS.store(0, Ordering::Release);
+    }
+
+    #[test]
+    fn retries_synthesis_handshake_after_403_clock_skew_update() {
+        let _guard = CLOCK_SKEW_TEST_LOCK.lock().unwrap();
+        CLOCK_SKEW_MILLIS.store(0, Ordering::Release);
+        let calls = AtomicUsize::new(0);
+        let server_date = httpdate::fmt_http_date(SystemTime::now() + Duration::from_secs(45));
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let result = runtime
+            .block_on(retry_once_after_clock_skew(|| {
+                let server_date = server_date.clone();
+                let calls = &calls;
+                async move {
+                    if calls.fetch_add(1, AtomicOrdering::SeqCst) == 0 {
+                        Err(EdgeTtsError::forbidden_with_server_date(
+                            "synthesis handshake 403",
+                            Some(server_date),
+                        ))
+                    } else {
+                        Ok(vec![9, 8, 7])
+                    }
+                }
+            }))
+            .unwrap();
+
+        assert_eq!(calls.load(AtomicOrdering::SeqCst), 2);
+        assert_eq!(result, vec![9, 8, 7]);
+        assert!(CLOCK_SKEW_MILLIS.load(Ordering::Acquire) > 40_000);
+        CLOCK_SKEW_MILLIS.store(0, Ordering::Release);
+    }
+
+    #[test]
+    fn preserves_long_text_segment_order_and_fails_on_segment_error() {
+        let long_text = format!("{} & {}", "你好".repeat(1500), "hello ".repeat(1000));
+        let text_segments = prepare_text_segments(&long_text).unwrap();
+        assert!(text_segments.len() > 1);
+        assert!(text_segments
+            .iter()
+            .all(|segment| segment.len() <= MAX_SSML_TEXT_BYTES));
+        assert!(text_segments
+            .iter()
+            .any(|segment| segment.contains("&amp;")));
+
+        let mut audio_segments = Vec::new();
+        push_encoded_audio_segment(Ok(vec![1]), &mut audio_segments).unwrap();
+        push_encoded_audio_segment(Ok(vec![2, 3]), &mut audio_segments).unwrap();
+        assert_eq!(audio_segments, vec!["AQ==".to_string(), "AgM=".to_string()]);
+
+        let error = push_encoded_audio_segment(
+            Err(EdgeTtsError::timeout("segment timed out")),
+            &mut audio_segments,
+        )
+        .unwrap_err();
+        assert_eq!(error.kind, EdgeTtsErrorKind::Timeout);
+        assert_eq!(audio_segments, vec!["AQ==".to_string(), "AgM=".to_string()]);
+    }
 }

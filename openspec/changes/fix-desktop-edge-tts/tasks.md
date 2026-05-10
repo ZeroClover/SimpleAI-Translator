@@ -29,12 +29,12 @@
 
 ## 4. Verification
 
-- [ ] 4.1 Add Rust unit tests for `Sec-MS-GEC` generation with a fixed timestamp, clock-skew update, MUID/header construction shape, text cleanup, and safe splitting.
-- [ ] 4.2 Add Rust unit tests for WebSocket text and binary frame parsing, including `audio.metadata`, `response`, `turn.start`, `turn.end`, valid `audio/mpeg`, empty no-content terminator frames, invalid non-empty no-content frames, and no-audio completion; construct binary frame fixtures directly as bytes (`2-byte header length + ASCII headers + CRLFCRLF + payload`) without a mock WebSocket server.
-- [ ] 4.3 Add a mocked 403-to-clock-skew-to-retry-success test for voice-list and synthesis handshake paths.
-- [ ] 4.4 Add a long-text test covering multi-segment synthesis ordering and whole-request failure when one segment times out or returns no audio.
-- [ ] 4.5 Add Vitest coverage for desktop Edge TTS command dispatch, base64 segment playback conversion, removal of the desktop 15-second wrapper timeout, voice-list fallback, and late-result cancellation.
-- [ ] 4.6 Add a build or import-shape regression check that the desktop Edge path no longer bundles/imports `edge-tts-universal` synthesis code.
-- [ ] 4.7 Run `pnpm test` for affected TypeScript tests.
-- [ ] 4.8 Run `cargo test` or the Tauri build/test command available in `src-tauri` for the Rust Edge TTS helpers.
+- [x] 4.1 Add Rust unit tests for `Sec-MS-GEC` generation with a fixed timestamp, clock-skew update, MUID/header construction shape, text cleanup, and safe splitting.
+- [x] 4.2 Add Rust unit tests for WebSocket text and binary frame parsing, including `audio.metadata`, `response`, `turn.start`, `turn.end`, valid `audio/mpeg`, empty no-content terminator frames, invalid non-empty no-content frames, and no-audio completion; construct binary frame fixtures directly as bytes (`2-byte header length + ASCII headers + CRLFCRLF + payload`) without a mock WebSocket server.
+- [x] 4.3 Add a mocked 403-to-clock-skew-to-retry-success test for voice-list and synthesis handshake paths.
+- [x] 4.4 Add a long-text test covering multi-segment synthesis ordering and whole-request failure when one segment times out or returns no audio.
+- [x] 4.5 Add Vitest coverage for desktop Edge TTS command dispatch, base64 segment playback conversion, removal of the desktop 15-second wrapper timeout, voice-list fallback, and late-result cancellation.
+- [x] 4.6 Add a build or import-shape regression check that the desktop Edge path no longer bundles/imports `edge-tts-universal` synthesis code.
+- [x] 4.7 Run `pnpm test` for affected TypeScript tests.
+- [x] 4.8 Run `cargo test` or the Tauri build/test command available in `src-tauri` for the Rust Edge TTS helpers.
 - [ ] 4.9 Manually verify desktop Edge TTS voice refresh, voice-list 403 retry, proxy configuration, one short synthesis, long-text synthesis, and stopping while synthesis is still pending in `pnpm dev-tauri`.

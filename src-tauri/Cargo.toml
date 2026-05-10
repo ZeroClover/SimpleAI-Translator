@@ -53,6 +53,7 @@ httpdate = "1.0.3"
 rand = "0.8.5"
 sha2 = "0.10.9"
 thiserror = "2.0.17"
+time = "0.3.44"
 url = "2.5.7"
 uuid = { version = "1.18.1", features = [ "v4" ] }
 

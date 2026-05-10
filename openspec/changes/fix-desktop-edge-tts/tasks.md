@@ -8,14 +8,14 @@
 
 ## 2. Edge TTS Protocol Implementation
 
-- [ ] 2.1 Build one `reqwest::Client` path for Edge TTS HTTP and WSS that maps the existing desktop proxy config, basic auth, and no-proxy settings.
-- [ ] 2.2 Implement process-wide clock skew state plus `Sec-MS-GEC`, `Sec-MS-GEC-Version`, randomized `muid` cookie, and one-time 403 clock-skew retry.
-- [ ] 2.3 Implement the full required WSS and voice-list header sets from the reference implementation, including the Edge extension `Origin` and `Sec-WebSocket-Version`.
-- [ ] 2.4 Implement text cleanup, XML escaping, and 4096-byte UTF-8 safe splitting without cutting XML entities.
-- [ ] 2.5 Implement voice-list fetching and map upstream voice records into renderer-compatible voice objects.
-- [ ] 2.6 Implement WebSocket synthesis: generate separate no-dash UUIDs for URL `ConnectionId` and SSML `X-RequestId`, send fixed-format `speech.config`, send SSML with the trailing `X-Timestamp` `Z`, parse text/binary frames, collect `Path:audio` MP3 chunks, and finish on `Path:turn.end`.
-- [ ] 2.7 Return ordered base64 MP3 segments plus MIME type instead of concatenating independent MP3 byte streams into one blob.
-- [ ] 2.8 Implement per-upstream-segment connect and receive/no-audio timeouts, and fail the whole synthesis if any segment fails.
+- [x] 2.1 Build one `reqwest::Client` path for Edge TTS HTTP and WSS that maps the existing desktop proxy config, basic auth, and no-proxy settings.
+- [x] 2.2 Implement process-wide clock skew state plus `Sec-MS-GEC`, `Sec-MS-GEC-Version`, randomized `muid` cookie, and one-time 403 clock-skew retry.
+- [x] 2.3 Implement the full required WSS and voice-list header sets from the reference implementation, including the Edge extension `Origin` and `Sec-WebSocket-Version`.
+- [x] 2.4 Implement text cleanup, XML escaping, and 4096-byte UTF-8 safe splitting without cutting XML entities.
+- [x] 2.5 Implement voice-list fetching and map upstream voice records into renderer-compatible voice objects.
+- [x] 2.6 Implement WebSocket synthesis: generate separate no-dash UUIDs for URL `ConnectionId` and SSML `X-RequestId`, send fixed-format `speech.config`, send SSML with the trailing `X-Timestamp` `Z`, parse text/binary frames, collect `Path:audio` MP3 chunks, and finish on `Path:turn.end`.
+- [x] 2.7 Return ordered base64 MP3 segments plus MIME type instead of concatenating independent MP3 byte streams into one blob.
+- [x] 2.8 Implement per-upstream-segment connect and receive/no-audio timeouts, and fail the whole synthesis if any segment fails.
 
 ## 3. Renderer Integration
 

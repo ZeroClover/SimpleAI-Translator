@@ -150,6 +150,7 @@ dependencies = [
  "tauri-specta",
  "tauri-utils",
  "thiserror 2.0.17",
+ "time",
  "tiny_http",
  "tokio",
  "url",

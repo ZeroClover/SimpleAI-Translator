@@ -52,6 +52,7 @@ import { SpeakerIcon } from './SpeakerIcon'
 import color from 'color'
 import { useAtom } from 'jotai'
 import { showSettingsAtom } from '../store/setting'
+import { sortModelIds } from '../engines/model-filter'
 
 const cache = new LRUCache({
     max: 500,
@@ -80,7 +81,7 @@ function getProviderModelOptions(provider: ISettings['providers'][number] | unde
     if (!provider) {
         return []
     }
-    const models = Array.from(new Set([provider.model, ...(provider.modelOptions ?? [])].filter(Boolean)))
+    const models = sortModelIds(Array.from(new Set([provider.model, ...(provider.modelOptions ?? [])].filter(Boolean))))
     return models.map((model) => ({
         id: `${provider.id}:${model}`,
         label: model,

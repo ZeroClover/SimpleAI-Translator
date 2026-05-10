@@ -50,7 +50,7 @@ import { ProxyTester } from './ProxyTester'
 import NumberInput from './NumberInput'
 import { ProviderForm, ProviderFormValue } from './ProviderForm'
 import { v4 as uuidv4 } from 'uuid'
-import { filterChatModels, filterTTSModels } from '../engines/model-filter'
+import { filterChatModels, filterTTSModels, sortModelIds } from '../engines/model-filter'
 import { getEngine } from '../engines'
 
 const langOptions: Value = supportedLanguages.reduce((acc, [id, label]) => {
@@ -325,7 +325,7 @@ function TTSVoicesSettings({ value, providers, onChange, onBlur }: ITTSVoicesSet
     )
     const openAIModelOptions = useMemo(
         () =>
-            Array.from(new Set([openAIModel, ...openAITTSModelOptions].filter(Boolean))).map((model) => ({
+            sortModelIds(Array.from(new Set([openAIModel, ...openAITTSModelOptions].filter(Boolean)))).map((model) => ({
                 id: model,
                 label: model,
             })),
@@ -403,7 +403,7 @@ function TTSVoicesSettings({ value, providers, onChange, onBlur }: ITTSVoicesSet
         setIsRefreshingOpenAITTSModels(true)
         try {
             const models = await getEngine(providerConfig).listModels()
-            const ids = filterTTSModels(models.map((model) => model.id))
+            const ids = sortModelIds(filterTTSModels(models.map((model) => model.id)))
             setOpenAITTSModelOptions(ids)
             if (!openAIModel && ids[0]) {
                 handleChangeOpenAISettings({ model: ids[0] })
@@ -1055,8 +1055,8 @@ function LLMProvidersSettings({ providers, defaultProviderId, defaultModel, onCh
         if (!activeProvider) {
             return []
         }
-        const models = Array.from(
-            new Set([activeProvider.model, ...(activeProvider.modelOptions ?? [])].filter(Boolean))
+        const models = sortModelIds(
+            Array.from(new Set([activeProvider.model, ...(activeProvider.modelOptions ?? [])].filter(Boolean)))
         )
         return models.map((model) => ({
             id: `${activeProvider.id}:${model}`,
@@ -1189,7 +1189,7 @@ function LLMProvidersSettings({ providers, defaultProviderId, defaultModel, onCh
                     ...provider,
                     model: provider.model || 'model',
                 }).listModels()
-                const ids = filterChatModels(models.map((model) => model.id))
+                const ids = sortModelIds(filterChatModels(models.map((model) => model.id)))
                 const nextProviders = providers.map((item) => {
                     if (item.id !== provider.id) {
                         return item

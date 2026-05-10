@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { filterChatModels, filterTTSModels } from './model-filter'
+import { filterChatModels, filterTTSModels, sortModelIds } from './model-filter'
 
 describe('model-filter', () => {
     it('filters standard OpenAI non-chat models while preserving order', () => {
@@ -41,5 +41,15 @@ describe('model-filter', () => {
                 'text-embedding-3-small',
             ])
         ).toEqual(['tts-1', 'tts-1-hd', 'gpt-4o-mini-tts', 'gpt-4o-mini-tts-2025-12-15'])
+    })
+
+    it('sorts model ids with numeric segments naturally', () => {
+        expect(sortModelIds(['gpt-10', 'GPT-4O', 'gpt-4o-mini', 'claude-3-5-sonnet', 'claude-3-10-sonnet'])).toEqual([
+            'claude-3-5-sonnet',
+            'claude-3-10-sonnet',
+            'GPT-4O',
+            'gpt-4o-mini',
+            'gpt-10',
+        ])
     })
 })

@@ -19,13 +19,13 @@
 
 ## 3. Renderer Integration
 
-- [ ] 3.1 Update `src/common/tts/edge-tts.ts` so desktop Edge TTS synthesis invokes the Tauri command and non-desktop targets keep their current path.
-- [ ] 3.2 Update desktop Edge voice loading to use the Tauri voice-list command while preserving the existing fallback/default voice behavior.
-- [ ] 3.3 Convert returned base64 MP3 segments to `ArrayBuffer`s and reuse the existing `AudioContext` playback lifecycle sequentially; call `onFinish` only after the final segment ends, while earlier segment `ended` events only start the next segment.
-- [ ] 3.4 Remove the old 15-second whole-request timeout from the desktop native Edge path while keeping non-desktop timeout behavior intact.
-- [ ] 3.5 Ensure aborted or superseded desktop Edge TTS requests do not start playback when their backend result arrives late or between returned segments.
-- [ ] 3.6 Keep Edge TTS failures on the existing toast/error path without automatically switching to system TTS.
-- [ ] 3.7 Ensure the desktop bundle does not import the browser `edge-tts-universal` synthesis path after the split.
+- [x] 3.1 Update `src/common/tts/edge-tts.ts` so desktop Edge TTS synthesis invokes the Tauri command and non-desktop targets keep their current path.
+- [x] 3.2 Update desktop Edge voice loading to use the Tauri voice-list command while preserving the existing fallback/default voice behavior.
+- [x] 3.3 Convert returned base64 MP3 segments to `ArrayBuffer`s and reuse the existing `AudioContext` playback lifecycle sequentially; call `onFinish` only after the final segment ends, while earlier segment `ended` events only start the next segment.
+- [x] 3.4 Remove the old 15-second whole-request timeout from the desktop native Edge path while keeping non-desktop timeout behavior intact.
+- [x] 3.5 Ensure aborted or superseded desktop Edge TTS requests do not start playback when their backend result arrives late or between returned segments.
+- [x] 3.6 Keep Edge TTS failures on the existing toast/error path without automatically switching to system TTS.
+- [x] 3.7 Ensure the desktop bundle does not import the browser `edge-tts-universal` synthesis path after the split.
 
 ## 4. Verification
 

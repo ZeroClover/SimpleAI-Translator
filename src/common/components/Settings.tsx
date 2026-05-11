@@ -484,6 +484,17 @@ function TTSVoicesSettings({ value, providers, onChange, onBlur }: ITTSVoicesSet
         [supportedVoices, value?.provider, value?.rate, value?.volume]
     )
 
+    const getDefaultVoice = useCallback(
+        (lang: LangCode) => {
+            const ttsLang = langCode2TTSLang[lang]
+            return (
+                supportedVoices.find((voice) => voice.lang === ttsLang) ??
+                supportedVoices.find((voice) => voice.lang.split('-')[0] === lang)
+            )
+        },
+        [supportedVoices]
+    )
+
     const handleDeleteLang = useCallback(
         (lang: string) => {
             const voices = value?.voices ?? []
@@ -503,7 +514,7 @@ function TTSVoicesSettings({ value, providers, onChange, onBlur }: ITTSVoicesSet
                 if (item.lang === prevLang) {
                     return {
                         lang: newLang,
-                        voice: '',
+                        voice: getDefaultVoice(newLang)?.voiceURI ?? '',
                     }
                 }
                 return item
@@ -511,7 +522,7 @@ function TTSVoicesSettings({ value, providers, onChange, onBlur }: ITTSVoicesSet
             onChange?.({ ...value, voices: newVoices })
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [value]
+        [getDefaultVoice, value]
     )
 
     const handleAddLang = useCallback(
@@ -523,14 +534,14 @@ function TTSVoicesSettings({ value, providers, onChange, onBlur }: ITTSVoicesSet
                     ...voices,
                     {
                         lang,
-                        voice: '',
+                        voice: getDefaultVoice(lang)?.voiceURI ?? '',
                     },
                 ],
             })
             setShowLangSelector(false)
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [value]
+        [getDefaultVoice, value]
     )
 
     const handleChangeVoice = useCallback(

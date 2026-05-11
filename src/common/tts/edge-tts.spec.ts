@@ -50,7 +50,7 @@ class FakeAudioContext {
     close = vi.fn(async () => {})
     decodeAudioData = vi.fn(async (buffer: ArrayBuffer) => {
         this.decodedBytes.push(Array.from(new Uint8Array(buffer)))
-        return { byteLength: buffer.byteLength } as AudioBuffer
+        return { byteLength: buffer.byteLength } as unknown as AudioBuffer
     })
     createBufferSource = vi.fn(() => {
         const source = new FakeAudioBufferSource()
@@ -137,6 +137,21 @@ describe('Edge TTS desktop integration', () => {
 
         audioContext.sources[1].dispatchEvent(new Event('ended'))
         expect(onFinish).toHaveBeenCalledTimes(1)
+    })
+
+    it('falls back to the language default voice when the saved voice is blank', async () => {
+        await speak({
+            text: 'Hello',
+            lang: 'en',
+            voice: '',
+            signal: new AbortController().signal,
+        })
+
+        expect(edgeTtsSynthesizeMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+                voice: 'en-US-JennyNeural',
+            })
+        )
     })
 
     it('does not import the browser Edge TTS package on desktop', async () => {

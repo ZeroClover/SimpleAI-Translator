@@ -810,13 +810,7 @@ fn parse_binary_audio_frame(data: &[u8]) -> Result<Option<Vec<u8>>, EdgeTtsError
 
     let header_block = &data[2..2 + header_length];
     let payload = &data[2 + header_length..];
-    let (headers, header_data) = parse_header_block(header_block)?;
-
-    if !header_data.is_empty() {
-        return Err(EdgeTtsError::protocol(
-            "Edge TTS binary frame header included unexpected data",
-        ));
-    }
+    let headers = parse_header_lines(header_block)?;
 
     if headers.get("path").map(String::as_str) != Some("audio") {
         return Err(EdgeTtsError::protocol(
@@ -854,10 +848,20 @@ fn parse_header_block(data: &[u8]) -> Result<(HashMap<String, String>, &[u8]), E
     let payload = &data[separator + 4..];
     let header_text = std::str::from_utf8(header_bytes)
         .map_err(|error| EdgeTtsError::protocol(format!("frame headers are not UTF-8: {error}")))?;
+    Ok((parse_header_text(header_text)?, payload))
+}
+
+fn parse_header_lines(data: &[u8]) -> Result<HashMap<String, String>, EdgeTtsError> {
+    let header_text = std::str::from_utf8(data)
+        .map_err(|error| EdgeTtsError::protocol(format!("frame headers are not UTF-8: {error}")))?;
+    parse_header_text(header_text)
+}
+
+fn parse_header_text(header_text: &str) -> Result<HashMap<String, String>, EdgeTtsError> {
     let mut headers = HashMap::new();
 
     if !header_text.is_empty() {
-        for line in header_text.split("\r\n") {
+        for line in header_text.split("\r\n").filter(|line| !line.is_empty()) {
             let (key, value) = line
                 .split_once(':')
                 .ok_or_else(|| EdgeTtsError::protocol("malformed Edge TTS frame header"))?;
@@ -865,7 +869,7 @@ fn parse_header_block(data: &[u8]) -> Result<(HashMap<String, String>, &[u8]), E
         }
     }
 
-    Ok((headers, payload))
+    Ok(headers)
 }
 
 #[cfg(test)]
@@ -901,7 +905,7 @@ mod tests {
             .map(|(key, value)| format!("{key}:{value}"))
             .collect::<Vec<_>>()
             .join("\r\n");
-        header_block.push_str("\r\n\r\n");
+        header_block.push_str("\r\n");
 
         let mut frame = Vec::new();
         frame.extend_from_slice(&(header_block.len() as u16).to_be_bytes());

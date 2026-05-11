@@ -20,9 +20,11 @@ const languageToDefaultVoice: { [key: string]: string } = {
     ['ar-SY']: 'ar-SY-AmanyNeural',
     ['ar-TN']: 'ar-TN-HediNeural',
     ['ar-YE']: 'ar-YE-MaryamNeural',
+    ['az-AZ']: 'az-AZ-BabekNeural',
     ['bg-BG']: 'bg-BG-BorislavNeural',
     ['bn-BD']: 'bn-BD-NabanitaNeural',
     ['bn-IN']: 'bn-IN-BashkarNeural',
+    ['bs-BA']: 'bs-BA-VesnaNeural',
     ['ca-ES']: 'ca-ES-JoanaNeural',
     ['cs-CZ']: 'cs-CZ-AntoninNeural',
     ['cy-GB']: 'cy-GB-AledNeural',
@@ -87,6 +89,7 @@ const languageToDefaultVoice: { [key: string]: string } = {
     ['it-IT']: 'it-IT-IsabellaNeural',
     ['ja-JP']: 'ja-JP-NanamiNeural',
     ['jv-ID']: 'jv-ID-DimasNeural',
+    ['ka-GE']: 'ka-GE-EkaNeural',
     ['kk-KZ']: 'kk-KZ-AigulNeural',
     ['km-KH']: 'km-KH-PisethNeural',
     ['kn-IN']: 'kn-IN-GaganNeural',
@@ -99,6 +102,7 @@ const languageToDefaultVoice: { [key: string]: string } = {
     ['mr-IN']: 'mr-IN-AarohiNeural',
     ['ms-MY']: 'ms-MY-OsmanNeural',
     ['mt-MT']: 'mt-MT-GraceNeural',
+    ['mn-MN']: 'mn-MN-BataaNeural',
     ['my-MM']: 'my-MM-NilarNeural',
     ['nb-NO']: 'nb-NO-PernilleNeural',
     ['nl-BE']: 'nl-BE-ArnaudNeural',
@@ -154,7 +158,7 @@ export async function speak({
     onStartSpeaking,
 }: EdgeTTSOptions) {
     const lang = langCode2TTSLang[lang_ ?? 'en'] ?? 'en-US'
-    const selectedVoice = voice ?? languageToDefaultVoice[lang] ?? 'en-US-JennyNeural'
+    const selectedVoice = voice?.trim() || languageToDefaultVoice[lang] || 'en-US-JennyNeural'
 
     // Convert rate and volume to proper format
     // rate: 1 = +0%, 1.2 = +20%, 0.8 = -20%

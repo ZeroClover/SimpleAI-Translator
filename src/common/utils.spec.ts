@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeSettings, sanitizeSettingsForStorage } from './utils'
+import {
+    normalizeSettings,
+    resolveAutomaticTargetLanguage,
+    resolveTargetLanguageForSource,
+    sanitizeSettingsForStorage,
+} from './utils'
 
 describe('settings schema normalization', () => {
     it('initializes a fresh install with empty providers', () => {
@@ -7,8 +12,46 @@ describe('settings schema normalization', () => {
 
         expect(settings.providers).toEqual([])
         expect(settings.defaultProviderId).toBeNull()
+        expect(settings.nativeLanguage).toBe('zh-Hans')
+        expect(settings.translationTargetLanguage).toBe('en')
         expect(settings.languageDetectionEngine).toBe('local')
         expect(settings.tts?.provider).toBe('edge')
+    })
+
+    it('migrates the old default target language to native language', () => {
+        const settings = normalizeSettings({
+            defaultTargetLanguage: 'ja',
+        })
+
+        expect(settings.nativeLanguage).toBe('ja')
+        expect(settings.translationTargetLanguage).toBe('en')
+        expect(settings).not.toHaveProperty('defaultTargetLanguage')
+    })
+
+    it('uses Chinese as the default translation target for English native language', () => {
+        const settings = normalizeSettings({
+            nativeLanguage: 'en',
+        })
+
+        expect(settings.nativeLanguage).toBe('en')
+        expect(settings.translationTargetLanguage).toBe('zh-Hans')
+    })
+
+    it('resolves the automatic target from native and translation target languages', () => {
+        expect(resolveAutomaticTargetLanguage('ja', 'zh-Hans', 'en')).toBe('zh-Hans')
+        expect(resolveAutomaticTargetLanguage('zh-Hans', 'zh-Hans', 'en')).toBe('en')
+        expect(resolveAutomaticTargetLanguage('en', 'en-US', 'zh-Hans')).toBe('zh-Hans')
+    })
+
+    it('keeps a manually selected target only while the source language is unchanged', () => {
+        expect(resolveTargetLanguageForSource('zh-Hans', 'ja', 'zh-Hans', 'zh-Hans', 'en')).toEqual({
+            targetLanguage: 'ja',
+            manualTargetLanguageSource: 'zh-Hans',
+        })
+        expect(resolveTargetLanguageForSource('en', 'ja', 'zh-Hans', 'zh-Hans', 'en')).toEqual({
+            targetLanguage: 'zh-Hans',
+            manualTargetLanguageSource: null,
+        })
     })
 
     it('does not migrate legacy OpenAI fields', () => {
@@ -153,6 +196,20 @@ describe('settings schema normalization', () => {
                 providerId: provider.id,
                 model: provider.model,
             },
+        })
+    })
+
+    it('sanitizes legacy default target language writes to the new language settings', () => {
+        const sanitized = sanitizeSettingsForStorage({
+            defaultTargetLanguage: 'en',
+        })
+
+        expect(sanitized).toEqual({
+            providers: [],
+            defaultProviderId: null,
+            defaultModel: null,
+            nativeLanguage: 'en',
+            translationTargetLanguage: 'zh-Hans',
         })
     })
 

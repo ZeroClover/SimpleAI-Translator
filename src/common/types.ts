@@ -83,7 +83,8 @@ export interface ISettings {
     useStrictSchema?: boolean
     enableBackgroundBlur: boolean
     enableMica: boolean // deprecated, please use enableBackgroundBlur
-    defaultTargetLanguage: string
+    nativeLanguage: string
+    translationTargetLanguage: string
     themeType?: ThemeType
     i18n?: string
     tts?: {

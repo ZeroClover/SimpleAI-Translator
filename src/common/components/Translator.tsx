@@ -24,6 +24,9 @@ import {
     isTauri,
     isBrowserExtensionContentScript,
     isMacOS,
+    areSameLanguageForTargetSelection,
+    resolveAutomaticTargetLanguage,
+    resolveTargetLanguageForSource,
     setSettings as persistSettings,
 } from '../utils'
 import { InnerSettings } from './Settings'
@@ -689,22 +692,15 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             setSourceLang(newSourceLang)
             return await new Promise((resolve) => {
                 setTargetLang((targetLang_) => {
-                    const newTargetLang = (() => {
-                        if (!stopAutomaticallyChangeTargetLang.current || newSourceLang === targetLang_) {
-                            return (
-                                (newSourceLang === 'zh-Hans' || newSourceLang === 'zh-Hant'
-                                    ? 'en'
-                                    : (settings?.defaultTargetLanguage as LangCode | undefined)) ?? 'en'
-                            )
-                        }
-                        if (!targetLang_) {
-                            if (settings?.defaultTargetLanguage) {
-                                return settings.defaultTargetLanguage as LangCode
-                            }
-                            return newSourceLang
-                        }
-                        return targetLang_
-                    })()
+                    const result = resolveTargetLanguageForSource(
+                        newSourceLang,
+                        targetLang_,
+                        manualTargetLangSourceRef.current,
+                        settings.nativeLanguage,
+                        settings.translationTargetLanguage
+                    )
+                    const newTargetLang = result.targetLanguage as LangCode
+                    manualTargetLangSourceRef.current = result.manualTargetLanguageSource as LangCode | null
                     setTranslateDeps((oldV) => {
                         const newV: typeof translateDeps = {
                             ...oldV,
@@ -721,7 +717,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 })
             })
         },
-        [selectedModel?.model, selectedModel?.providerId, settings.defaultTargetLanguage]
+        [selectedModel?.model, selectedModel?.providerId, settings.nativeLanguage, settings.translationTargetLanguage]
     )
 
     const { externalOriginalText } = useTranslatorStore()
@@ -763,14 +759,27 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         setIsLoading(false)
     }, [])
     const [sourceLang, setSourceLang] = useState<LangCode>('en')
-    const [targetLang, setTargetLang] = useState<LangCode>(settings.defaultTargetLanguage as LangCode)
-    const stopAutomaticallyChangeTargetLang = useRef(false)
+    const [targetLang, setTargetLang] = useState<LangCode>(
+        () =>
+            resolveAutomaticTargetLanguage(
+                'en',
+                settings.nativeLanguage,
+                settings.translationTargetLanguage
+            ) as LangCode
+    )
+    const manualTargetLangSourceRef = useRef<LangCode | null>(null)
 
     useEffect(() => {
-        if (!stopAutomaticallyChangeTargetLang.current) {
-            setTargetLang(settings.defaultTargetLanguage as LangCode)
+        if (!manualTargetLangSourceRef.current) {
+            setTargetLang(
+                resolveAutomaticTargetLanguage(
+                    sourceLang,
+                    settings.nativeLanguage,
+                    settings.translationTargetLanguage
+                ) as LangCode
+            )
         }
-    }, [settings.defaultTargetLanguage])
+    }, [settings.nativeLanguage, settings.translationTargetLanguage, sourceLang])
 
     const [actionStr, setActionStr] = useState('')
 
@@ -1009,6 +1018,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         (item: HistoryItem) => {
             historyEntryIdRef.current = item.id ?? null
             lastHistoryKeyRef.current = null
+            manualTargetLangSourceRef.current = null
             skipNextTranslateRef.current = true
             setSourceLang(item.fromLang)
             setTargetLang(item.toLang)
@@ -1227,12 +1237,29 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                     }}
                                     onChange={({ value }) => {
                                         const langId = value.length > 0 ? value[0].id : sourceLangOptions[0].id
-                                        setSourceLang(langId as LangCode)
+                                        const nextSourceLang = langId as LangCode
+                                        const sourceChanged = !areSameLanguageForTargetSelection(
+                                            sourceLang,
+                                            nextSourceLang
+                                        )
+                                        const nextTargetLang = sourceChanged
+                                            ? (resolveAutomaticTargetLanguage(
+                                                  nextSourceLang,
+                                                  settings.nativeLanguage,
+                                                  settings.translationTargetLanguage
+                                              ) as LangCode)
+                                            : targetLang
+                                        if (sourceChanged) {
+                                            manualTargetLangSourceRef.current = null
+                                            setTargetLang(nextTargetLang)
+                                        }
+                                        setSourceLang(nextSourceLang)
                                         setTranslateDeps((v) => {
                                             return {
                                                 ...v,
                                                 text: editableText,
-                                                sourceLang: langId as LangCode,
+                                                sourceLang: nextSourceLang,
+                                                targetLang: nextTargetLang,
                                             }
                                         })
                                     }}
@@ -1241,13 +1268,15 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             <div
                                 className={styles.arrow}
                                 onClick={() => {
+                                    const nextSourceLang = targetLang
+                                    manualTargetLangSourceRef.current = nextSourceLang
                                     setTranslateDeps((v) => ({
                                         ...v,
                                         text: translatedText,
-                                        sourceLang: targetLang ?? 'en',
+                                        sourceLang: nextSourceLang,
                                         targetLang: sourceLang,
                                     }))
-                                    setSourceLang(targetLang ?? 'en')
+                                    setSourceLang(nextSourceLang)
                                     setTargetLang(sourceLang)
                                     editorRef.current?.focus()
                                 }}
@@ -1272,7 +1301,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                         },
                                     }}
                                     onChange={({ value }) => {
-                                        stopAutomaticallyChangeTargetLang.current = true
+                                        manualTargetLangSourceRef.current = sourceLang
                                         const langId = value.length > 0 ? value[0].id : targetLangOptions[0].id
                                         setTargetLang(langId as LangCode)
                                         setTranslateDeps((v) => {

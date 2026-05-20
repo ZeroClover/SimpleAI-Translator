@@ -15,7 +15,8 @@ import { parse as bestEffortJSONParse } from 'best-effort-json-parser'
 import { commands } from '@/tauri/bindings'
 import toast from 'react-hot-toast'
 
-export const defaultTargetLanguage = 'zh-Hans'
+export const defaultNativeLanguage = 'zh-Hans'
+export const defaultTranslationTargetLanguage = 'en'
 export const defaulti18n = 'en'
 
 type RawSettings = Partial<ISettings> & Record<string, unknown>
@@ -30,7 +31,8 @@ const settingKeys = {
     useStrictSchema: 1,
     enableMica: 1,
     enableBackgroundBlur: 1,
-    defaultTargetLanguage: 1,
+    nativeLanguage: 1,
+    translationTargetLanguage: 1,
     themeType: 1,
     i18n: 1,
     tts: 1,
@@ -46,6 +48,7 @@ const settingKeys = {
 } satisfies Partial<Record<keyof ISettings, number>>
 
 const legacySettingKeys = [
+    'defaultTargetLanguage',
     'apiKeys',
     'apiURL',
     'apiURLPath',
@@ -100,6 +103,74 @@ const legacySettingKeys = [
     'claudeThinking',
     'claudeThinkingLevel',
 ] as const
+
+const migrationSettingKeys = {
+    defaultTargetLanguage: 1,
+}
+
+const storageSettingKeys = {
+    ...settingKeys,
+    ...migrationSettingKeys,
+}
+
+function getStringSetting(value: unknown): string | undefined {
+    return typeof value === 'string' && value.trim() ? value : undefined
+}
+
+function getComparableLanguageCode(language: string): string {
+    if (language.startsWith('en-')) {
+        return 'en'
+    }
+    if (language === 'ko-banmal') {
+        return 'ko'
+    }
+    return language
+}
+
+export function areSameLanguageForTargetSelection(sourceLanguage: string, configuredLanguage: string): boolean {
+    return getComparableLanguageCode(sourceLanguage) === getComparableLanguageCode(configuredLanguage)
+}
+
+export function getDefaultTranslationTargetLanguage(nativeLanguage: string): string {
+    return areSameLanguageForTargetSelection(nativeLanguage, defaultTranslationTargetLanguage)
+        ? defaultNativeLanguage
+        : defaultTranslationTargetLanguage
+}
+
+export function resolveAutomaticTargetLanguage(
+    sourceLanguage: string,
+    nativeLanguage: string,
+    translationTargetLanguage: string
+): string {
+    return areSameLanguageForTargetSelection(sourceLanguage, nativeLanguage)
+        ? translationTargetLanguage
+        : nativeLanguage
+}
+
+export function resolveTargetLanguageForSource(
+    sourceLanguage: string,
+    currentTargetLanguage: string | undefined,
+    manualTargetLanguageSource: string | null,
+    nativeLanguage: string,
+    translationTargetLanguage: string
+): { targetLanguage: string; manualTargetLanguageSource: string | null } {
+    const shouldKeepManualTarget =
+        !!currentTargetLanguage &&
+        !!manualTargetLanguageSource &&
+        areSameLanguageForTargetSelection(sourceLanguage, manualTargetLanguageSource)
+
+    if (shouldKeepManualTarget) {
+        return {
+            targetLanguage: currentTargetLanguage,
+            manualTargetLanguageSource,
+        }
+    }
+
+    return {
+        targetLanguage: resolveAutomaticTargetLanguage(sourceLanguage, nativeLanguage, translationTargetLanguage),
+        manualTargetLanguageSource: null,
+    }
+}
 
 function normalizeProviderList(providers: unknown): ProviderConfig[] {
     if (!Array.isArray(providers)) {
@@ -205,6 +276,12 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
         providers.some((provider) => provider.id === rawSettings.defaultProviderId)
             ? rawSettings.defaultProviderId
             : providers[0]?.id ?? null
+    const nativeLanguage =
+        getStringSetting(rawSettings.nativeLanguage) ??
+        getStringSetting(rawSettings.defaultTargetLanguage) ??
+        defaultNativeLanguage
+    const translationTargetLanguage =
+        getStringSetting(rawSettings.translationTargetLanguage) ?? getDefaultTranslationTargetLanguage(nativeLanguage)
 
     return {
         automaticCheckForUpdates:
@@ -221,7 +298,8 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
             rawSettings.enableBackgroundBlur === undefined || rawSettings.enableBackgroundBlur === null
                 ? rawSettings.enableMica ?? false
                 : rawSettings.enableBackgroundBlur,
-        defaultTargetLanguage: rawSettings.defaultTargetLanguage || defaultTargetLanguage,
+        nativeLanguage,
+        translationTargetLanguage,
         themeType: rawSettings.themeType || 'followTheSystem',
         i18n: rawSettings.i18n || defaulti18n,
         tts: normalizeTTSSettings(rawSettings.tts, providers),
@@ -249,6 +327,7 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
 
 export function sanitizeSettingsForStorage(settings: RawSettings): Partial<ISettings> {
     const normalized = normalizeSettings(settings)
+    const hasLegacyDefaultTargetLanguage = Object.prototype.hasOwnProperty.call(settings, 'defaultTargetLanguage')
     const sanitized: Record<string, unknown> = {
         providers: normalized.providers,
         defaultProviderId: normalized.defaultProviderId,
@@ -259,7 +338,10 @@ export function sanitizeSettingsForStorage(settings: RawSettings): Partial<ISett
         if (key === 'providers' || key === 'defaultProviderId' || key === 'defaultModel') {
             continue
         }
-        if (Object.prototype.hasOwnProperty.call(settings, key)) {
+        if (
+            Object.prototype.hasOwnProperty.call(settings, key) ||
+            (hasLegacyDefaultTargetLanguage && (key === 'nativeLanguage' || key === 'translationTargetLanguage'))
+        ) {
             sanitized[key] = normalized[key]
         }
     }
@@ -269,7 +351,7 @@ export function sanitizeSettingsForStorage(settings: RawSettings): Partial<ISett
 
 export async function getSettings(): Promise<ISettings> {
     const browser = await getBrowser()
-    const items = await browser.storage.sync.get(Object.keys(settingKeys))
+    const items = await browser.storage.sync.get(Object.keys(storageSettingKeys))
 
     return normalizeSettings(items)
 }
@@ -278,7 +360,12 @@ export async function setSettings(settings: Partial<ISettings>) {
     const browser = await getBrowser()
     const normalized = sanitizeSettingsForStorage(settings)
     await browser.storage.sync.set(normalized)
-    await browser.storage.sync.remove?.([...legacySettingKeys])
+    await browser.storage.sync.remove?.([
+        ...legacySettingKeys.filter(
+            (key) =>
+                key !== 'defaultTargetLanguage' || Object.prototype.hasOwnProperty.call(normalized, 'nativeLanguage')
+        ),
+    ])
     if (settings.tts?.provider === 'openai' && normalized.tts?.provider === 'edge') {
         toast(openAITTSDanglingProviderMessage)
     }

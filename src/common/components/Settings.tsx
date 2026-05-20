@@ -22,6 +22,7 @@ import {
     LanguageDetectionEngine,
     ModelSelection,
     OpenAIReasoningEffort,
+    ProviderModelOutputControls,
     ProviderConfig,
     ProxyProtocol,
     ThemeType,
@@ -1030,7 +1031,13 @@ interface LLMProvidersSettingsProps {
     providers: ProviderConfig[]
     defaultProviderId: string | null
     defaultModel: ModelSelection | null
-    onChange(providers: ProviderConfig[], defaultProviderId: string | null, defaultModel: ModelSelection | null): void
+    providerModelOutputControls: ProviderModelOutputControls[]
+    onChange(
+        providers: ProviderConfig[],
+        defaultProviderId: string | null,
+        defaultModel: ModelSelection | null,
+        providerModelOutputControls: ProviderModelOutputControls[]
+    ): void
 }
 
 const openaiReasoningEffortOptions: { id: OpenAIReasoningEffort; label: string }[] = [
@@ -1050,7 +1057,13 @@ const anthropicThinkingEffortOptions: { id: AnthropicThinkingEffort; label: stri
     { id: 'max', label: 'Max' },
 ]
 
-function LLMProvidersSettings({ providers, defaultProviderId, defaultModel, onChange }: LLMProvidersSettingsProps) {
+function LLMProvidersSettings({
+    providers,
+    defaultProviderId,
+    defaultModel,
+    providerModelOutputControls,
+    onChange,
+}: LLMProvidersSettingsProps) {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const [editingProvider, setEditingProvider] = useState<ProviderConfig | null>(null)
@@ -1090,21 +1103,60 @@ function LLMProvidersSettings({ providers, defaultProviderId, defaultModel, onCh
                 : undefined,
         [defaultModel, modelOptions]
     )
-    const selectedOpenAIEffort = defaultModel?.openaiReasoningEffort ?? 'medium'
-    const selectedAnthropicEffort = defaultModel?.anthropicThinkingEffort ?? 'high'
+    const selectedOutputControls = useMemo(
+        () =>
+            utils.resolveProviderModelOutputControls(
+                { providerModelOutputControls },
+                activeProvider?.id,
+                defaultModel?.model
+            ),
+        [activeProvider?.id, defaultModel?.model, providerModelOutputControls]
+    )
+    const selectedOpenAIEffort = selectedOutputControls.openaiReasoningEffort ?? 'medium'
+    const selectedAnthropicEffort = selectedOutputControls.anthropicThinkingEffort ?? 'high'
     const isOpenAIProtocol =
         activeProvider?.protocol === 'openai-chat' || activeProvider?.protocol === 'openai-responses'
-    const updateDefaultModelThinking = useCallback(
-        (thinking: Partial<ModelSelection>) => {
-            if (!defaultModel) {
+    const updateOutputControls = useCallback(
+        (controls: Partial<ProviderModelOutputControls>) => {
+            if (!activeProvider || !defaultModel?.model) {
                 return
             }
-            onChange(providers, defaultProviderId, {
-                ...defaultModel,
-                ...thinking,
-            })
+            const nextRecord: ProviderModelOutputControls = {
+                providerId: activeProvider.id,
+                model: defaultModel.model,
+                ...providerModelOutputControls.find(
+                    (item) => item.providerId === activeProvider.id && item.model === defaultModel.model
+                ),
+                ...controls,
+            }
+            if (controls.thinkingEnabled === true) {
+                if (isOpenAIProtocol && !nextRecord.openaiReasoningEffort) {
+                    nextRecord.openaiReasoningEffort = 'medium'
+                }
+                if (activeProvider.protocol === 'anthropic' && !nextRecord.anthropicThinkingEffort) {
+                    nextRecord.anthropicThinkingEffort = 'high'
+                }
+            }
+            if (controls.useStructuredOutput === true && nextRecord.useStrictSchema === undefined) {
+                nextRecord.useStrictSchema = true
+            }
+            const nextOutputControls = [
+                ...providerModelOutputControls.filter(
+                    (item) => item.providerId !== activeProvider.id || item.model !== defaultModel.model
+                ),
+                nextRecord,
+            ]
+            onChange(providers, defaultProviderId, defaultModel, nextOutputControls)
         },
-        [defaultModel, defaultProviderId, onChange, providers]
+        [
+            activeProvider,
+            defaultModel,
+            defaultProviderId,
+            isOpenAIProtocol,
+            onChange,
+            providerModelOutputControls,
+            providers,
+        ]
     )
     const dropdownOverrides = useMemo(
         () => ({
@@ -1145,10 +1197,10 @@ function LLMProvidersSettings({ providers, defaultProviderId, defaultModel, onCh
             const nextProviders = value.id
                 ? providers.map((item) => (item.id === value.id ? provider : item))
                 : [...providers, provider]
-            onChange(nextProviders, defaultProviderId ?? provider.id, defaultModel)
+            onChange(nextProviders, defaultProviderId ?? provider.id, defaultModel, providerModelOutputControls)
             closeForm()
         },
-        [closeForm, defaultModel, defaultProviderId, onChange, providers]
+        [closeForm, defaultModel, defaultProviderId, onChange, providerModelOutputControls, providers]
     )
 
     const deleteProvider = useCallback(
@@ -1166,9 +1218,14 @@ function LLMProvidersSettings({ providers, defaultProviderId, defaultModel, onCh
                     : defaultModel?.providerId === providerId
                     ? null
                     : defaultModel
-            onChange(nextProviders, nextDefaultProviderId, nextDefaultModel)
+            onChange(
+                nextProviders,
+                nextDefaultProviderId,
+                nextDefaultModel,
+                providerModelOutputControls.filter((item) => item.providerId !== providerId)
+            )
         },
-        [defaultModel, defaultProviderId, onChange, providers]
+        [defaultModel, defaultProviderId, onChange, providerModelOutputControls, providers]
     )
 
     const activateProvider = useCallback(
@@ -1182,10 +1239,11 @@ function LLMProvidersSettings({ providers, defaultProviderId, defaultModel, onCh
                           providerId: provider.id,
                           model,
                       }
-                    : defaultModel
+                    : defaultModel,
+                providerModelOutputControls
             )
         },
-        [defaultModel, onChange, providers]
+        [defaultModel, onChange, providerModelOutputControls, providers]
     )
 
     const refreshProviderModels = useCallback(
@@ -1219,7 +1277,7 @@ function LLMProvidersSettings({ providers, defaultProviderId, defaultModel, onCh
                             ? { providerId: provider.id, model: ids[0] }
                             : defaultModel
                         : defaultModel ?? (ids[0] ? { providerId: provider.id, model: ids[0] } : null)
-                onChange(nextProviders, defaultProviderId ?? provider.id, nextDefaultModel)
+                onChange(nextProviders, defaultProviderId ?? provider.id, nextDefaultModel, providerModelOutputControls)
                 if (ids.length === 0) {
                     toast(t('Unable to fetch model list. Please enter the model name manually.'))
                 }
@@ -1231,7 +1289,7 @@ function LLMProvidersSettings({ providers, defaultProviderId, defaultModel, onCh
                 setRefreshingProviderId(null)
             }
         },
-        [defaultModel, defaultProviderId, onChange, providers, t]
+        [defaultModel, defaultProviderId, onChange, providerModelOutputControls, providers, t]
     )
 
     return (
@@ -1351,39 +1409,43 @@ function LLMProvidersSettings({ providers, defaultProviderId, defaultModel, onCh
                         onChange={({ value }) => {
                             const option = value[0]
                             if (!option) {
-                                onChange(providers, defaultProviderId, null)
+                                onChange(providers, defaultProviderId, null, providerModelOutputControls)
                                 return
                             }
                             const providerId = option.providerId as string | undefined
                             const model = option.model as string | undefined
                             if (providerId && model) {
-                                onChange(providers, providerId, {
+                                onChange(
+                                    providers,
                                     providerId,
-                                    model,
-                                    thinkingEnabled: defaultModel?.thinkingEnabled,
-                                    openaiReasoningEffort: defaultModel?.openaiReasoningEffort,
-                                    anthropicThinkingEffort: defaultModel?.anthropicThinkingEffort,
-                                })
+                                    {
+                                        providerId,
+                                        model,
+                                    },
+                                    providerModelOutputControls
+                                )
                                 return
                             }
                             const selectedModel = option.id
                             if (typeof selectedModel === 'string') {
                                 const providerId = defaultModel?.providerId ?? defaultProviderId ?? providers[0].id
-                                onChange(providers, providerId, {
+                                onChange(
+                                    providers,
                                     providerId,
-                                    model: selectedModel,
-                                    thinkingEnabled: defaultModel?.thinkingEnabled,
-                                    openaiReasoningEffort: defaultModel?.openaiReasoningEffort,
-                                    anthropicThinkingEffort: defaultModel?.anthropicThinkingEffort,
-                                })
+                                    {
+                                        providerId,
+                                        model: selectedModel,
+                                    },
+                                    providerModelOutputControls
+                                )
                             }
                         }}
                     />
                     <Checkbox
                         checkmarkType='toggle_round'
-                        checked={defaultModel?.thinkingEnabled === true}
+                        checked={selectedOutputControls.thinkingEnabled}
                         disabled={!defaultModel}
-                        onChange={(event) => updateDefaultModelThinking({ thinkingEnabled: event.target.checked })}
+                        onChange={(event) => updateOutputControls({ thinkingEnabled: event.target.checked })}
                     >
                         {t('Thinking Enabled')}
                     </Checkbox>
@@ -1412,7 +1474,7 @@ function LLMProvidersSettings({ providers, defaultProviderId, defaultModel, onCh
                                 ]}
                                 onChange={({ option }) =>
                                     option?.id &&
-                                    updateDefaultModelThinking({
+                                    updateOutputControls({
                                         openaiReasoningEffort: option.id as OpenAIReasoningEffort,
                                     })
                                 }
@@ -1444,7 +1506,7 @@ function LLMProvidersSettings({ providers, defaultProviderId, defaultModel, onCh
                                 ]}
                                 onChange={({ option }) =>
                                     option?.id &&
-                                    updateDefaultModelThinking({
+                                    updateOutputControls({
                                         anthropicThinkingEffort: option.id as AnthropicThinkingEffort,
                                     })
                                 }
@@ -1456,6 +1518,21 @@ function LLMProvidersSettings({ providers, defaultProviderId, defaultModel, onCh
                             'Thinking support depends on the selected model and compatible endpoint. OpenAI reasoning models should use the OpenAI Responses protocol.'
                         )}
                     </div>
+                    <SettingsToggle
+                        value={selectedOutputControls.useStructuredOutput}
+                        disabled={!defaultModel}
+                        label={t('Use Structured Output')}
+                        onChange={(value) => updateOutputControls({ useStructuredOutput: value })}
+                    />
+                    <SettingsToggle
+                        value={selectedOutputControls.useStrictSchema}
+                        disabled={!defaultModel || !selectedOutputControls.useStructuredOutput}
+                        label={t('Strict JSON Schema')}
+                        caption={t(
+                            'Some older or third-party models only support JSON Object mode and may fail with Strict Schema enabled.'
+                        )}
+                        onChange={(value) => updateOutputControls({ useStrictSchema: value })}
+                    />
                 </div>
             )}
             {(isAddingProvider || editingProvider) && (
@@ -1601,55 +1678,30 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
     }, [persistSettings, prevValues, values])
 
     const handleLLMProvidersChange = useCallback(
-        (providers: ProviderConfig[], defaultProviderId: string | null, defaultModel: ModelSelection | null) => {
+        (
+            providers: ProviderConfig[],
+            defaultProviderId: string | null,
+            defaultModel: ModelSelection | null,
+            providerModelOutputControls: ProviderModelOutputControls[]
+        ) => {
             const nextValues = {
                 ...values,
                 providers,
                 defaultProviderId,
                 defaultModel,
+                providerModelOutputControls,
             }
             form.setFieldsValue({
                 providers,
                 defaultProviderId,
                 defaultModel,
+                providerModelOutputControls,
             })
             valuesRef.current = nextValues
             setValues(nextValues)
             void persistSettings(nextValues)
         },
         [form, persistSettings, values]
-    )
-
-    const handleStructuredOutputChange = useCallback(
-        (useStructuredOutput: boolean) => {
-            const nextValues = {
-                ...valuesRef.current,
-                useStructuredOutput,
-            }
-            form.setFieldsValue({
-                useStructuredOutput,
-            })
-            valuesRef.current = nextValues
-            setValues(nextValues)
-            void persistSettings(nextValues)
-        },
-        [form, persistSettings]
-    )
-
-    const handleStrictSchemaChange = useCallback(
-        (useStrictSchema: boolean) => {
-            const nextValues = {
-                ...valuesRef.current,
-                useStrictSchema,
-            }
-            form.setFieldsValue({
-                useStrictSchema,
-            })
-            valuesRef.current = nextValues
-            setValues(nextValues)
-            void persistSettings(nextValues)
-        },
-        [form, persistSettings]
     )
 
     const isDesktopApp = utils.isDesktopApp()
@@ -1925,45 +1977,8 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                                 providers={values.providers ?? []}
                                 defaultProviderId={values.defaultProviderId ?? null}
                                 defaultModel={values.defaultModel ?? null}
+                                providerModelOutputControls={values.providerModelOutputControls ?? []}
                                 onChange={handleLLMProvidersChange}
-                            />
-                        </div>
-                        <div className='rc-form-item'>
-                            <div
-                                className='rc-form-item-label'
-                                style={{
-                                    flexShrink: 0,
-                                    padding: '0.25em 0',
-                                    fontSize: '1.2em',
-                                    fontWeight: '600',
-                                }}
-                            >
-                                {t('Use Structured Output')}
-                            </div>
-                            <SettingsToggle
-                                value={values.useStructuredOutput}
-                                onChange={handleStructuredOutputChange}
-                            />
-                        </div>
-                        <div className='rc-form-item'>
-                            <div
-                                className='rc-form-item-label'
-                                style={{
-                                    flexShrink: 0,
-                                    padding: '0.25em 0',
-                                    fontSize: '1.2em',
-                                    fontWeight: '600',
-                                }}
-                            >
-                                {t('Strict JSON Schema')}
-                            </div>
-                            <SettingsToggle
-                                value={values.useStrictSchema}
-                                onChange={handleStrictSchemaChange}
-                                disabled={!values.useStructuredOutput}
-                                caption={t(
-                                    'Some older or third-party models only support JSON Object mode and may fail with Strict Schema enabled.'
-                                )}
                             />
                         </div>
                         <FormItem

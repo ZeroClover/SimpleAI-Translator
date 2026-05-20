@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
     normalizeSettings,
+    resolveProviderModelOutputControls,
     resolveAutomaticTargetLanguage,
     resolveTargetLanguageForSource,
     sanitizeSettingsForStorage,
@@ -145,7 +146,7 @@ describe('settings schema normalization', () => {
         expect(settings.providers[0]).not.toHaveProperty('openaiReasoningEffort')
     })
 
-    it('preserves valid model thinking fields on defaultModel', () => {
+    it('drops legacy model thinking fields on defaultModel', () => {
         const provider = {
             id: 'provider-1',
             name: 'Primary',
@@ -162,13 +163,148 @@ describe('settings schema normalization', () => {
                 thinkingEnabled: true,
                 anthropicThinkingEffort: 'max',
             },
-        })
+        } as Record<string, unknown>)
 
         expect(settings.defaultModel).toEqual({
             providerId: provider.id,
             model: provider.model,
+        })
+        expect(settings.providerModelOutputControls).toEqual([])
+    })
+
+    it('normalizes provider and model scoped output controls', () => {
+        const provider = {
+            id: 'provider-1',
+            name: 'Primary',
+            protocol: 'openai-responses' as const,
+            apiKey: 'sk-test',
+            model: 'gpt-4o-mini',
+        }
+        const settings = normalizeSettings({
+            providers: [provider],
+            providerModelOutputControls: [
+                {
+                    providerId: provider.id,
+                    model: provider.model,
+                    thinkingEnabled: true,
+                    openaiReasoningEffort: 'low',
+                    useStructuredOutput: true,
+                    useStrictSchema: false,
+                },
+                {
+                    providerId: 'missing',
+                    model: provider.model,
+                    thinkingEnabled: true,
+                },
+                {
+                    providerId: provider.id,
+                    model: '',
+                    thinkingEnabled: true,
+                },
+                {
+                    providerId: provider.id,
+                    model: provider.model,
+                    thinkingEnabled: false,
+                    openaiReasoningEffort: 'invalid',
+                    useStructuredOutput: true,
+                },
+                {
+                    providerId: provider.id,
+                    model: 'custom-model',
+                    anthropicThinkingEffort: 'max',
+                },
+            ],
+        } as Record<string, unknown>)
+
+        expect(settings.providerModelOutputControls).toEqual([
+            {
+                providerId: provider.id,
+                model: provider.model,
+                thinkingEnabled: false,
+                useStructuredOutput: true,
+            },
+            {
+                providerId: provider.id,
+                model: 'custom-model',
+                anthropicThinkingEffort: 'max',
+            },
+        ])
+    })
+
+    it('resolves missing and saved provider model output controls', () => {
+        const provider = {
+            id: 'provider-1',
+            name: 'Primary',
+            protocol: 'anthropic' as const,
+            apiKey: 'sk-ant',
+            model: 'claude-sonnet-4-6',
+        }
+        const settings = normalizeSettings({
+            providers: [provider],
+            providerModelOutputControls: [
+                {
+                    providerId: provider.id,
+                    model: provider.model,
+                    thinkingEnabled: true,
+                    anthropicThinkingEffort: 'xhigh',
+                    useStructuredOutput: true,
+                },
+            ],
+        })
+
+        expect(resolveProviderModelOutputControls(settings, provider.id, 'missing-model')).toEqual({
+            thinkingEnabled: false,
+            openaiReasoningEffort: undefined,
+            anthropicThinkingEffort: undefined,
+            useStructuredOutput: false,
+            useStrictSchema: true,
+        })
+        expect(resolveProviderModelOutputControls(settings, provider.id, provider.model)).toEqual({
             thinkingEnabled: true,
-            anthropicThinkingEffort: 'max',
+            openaiReasoningEffort: undefined,
+            anthropicThinkingEffort: 'xhigh',
+            useStructuredOutput: true,
+            useStrictSchema: true,
+        })
+    })
+
+    it('resolves model output controls without leaking between models', () => {
+        const provider = {
+            id: 'provider-1',
+            name: 'Primary',
+            protocol: 'openai-chat' as const,
+            apiKey: 'sk-test',
+            model: 'gpt-4o-mini',
+        }
+        const settings = normalizeSettings({
+            providers: [provider],
+            providerModelOutputControls: [
+                {
+                    providerId: provider.id,
+                    model: 'model-a',
+                    thinkingEnabled: true,
+                    openaiReasoningEffort: 'high',
+                    useStructuredOutput: true,
+                },
+                {
+                    providerId: provider.id,
+                    model: 'model-b',
+                    thinkingEnabled: false,
+                    openaiReasoningEffort: 'low',
+                    useStructuredOutput: false,
+                },
+            ],
+        })
+
+        expect(resolveProviderModelOutputControls(settings, provider.id, 'model-a')).toMatchObject({
+            thinkingEnabled: true,
+            openaiReasoningEffort: 'high',
+            useStructuredOutput: true,
+        })
+        expect(resolveProviderModelOutputControls(settings, provider.id, 'model-b')).toMatchObject({
+            thinkingEnabled: false,
+            openaiReasoningEffort: 'low',
+            useStructuredOutput: false,
         })
     })
 
@@ -183,6 +319,14 @@ describe('settings schema normalization', () => {
         const sanitized = sanitizeSettingsForStorage({
             providers: [provider],
             defaultProviderId: provider.id,
+            providerModelOutputControls: [
+                {
+                    providerId: provider.id,
+                    model: provider.model,
+                    useStructuredOutput: true,
+                    useStrictSchema: true,
+                },
+            ],
             provider: 'Azure',
             apiKeys: 'sk-legacy',
             azureAPIKeys: 'azure-key',
@@ -196,6 +340,14 @@ describe('settings schema normalization', () => {
                 providerId: provider.id,
                 model: provider.model,
             },
+            providerModelOutputControls: [
+                {
+                    providerId: provider.id,
+                    model: provider.model,
+                    useStructuredOutput: true,
+                    useStrictSchema: true,
+                },
+            ],
         })
     })
 

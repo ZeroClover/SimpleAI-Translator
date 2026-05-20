@@ -26,6 +26,7 @@ import {
     isMacOS,
     areSameLanguageForTargetSelection,
     resolveAutomaticTargetLanguage,
+    resolveProviderModelOutputControls,
     resolveTargetLanguageForSource,
     setSettings as persistSettings,
 } from '../utils'
@@ -921,14 +922,22 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 }
             }
             beforeTranslate()
+            const outputControls = resolveProviderModelOutputControls(
+                settings,
+                translateDeps.providerId ?? selectedModel?.providerId,
+                translateDeps.engineModel ?? selectedModel?.model
+            )
             const cachedKey = getTranslationCacheKey({
                 providerId: translateDeps.providerId,
                 model: translateDeps.engineModel,
                 sourceLang,
                 targetLang,
                 text,
-                useStructuredOutput: settings.useStructuredOutput,
-                useStrictSchema: settings.useStrictSchema,
+                thinkingEnabled: outputControls.thinkingEnabled,
+                openaiReasoningEffort: outputControls.openaiReasoningEffort,
+                anthropicThinkingEffort: outputControls.anthropicThinkingEffort,
+                useStructuredOutput: outputControls.useStructuredOutput,
+                useStrictSchema: outputControls.useStrictSchema,
                 translationFlag,
             })
             const cachedValue = cache.get(cachedKey)
@@ -994,10 +1003,9 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         [
             selectedModel?.model,
             selectedModel?.providerId,
+            settings,
             translateDeps,
             translationFlag,
-            settings.useStructuredOutput,
-            settings.useStrictSchema,
             startLoading,
             stopLoading,
             t,

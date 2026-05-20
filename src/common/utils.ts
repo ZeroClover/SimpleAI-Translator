@@ -6,6 +6,7 @@ import {
     ISettings,
     ModelSelection,
     OpenAIReasoningEffort,
+    ProviderModelOutputControls,
     ProviderConfig,
 } from './types'
 import { getUniversalFetch } from './universal-fetch'
@@ -27,8 +28,7 @@ const settingKeys = {
     providers: 1,
     defaultProviderId: 1,
     defaultModel: 1,
-    useStructuredOutput: 1,
-    useStrictSchema: 1,
+    providerModelOutputControls: 1,
     enableMica: 1,
     enableBackgroundBlur: 1,
     nativeLanguage: 1,
@@ -207,22 +207,9 @@ function normalizeDefaultModel(rawDefaultModel: unknown, providers: ProviderConf
         providers.some((provider) => provider.id === defaultModel.providerId) &&
         defaultModel.model.trim()
     ) {
-        const openaiReasoningEffort = openaiReasoningEfforts.has(
-            String(defaultModel.openaiReasoningEffort) as OpenAIReasoningEffort
-        )
-            ? defaultModel.openaiReasoningEffort
-            : undefined
-        const anthropicThinkingEffort = anthropicThinkingEfforts.has(
-            String(defaultModel.anthropicThinkingEffort) as AnthropicThinkingEffort
-        )
-            ? defaultModel.anthropicThinkingEffort
-            : undefined
         return {
             providerId: defaultModel.providerId,
             model: defaultModel.model,
-            ...(defaultModel.thinkingEnabled === true ? { thinkingEnabled: true } : {}),
-            ...(openaiReasoningEffort ? { openaiReasoningEffort } : {}),
-            ...(anthropicThinkingEffort ? { anthropicThinkingEffort } : {}),
         }
     }
     const fallbackProvider = providers.find((provider) => provider.model.trim()) ?? providers[0]
@@ -232,6 +219,76 @@ function normalizeDefaultModel(rawDefaultModel: unknown, providers: ProviderConf
     return {
         providerId: fallbackProvider.id,
         model: fallbackProvider.model,
+    }
+}
+
+function normalizeProviderModelOutputControls(
+    controls: unknown,
+    providers: ProviderConfig[]
+): ProviderModelOutputControls[] {
+    if (!Array.isArray(controls)) {
+        return []
+    }
+    const providerIds = new Set(providers.map((provider) => provider.id))
+    const records = new Map<string, ProviderModelOutputControls>()
+    for (const control of controls) {
+        const item = control as Partial<ProviderModelOutputControls>
+        if (
+            !item ||
+            typeof item.providerId !== 'string' ||
+            !providerIds.has(item.providerId) ||
+            typeof item.model !== 'string' ||
+            !item.model.trim()
+        ) {
+            continue
+        }
+        const openaiReasoningEffort = openaiReasoningEfforts.has(
+            String(item.openaiReasoningEffort) as OpenAIReasoningEffort
+        )
+            ? item.openaiReasoningEffort
+            : undefined
+        const anthropicThinkingEffort = anthropicThinkingEfforts.has(
+            String(item.anthropicThinkingEffort) as AnthropicThinkingEffort
+        )
+            ? item.anthropicThinkingEffort
+            : undefined
+        const normalized: ProviderModelOutputControls = {
+            providerId: item.providerId,
+            model: item.model,
+            ...(typeof item.thinkingEnabled === 'boolean' ? { thinkingEnabled: item.thinkingEnabled } : {}),
+            ...(openaiReasoningEffort ? { openaiReasoningEffort } : {}),
+            ...(anthropicThinkingEffort ? { anthropicThinkingEffort } : {}),
+            ...(typeof item.useStructuredOutput === 'boolean' ? { useStructuredOutput: item.useStructuredOutput } : {}),
+            ...(typeof item.useStrictSchema === 'boolean' ? { useStrictSchema: item.useStrictSchema } : {}),
+        }
+        records.set(`${normalized.providerId}\n${normalized.model}`, normalized)
+    }
+    return Array.from(records.values())
+}
+
+export interface ResolvedProviderModelOutputControls {
+    thinkingEnabled: boolean
+    openaiReasoningEffort?: OpenAIReasoningEffort
+    anthropicThinkingEffort?: AnthropicThinkingEffort
+    useStructuredOutput: boolean
+    useStrictSchema: boolean
+}
+
+export function resolveProviderModelOutputControls(
+    settings: Pick<ISettings, 'providerModelOutputControls'>,
+    providerId: string | null | undefined,
+    model: string | null | undefined
+): ResolvedProviderModelOutputControls {
+    const record = settings.providerModelOutputControls?.find(
+        (item) => item.providerId === providerId && item.model === model
+    )
+    const useStructuredOutput = record?.useStructuredOutput === true
+    return {
+        thinkingEnabled: record?.thinkingEnabled === true,
+        openaiReasoningEffort: record?.openaiReasoningEffort,
+        anthropicThinkingEffort: record?.anthropicThinkingEffort,
+        useStructuredOutput,
+        useStrictSchema: useStructuredOutput ? record.useStrictSchema !== false : true,
     }
 }
 
@@ -291,8 +348,10 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
         providers,
         defaultProviderId,
         defaultModel: normalizeDefaultModel(rawSettings.defaultModel, providers),
-        useStructuredOutput: rawSettings.useStructuredOutput ?? false,
-        useStrictSchema: rawSettings.useStrictSchema ?? true,
+        providerModelOutputControls: normalizeProviderModelOutputControls(
+            rawSettings.providerModelOutputControls,
+            providers
+        ),
         enableMica: rawSettings.enableMica ?? false,
         enableBackgroundBlur:
             rawSettings.enableBackgroundBlur === undefined || rawSettings.enableBackgroundBlur === null

@@ -1928,20 +1928,6 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                                 onChange={handleLLMProvidersChange}
                             />
                         </div>
-                        <FormItem
-                            name='nativeLanguage'
-                            label={t('Native language')}
-                            caption={t('Text in other languages is translated into this language.')}
-                        >
-                            <LanguageSelector onBlur={onBlur} />
-                        </FormItem>
-                        <FormItem
-                            name='translationTargetLanguage'
-                            label={t('Translation target language')}
-                            caption={t('Text in your native language is translated into this language.')}
-                        >
-                            <LanguageSelector onBlur={onBlur} />
-                        </FormItem>
                         <div className='rc-form-item'>
                             <div
                                 className='rc-form-item-label'
@@ -1980,6 +1966,20 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                                 )}
                             />
                         </div>
+                        <FormItem
+                            name='nativeLanguage'
+                            label={t('Native language')}
+                            caption={t('Text in other languages is translated into this language.')}
+                        >
+                            <LanguageSelector onBlur={onBlur} />
+                        </FormItem>
+                        <FormItem
+                            name='translationTargetLanguage'
+                            label={t('Translation target language')}
+                            caption={t('Text in your native language is translated into this language.')}
+                        >
+                            <LanguageSelector onBlur={onBlur} />
+                        </FormItem>
                         <FormItem name='languageDetectionEngine' label={t('Language detection engine')}>
                             <LanguageDetectionEngineSelector onBlur={onBlur} />
                         </FormItem>

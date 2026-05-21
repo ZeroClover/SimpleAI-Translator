@@ -14,9 +14,7 @@
             "open": true
         },
         "updater": {
-            "endpoints": [
-                "https://github.com/nextai-translator/nextai-translator/releases/latest/download/latest.json"
-            ],
+            "endpoints": ["https://github.com/ZeroClover/SimpleAI-Translator/releases/latest/download/latest.json"],
             "active": false,
             "windows": {
                 "installMode": "passive"

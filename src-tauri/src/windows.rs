@@ -1,10 +1,9 @@
+use crate::ALWAYS_ON_TOP;
+use crate::APP_HANDLE;
+use crate::UpdateResult;
 use crate::config;
 use crate::insertion::remember_active_window;
 use crate::utils;
-use crate::UpdateResult;
-use crate::ALWAYS_ON_TOP;
-use crate::APP_HANDLE;
-use active_win_pos_rs::get_active_window;
 #[cfg(target_os = "macos")]
 use cocoa::appkit::NSWindow;
 use debug_print::debug_println;
@@ -144,13 +143,6 @@ pub async fn show_translator_window_with_selected_text_command() {
     }
     focus_translator_window(&window);
     utils::show();
-}
-
-fn is_translator_foreground() -> bool {
-    match get_active_window() {
-        Ok(window) => window.process_id == std::process::id() as u64,
-        Err(_) => false,
-    }
 }
 
 pub fn do_hide_translator_window() {

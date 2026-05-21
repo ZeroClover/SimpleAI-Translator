@@ -1,7 +1,7 @@
 use std::thread;
 use std::time::Duration;
 
-use active_win_pos_rs::{get_active_window, ActiveWindow};
+use active_win_pos_rs::{ActiveWindow, get_active_window};
 use debug_print::debug_println;
 use enigo::{Enigo, Keyboard, Settings};
 use parking_lot::Mutex;
@@ -18,8 +18,11 @@ pub fn remember_active_window() {
     if let Ok(window) = get_active_window() {
         if !is_translator_process(&window) {
             debug_println!(
-                "[insertion] remembered window: {}",
-                describe_window(&window)
+                "[insertion] remembered window: title='{}', app='{}', pid={}, id={}",
+                window.title,
+                window.app_name,
+                window.process_id,
+                window.window_id
             );
             *PREVIOUS_ACTIVE_WINDOW.lock() = Some(window);
         } else {
@@ -28,13 +31,6 @@ pub fn remember_active_window() {
     } else {
         debug_println!("[insertion] failed to fetch active window");
     }
-}
-
-fn describe_window(window: &ActiveWindow) -> String {
-    format!(
-        "title='{}', app='{}', pid={}, id={}",
-        window.title, window.app_name, window.process_id, window.window_id
-    )
 }
 
 #[cfg(target_os = "macos")]
@@ -129,8 +125,8 @@ fn focus_window(window: &ActiveWindow) -> Result<(), String> {
     use windows::Win32::Foundation::HWND;
     use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
     use windows::Win32::UI::WindowsAndMessaging::{
-        BringWindowToTop, GetForegroundWindow, GetWindowThreadProcessId, IsIconic,
-        SetForegroundWindow, ShowWindow, SW_RESTORE,
+        BringWindowToTop, GetForegroundWindow, GetWindowThreadProcessId, IsIconic, SW_RESTORE,
+        SetForegroundWindow, ShowWindow,
     };
 
     let hwnd = parse_hwnd(&window.window_id)?;
@@ -168,8 +164,8 @@ fn focus_window(window: &ActiveWindow) -> Result<(), String> {
 
 #[cfg(target_os = "linux")]
 fn focus_window(window: &ActiveWindow) -> Result<(), String> {
-    use xcb::x;
     use xcb::XidNew;
+    use xcb::x;
 
     let window_id: u32 = window
         .window_id
@@ -214,8 +210,11 @@ fn focus_window(window: &ActiveWindow) -> Result<(), String> {
 fn focus_previous_window() -> Result<(), String> {
     if let Some(window) = PREVIOUS_ACTIVE_WINDOW.lock().clone() {
         debug_println!(
-            "[insertion] focusing previous window: {}",
-            describe_window(&window)
+            "[insertion] focusing previous window: title='{}', app='{}', pid={}, id={}",
+            window.title,
+            window.app_name,
+            window.process_id,
+            window.window_id
         );
         let result = focus_window(&window);
         if let Err(ref err) = result {

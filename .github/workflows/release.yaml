@@ -580,7 +580,7 @@ jobs:
               run: |
                   set -euo pipefail
                   cd release-assets
-                  sha256sum ./*.deb ./*.AppImage ./*.AppImage.tar.gz > SHA256SUMS-linux.txt
+                  sha256sum ./*.deb ./*.AppImage > SHA256SUMS-linux.txt
 
             - name: Generate final updater metadata
               env:

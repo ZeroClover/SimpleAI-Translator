@@ -7,7 +7,6 @@ This document records the release automation baseline checked on 2026-05-21 and 
 -   Release repository: `ZeroClover/SimpleAI-Translator`.
 -   Tauri updater endpoint: `https://github.com/ZeroClover/SimpleAI-Translator/releases/latest/download/latest.json`.
 -   Tauri updater public key: embedded in `src-tauri/tauri.conf.json` under `plugins.updater.pubkey`.
--   Release environment: `production-release`.
 -   Windows installer format: signed NSIS `.exe` remains the default. MSI is not produced unless a future release or WinGet requirement explicitly adds it.
 -   WinGet package identifier: `ZeroClover.SimpleAITranslator`.
 -   Linux integrity file: `SHA256SUMS-linux.txt`, covering uploaded `.deb`, `.AppImage`, and `.AppImage.tar.gz` assets.
@@ -34,20 +33,18 @@ Removed instead of upgraded: `actions/upload-release-asset`, `actions/github-scr
 
 `azure/artifact-signing-action@v2.0.0` was checked but not used for release signing because Windows Authenticode signing must happen through Tauri's `bundle.windows.signCommand` before updater signatures and final updater metadata are generated. The workflow installs `Microsoft.ArtifactSigning.Client` and calls SignTool with `Azure.CodeSigning.Dlib.dll`.
 
-## GitHub Environment
+## GitHub Repository Secrets
 
-Create a GitHub Environment named `production-release`.
-
-Configure required reviewers or an equivalent approval policy for this environment. Store production signing and publication secrets here rather than as broad repository secrets when GitHub allows the consuming workflow to use environment-scoped values.
+Store all release signing credentials as repository secrets on `ZeroClover/SimpleAI-Translator`. The release workflow does not use GitHub Environments.
 
 `GITHUB_TOKEN` is built in. Do not create a manual secret named `GITHUB_TOKEN`.
 
 ## Tauri Updater
 
-| Name                                 | Type   | Scope                | Consumed by                                 |
-| ------------------------------------ | ------ | -------------------- | ------------------------------------------- |
-| `TAURI_SIGNING_PRIVATE_KEY`          | secret | `production-release` | Linux, macOS, and Windows Tauri build steps |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | secret | `production-release` | Linux, macOS, and Windows Tauri build steps |
+| Name                                 | Type   | Consumed by                                 |
+| ------------------------------------ | ------ | ------------------------------------------- |
+| `TAURI_SIGNING_PRIVATE_KEY`          | secret | Linux, macOS, and Windows Tauri build steps |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | secret | Linux, macOS, and Windows Tauri build steps |
 
 Generate the key pair with Tauri's signer command for the version of Tauri used by this repository. Back up the private key outside GitHub in a password manager or secret vault before the first production release.
 
@@ -57,14 +54,14 @@ If compromise is suspected, revoke GitHub access to the secret, rotate the key p
 
 ## Apple Developer ID and Notarization
 
-| Name                                      | Type     | Scope                | Consumed by                   |
-| ----------------------------------------- | -------- | -------------------- | ----------------------------- |
-| `APPLE_DEVELOPER_ID_CERTIFICATE_BASE64`   | secret   | `production-release` | macOS certificate import step |
-| `APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD` | secret   | `production-release` | macOS certificate import step |
-| `APPLE_SIGNING_IDENTITY`                  | variable | `production-release` | macOS Tauri config generation |
-| `APPLE_ID`                                | secret   | `production-release` | Tauri notarization            |
-| `APPLE_PASSWORD`                          | secret   | `production-release` | Tauri notarization            |
-| `APPLE_TEAM_ID`                           | secret   | `production-release` | Tauri notarization            |
+| Name                                      | Type   | Consumed by                   |
+| ----------------------------------------- | ------ | ----------------------------- |
+| `APPLE_DEVELOPER_ID_CERTIFICATE_BASE64`   | secret | macOS certificate import step |
+| `APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD` | secret | macOS certificate import step |
+| `APPLE_SIGNING_IDENTITY`                  | secret | macOS Tauri config generation |
+| `APPLE_ID`                                | secret | Tauri notarization            |
+| `APPLE_PASSWORD`                          | secret | Tauri notarization            |
+| `APPLE_TEAM_ID`                           | secret | Tauri notarization            |
 
 Export a Developer ID Application certificate from Keychain Access as `.p12`, protect it with a strong export password, and base64-encode the `.p12` file for `APPLE_DEVELOPER_ID_CERTIFICATE_BASE64`. Set `APPLE_SIGNING_IDENTITY` to the exact Developer ID Application identity shown by `security find-identity -v -p codesigning`.
 
@@ -74,18 +71,18 @@ The app currently keeps `bundle.macOS.entitlements` as `null`. The audit found n
 
 ## Azure Artifact Signing
 
-| Name                                              | Type     | Scope                | Consumed by                    |
-| ------------------------------------------------- | -------- | -------------------- | ------------------------------ |
-| `AZURE_CLIENT_ID`                                 | variable | `production-release` | `azure/login` in Windows build |
-| `AZURE_TENANT_ID`                                 | variable | `production-release` | `azure/login` in Windows build |
-| `AZURE_SUBSCRIPTION_ID`                           | variable | `production-release` | `azure/login` in Windows build |
-| `AZURE_ARTIFACT_SIGNING_ENDPOINT`                 | variable | `production-release` | Windows signing metadata       |
-| `AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME`             | variable | `production-release` | Windows signing metadata       |
-| `AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME` | variable | `production-release` | Windows signing metadata       |
+| Name                                              | Type   | Consumed by                    |
+| ------------------------------------------------- | ------ | ------------------------------ |
+| `AZURE_CLIENT_ID`                                 | secret | `azure/login` in Windows build |
+| `AZURE_TENANT_ID`                                 | secret | `azure/login` in Windows build |
+| `AZURE_SUBSCRIPTION_ID`                           | secret | `azure/login` in Windows build |
+| `AZURE_ARTIFACT_SIGNING_ENDPOINT`                 | secret | Windows signing metadata       |
+| `AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME`             | secret | Windows signing metadata       |
+| `AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME` | secret | Windows signing metadata       |
 
 Register the `Microsoft.CodeSigning` resource provider, create an Artifact Signing account in a supported region, complete identity validation, and create a certificate profile. Public Trust availability has regional and entity-type limits; verify the account region and endpoint before wiring the workflow.
 
-Assign the GitHub OIDC application identity the `Artifact Signing Certificate Profile Signer` role on the certificate profile or the narrowest parent scope that can sign. The federated credential should use audience `api://AzureADTokenExchange` and a subject restricted to this repository's release workflow plus the `production-release` environment or protected release tags.
+Assign the GitHub OIDC application identity the `Artifact Signing Certificate Profile Signer` role on the certificate profile or the narrowest parent scope that can sign. The federated credential should use audience `api://AzureADTokenExchange` and a subject restricted to this repository's release workflow, such as `repo:ZeroClover/SimpleAI-Translator:ref:refs/tags/v*`.
 
 The workflow uses `azure/login@v3.0.0`, installs `Microsoft.ArtifactSigning.Client`, generates a metadata JSON containing `Endpoint`, `CodeSigningAccountName`, and `CertificateProfileName`, and lets Tauri invoke `scripts/windows-azure-sign.ps1` through `bundle.windows.signCommand`.
 

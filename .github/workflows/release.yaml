@@ -17,7 +17,6 @@ jobs:
         runs-on: ubuntu-22.04
         permissions:
             contents: write
-        environment: production-release
         outputs:
             tag_name: ${{ steps.version.outputs.tag_name }}
             version: ${{ steps.version.outputs.version }}
@@ -103,8 +102,6 @@ jobs:
         needs: [create-release, build-tauri-renderer]
         permissions:
             contents: read
-        environment: production-release
-
         steps:
             - uses: actions/checkout@v6.0.2
 
@@ -175,7 +172,6 @@ jobs:
         needs: [create-release, build-tauri-renderer]
         permissions:
             contents: read
-        environment: production-release
         strategy:
             fail-fast: false
             matrix:
@@ -235,7 +231,7 @@ jobs:
 
             - name: Configure macOS signing identity
               env:
-                  APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+                  APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
               shell: bash
               run: |
                   set -euo pipefail
@@ -309,8 +305,6 @@ jobs:
         permissions:
             contents: read
             id-token: write
-        environment: production-release
-
         steps:
             - uses: actions/checkout@v6.0.2
 
@@ -344,16 +338,16 @@ jobs:
             - name: Authenticate to Azure
               uses: azure/login@v3.0.0
               with:
-                  client-id: ${{ vars.AZURE_CLIENT_ID }}
-                  tenant-id: ${{ vars.AZURE_TENANT_ID }}
-                  subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+                  client-id: ${{ secrets.AZURE_CLIENT_ID }}
+                  tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+                  subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
             - name: Configure Azure Artifact Signing client
               shell: pwsh
               env:
-                  AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
-                  AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
-                  AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+                  AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+                  AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
+                  AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
               run: |
                   $ErrorActionPreference = 'Stop'
                   foreach ($name in @('AZURE_ARTIFACT_SIGNING_ENDPOINT', 'AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME', 'AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME')) {
@@ -517,8 +511,6 @@ jobs:
             - build-browser-extension
         permissions:
             contents: write
-        environment: production-release
-
         steps:
             - uses: actions/checkout@v6.0.2
 

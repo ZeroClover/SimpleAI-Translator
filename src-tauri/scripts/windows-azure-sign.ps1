@@ -25,20 +25,18 @@ if (-not (Test-Path -LiteralPath $env:AZURE_CODESIGN_METADATA_PATH)) {
     throw "Azure Code Signing metadata was not found: $env:AZURE_CODESIGN_METADATA_PATH"
 }
 
-$signtool = Get-Command signtool.exe -ErrorAction SilentlyContinue
+# Azure.CodeSigning.Dlib.dll is 64-bit, so SignTool must be the x64 build.
+$windowsKits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+$signtool = Get-ChildItem -Path $windowsKits -Recurse -Filter signtool.exe |
+    Where-Object { $_.Directory.Name -eq 'x64' -and $_.Directory.Parent.Name -match '^\d+(\.\d+)+$' } |
+    Sort-Object { [version]$_.Directory.Parent.Name } -Descending |
+    Select-Object -First 1
 
 if (-not $signtool) {
-    $windowsKits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
-    $signtool = Get-ChildItem -Path $windowsKits -Recurse -Filter signtool.exe |
-        Sort-Object -Property FullName -Descending |
-        Select-Object -First 1
+    throw 'x64 signtool.exe was not found.'
 }
 
-if (-not $signtool) {
-    throw 'signtool.exe was not found.'
-}
-
-& $signtool.Source sign `
+& $signtool.FullName sign `
     /fd SHA256 `
     /tr http://timestamp.acs.microsoft.com `
     /td SHA256 `

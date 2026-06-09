@@ -371,12 +371,14 @@ jobs:
                   $clientVersion = '1.0.128'
                   $packageRoot = Join-Path $env:RUNNER_TEMP 'artifact-signing-client'
                   nuget install Microsoft.ArtifactSigning.Client -Version $clientVersion -OutputDirectory $packageRoot -NonInteractive -DirectDownload
-                  $dlib = Get-ChildItem -Path $packageRoot -Recurse -Filter Azure.CodeSigning.Dlib.dll | Select-Object -First 1
+                  $dlib = Get-ChildItem -Path $packageRoot -Recurse -Filter Azure.CodeSigning.Dlib.dll |
+                    Where-Object { $_.Directory.Name -eq 'x64' } |
+                    Select-Object -First 1
                   if (-not $dlib) {
-                    throw 'Azure.CodeSigning.Dlib.dll was not found.'
+                    throw 'x64 Azure.CodeSigning.Dlib.dll was not found.'
                   }
                   $metadataPath = Join-Path $env:RUNNER_TEMP 'azure-codesigning-metadata.json'
-                  @{
+                  $metadataJson = @{
                     Endpoint = $env:AZURE_ARTIFACT_SIGNING_ENDPOINT
                     CodeSigningAccountName = $env:AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME
                     CertificateProfileName = $env:AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME
@@ -392,19 +394,13 @@ jobs:
                       'AzureDeveloperCliCredential',
                       'InteractiveBrowserCredential'
                     )
-                  } | ConvertTo-Json -Depth 4 | Set-Content -Path $metadataPath -Encoding utf8
+                  } | ConvertTo-Json -Depth 4
+                  [System.IO.File]::WriteAllText($metadataPath, $metadataJson, [System.Text.UTF8Encoding]::new($false))
                   "AZURE_CODESIGN_DLIB_PATH=$($dlib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
                   "AZURE_CODESIGN_METADATA_PATH=$metadataPath" | Out-File -FilePath $env:GITHUB_ENV -Append
 
             - name: Install Cargo Tauri
               run: cargo install tauri-cli --version "=2.8.4" --locked
-
-            - name: Configure Windows signing script path
-              shell: pwsh
-              run: |
-                  $ErrorActionPreference = 'Stop'
-                  $env:SIGN_SCRIPT = (Resolve-Path 'src-tauri/scripts/windows-azure-sign.ps1').Path
-                  node -e "const fs = require('node:fs'); const signScript = process.env.SIGN_SCRIPT; const configPath = 'src-tauri/tauri.conf.json'; const config = JSON.parse(fs.readFileSync(configPath, 'utf8')); const args = config.bundle.windows.signCommand.args; const fileFlagIndex = args.indexOf('-File'); if (fileFlagIndex < 0 || fileFlagIndex + 1 >= args.length) { throw new Error('signCommand is missing -File'); } args[fileFlagIndex + 1] = signScript; fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');"
 
             - name: Authenticate to Azure
               uses: azure/login@v3.0.0
@@ -417,6 +413,24 @@ jobs:
               shell: pwsh
               run: az account get-access-token --resource https://codesigning.azure.net --output none
 
+            - name: Configure Windows sign command
+              shell: pwsh
+              run: |
+                  $ErrorActionPreference = 'Stop'
+                  # Azure.CodeSigning.Dlib.dll is 64-bit, so SignTool must be the x64 build.
+                  $windowsKits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+                  $signtool = Get-ChildItem -Path $windowsKits -Recurse -Filter signtool.exe |
+                    Where-Object { $_.Directory.Name -eq 'x64' -and $_.Directory.Parent.Name -match '^\d+(\.\d+)+$' } |
+                    Sort-Object { [version]$_.Directory.Parent.Name } -Descending |
+                    Select-Object -First 1
+                  if (-not $signtool) {
+                    throw 'x64 signtool.exe was not found.'
+                  }
+                  $env:SIGN_CMD = $signtool.FullName.Replace('\', '/')
+                  $env:SIGN_DLIB = $env:AZURE_CODESIGN_DLIB_PATH.Replace('\', '/')
+                  $env:SIGN_METADATA = $env:AZURE_CODESIGN_METADATA_PATH.Replace('\', '/')
+                  node -e "const fs = require('node:fs'); const configPath = 'src-tauri/tauri.conf.json'; const config = JSON.parse(fs.readFileSync(configPath, 'utf8')); config.bundle.windows.signCommand = { cmd: process.env.SIGN_CMD, args: ['sign', '/fd', 'SHA256', '/tr', 'http://timestamp.acs.microsoft.com', '/td', 'SHA256', '/dlib', process.env.SIGN_DLIB, '/dmdf', process.env.SIGN_METADATA, '%1'] }; fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');"
+
             - name: Build Tauri app
               uses: tauri-apps/tauri-action@action-v0.6.2
               env:
@@ -424,7 +438,7 @@ jobs:
                   TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
               with:
                   tauriScript: cargo tauri
-                  args: --target x86_64-pc-windows-msvc
+                  args: --target x86_64-pc-windows-msvc --verbose
                   updaterJsonPreferNsis: true
 
             - name: Verify Windows signatures and updater signature
@@ -435,17 +449,18 @@ jobs:
                   if (-not $installer) {
                     throw 'NSIS installer was not found.'
                   }
-                  $signtool = Get-Command signtool.exe -ErrorAction SilentlyContinue
+                  $windowsKits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+                  $signtool = Get-ChildItem -Path $windowsKits -Recurse -Filter signtool.exe |
+                    Where-Object { $_.Directory.Name -eq 'x64' -and $_.Directory.Parent.Name -match '^\d+(\.\d+)+$' } |
+                    Sort-Object { [version]$_.Directory.Parent.Name } -Descending |
+                    Select-Object -First 1
                   if (-not $signtool) {
-                    $windowsKits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
-                    $signtool = Get-ChildItem -Path $windowsKits -Recurse -Filter signtool.exe |
-                      Sort-Object -Property FullName -Descending |
-                      Select-Object -First 1
+                    throw 'x64 signtool.exe was not found.'
                   }
-                  if (-not $signtool) {
-                    throw 'signtool.exe was not found.'
+                  & $signtool.FullName verify /pa /v $installer.FullName
+                  if ($LASTEXITCODE -ne 0) {
+                    throw "signtool verify failed with exit code $LASTEXITCODE."
                   }
-                  & $signtool.Source verify /pa /v $installer.FullName
                   $updaterZip = Get-ChildItem -Path src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis -Filter '*.nsis.zip' -Recurse | Select-Object -First 1
                   if (-not $updaterZip) {
                     throw 'Windows updater zip was not found.'

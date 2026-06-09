@@ -1,7 +1,7 @@
 use std::thread;
 use std::time::Duration;
 
-use active_win_pos_rs::{ActiveWindow, get_active_window};
+use active_win_pos_rs::{get_active_window, ActiveWindow};
 use debug_print::debug_println;
 use enigo::{Enigo, Keyboard, Settings};
 use parking_lot::Mutex;
@@ -125,8 +125,8 @@ fn focus_window(window: &ActiveWindow) -> Result<(), String> {
     use windows::Win32::Foundation::HWND;
     use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
     use windows::Win32::UI::WindowsAndMessaging::{
-        BringWindowToTop, GetForegroundWindow, GetWindowThreadProcessId, IsIconic, SW_RESTORE,
-        SetForegroundWindow, ShowWindow,
+        BringWindowToTop, GetForegroundWindow, GetWindowThreadProcessId, IsIconic,
+        SetForegroundWindow, ShowWindow, SW_RESTORE,
     };
 
     let hwnd = parse_hwnd(&window.window_id)?;
@@ -164,8 +164,8 @@ fn focus_window(window: &ActiveWindow) -> Result<(), String> {
 
 #[cfg(target_os = "linux")]
 fn focus_window(window: &ActiveWindow) -> Result<(), String> {
-    use xcb::XidNew;
     use xcb::x;
+    use xcb::XidNew;
 
     let window_id: u32 = window
         .window_id

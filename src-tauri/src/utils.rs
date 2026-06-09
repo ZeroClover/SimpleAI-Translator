@@ -1,10 +1,10 @@
 use enigo::*;
 use parking_lot::Mutex;
+#[cfg(target_os = "macos")]
+use tauri::path::BaseDirectory;
 use tauri::Emitter;
 #[cfg(target_os = "macos")]
 use tauri::Manager;
-#[cfg(target_os = "macos")]
-use tauri::path::BaseDirectory;
 
 use crate::APP_HANDLE;
 
@@ -107,15 +107,13 @@ pub fn paste(_enigo: &mut Enigo) {
 }
 
 pub fn send_text(text: String) {
-    match APP_HANDLE.get() {
-        Some(handle) => handle.emit("change-text", text).unwrap_or_default(),
-        None => {}
+    if let Some(handle) = APP_HANDLE.get() {
+        handle.emit("change-text", text).unwrap_or_default();
     }
 }
 
 pub fn show() {
-    match APP_HANDLE.get() {
-        Some(handle) => handle.emit("show", "").unwrap_or_default(),
-        None => {}
+    if let Some(handle) = APP_HANDLE.get() {
+        handle.emit("show", "").unwrap_or_default();
     }
 }

@@ -186,7 +186,7 @@ fn main() {
             specta_builder_setup.mount_events(app);
             let app_handle = app.handle();
             APP_HANDLE.get_or_init(|| app.handle().clone());
-            tray::create_tray(&app_handle)?;
+            tray::create_tray(app_handle)?;
             app_handle.plugin(tauri_plugin_updater::Builder::new().build())?;
             if silently {
                 // create translator window
@@ -286,9 +286,7 @@ fn main() {
                         tray::create_tray(&handle).unwrap();
                         let config = get_config().unwrap();
                         if config.automatic_check_for_updates.is_none()
-                            || config
-                                .automatic_check_for_updates
-                                .is_some_and(|x| x == true)
+                            || config.automatic_check_for_updates.is_some_and(|x| x)
                         {
                             std::thread::sleep(std::time::Duration::from_secs(3));
                             show_updater_window();
@@ -323,13 +321,11 @@ fn main() {
         }
         #[cfg(target_os = "macos")]
         tauri::RunEvent::Reopen {
-            has_visible_windows,
+            has_visible_windows: false,
             ..
         } => {
-            if !has_visible_windows {
-                remember_active_window();
-                windows::show_translator_window(false, false, false);
-            }
+            remember_active_window();
+            windows::show_translator_window(false, false, false);
         }
         _ => {}
     });

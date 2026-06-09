@@ -15,6 +15,7 @@ env:
 jobs:
     create-release:
         runs-on: ubuntu-22.04
+        environment: production-release
         permissions:
             contents: write
         outputs:
@@ -100,6 +101,7 @@ jobs:
     build-linux:
         runs-on: ubuntu-22.04
         needs: [create-release, build-tauri-renderer]
+        environment: production-release
         permissions:
             contents: read
         steps:
@@ -170,6 +172,7 @@ jobs:
     build-macos:
         runs-on: macos-latest
         needs: [create-release, build-tauri-renderer]
+        environment: production-release
         permissions:
             contents: read
         strategy:
@@ -318,6 +321,7 @@ jobs:
     build-windows:
         runs-on: windows-latest
         needs: [create-release, build-tauri-renderer]
+        environment: production-release
         permissions:
             contents: read
             id-token: write
@@ -466,8 +470,8 @@ jobs:
               with:
                   name: release-clip-extensions
                   path: |
-                      dist/nextai-translator.popclipextz
-                      dist/nextai-translator.pbar
+                      dist/SimpleAI-Translator.popclipextz
+                      dist/SimpleAI-Translator.pbar
                   if-no-files-found: error
 
     build-browser-extension:
@@ -505,9 +509,9 @@ jobs:
               run: |
                   set -euo pipefail
                   mkdir -p release-assets
-                  cp dist/browser-extension/chromium.zip "release-assets/nextai-translator-chromium-extension-${{ needs.create-release.outputs.version }}.zip"
-                  cp dist/browser-extension/firefox.zip "release-assets/nextai-translator-firefox-extension-${{ needs.create-release.outputs.version }}.xpi"
-                  cp "dist/nextai-translator.user.js" "release-assets/nextai-translator-${{ needs.create-release.outputs.version }}.user.js"
+                  cp dist/browser-extension/chromium.zip "release-assets/SimpleAI-Translator-chromium-extension-${{ needs.create-release.outputs.version }}.zip"
+                  cp dist/browser-extension/firefox.zip "release-assets/SimpleAI-Translator-firefox-extension-${{ needs.create-release.outputs.version }}.xpi"
+                  cp "dist/simpleai-translator.user.js" "release-assets/SimpleAI-Translator-${{ needs.create-release.outputs.version }}.user.js"
 
             - name: Upload browser extension assets
               uses: actions/upload-artifact@v7.0.1
@@ -525,6 +529,7 @@ jobs:
             - build-windows
             - build-clip-extension
             - build-browser-extension
+        environment: production-release
         permissions:
             contents: write
         steps:

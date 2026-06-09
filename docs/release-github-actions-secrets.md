@@ -54,18 +54,26 @@ If compromise is suspected, revoke GitHub access to the secret, rotate the key p
 
 ## Apple Developer ID and Notarization
 
-| Name                                      | Type   | Consumed by                   |
-| ----------------------------------------- | ------ | ----------------------------- |
-| `APPLE_DEVELOPER_ID_CERTIFICATE_BASE64`   | secret | macOS certificate import step |
-| `APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD` | secret | macOS certificate import step |
-| `APPLE_SIGNING_IDENTITY`                  | secret | macOS Tauri config generation |
-| `APPLE_ID`                                | secret | Tauri notarization            |
-| `APPLE_PASSWORD`                          | secret | Tauri notarization            |
-| `APPLE_TEAM_ID`                           | secret | Tauri notarization            |
+| Name                                      | Type   | Consumed by                        |
+| ----------------------------------------- | ------ | ---------------------------------- |
+| `APPLE_DEVELOPER_ID_CERTIFICATE_BASE64`   | secret | macOS certificate import step      |
+| `APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD` | secret | macOS certificate import step      |
+| `APPLE_SIGNING_IDENTITY`                  | secret | macOS Tauri config generation      |
+| `NOTARY_ASC_API_KEY_ID`                   | secret | App Store Connect API notarization |
+| `ASC_API_ISSUER`                          | secret | App Store Connect API notarization |
+| `NOTARY_ASC_API_KEY_BASE64`               | secret | App Store Connect API key file     |
 
 Export a Developer ID Application certificate from Keychain Access as `.p12`, protect it with a strong export password, and base64-encode the `.p12` file for `APPLE_DEVELOPER_ID_CERTIFICATE_BASE64`. Set `APPLE_SIGNING_IDENTITY` to the exact Developer ID Application identity shown by `security find-identity -v -p codesigning`.
 
-`APPLE_PASSWORD` must be an Apple ID app-specific password, not the Apple ID login password. Tauri also supports App Store Connect API notarization through `APPLE_API_KEY`, `APPLE_API_ISSUER`, and `APPLE_API_KEY_PATH`; this workflow currently implements the Apple ID app-specific password path to keep the release path minimal.
+For notarization, create an App Store Connect API key with Developer access:
+
+1. Open [App Store Connect Users and Access](https://appstoreconnect.apple.com/access/integrations/api), select the Integrations tab, and create a key with Developer access.
+2. Set `ASC_API_ISSUER` to the Issuer ID shown above the keys table.
+3. Set `NOTARY_ASC_API_KEY_ID` to the Key ID from the new key row.
+4. Download the `.p8` private key immediately after creation. Apple only allows one download.
+5. Base64-encode the `.p8` file for `NOTARY_ASC_API_KEY_BASE64`. The workflow writes it to `AuthKey_<NOTARY_ASC_API_KEY_ID>.p8` and maps the GitHub secrets to Tauri's `APPLE_API_KEY`, `APPLE_API_ISSUER`, and `APPLE_API_KEY_PATH` environment variables at build time.
+
+Tauri authenticates with Apple's notary service through these API credentials during the macOS build. Rotating the API key requires creating a new key in App Store Connect, updating the three secrets, and revoking the old key after the next successful release.
 
 The app currently keeps `bundle.macOS.entitlements` as `null`. The audit found no current custom entitlement requirement in the Tauri bundle config; do not add an entitlements file unless a concrete macOS capability starts requiring one.
 
@@ -84,7 +92,7 @@ Register the `Microsoft.CodeSigning` resource provider, create an Artifact Signi
 
 Assign the GitHub OIDC application identity the `Artifact Signing Certificate Profile Signer` role on the certificate profile or the narrowest parent scope that can sign. The federated credential should use audience `api://AzureADTokenExchange` and a subject restricted to this repository's release workflow, such as `repo:ZeroClover/SimpleAI-Translator:ref:refs/tags/v*`.
 
-The workflow uses `azure/login@v3.0.0`, installs `Microsoft.ArtifactSigning.Client`, generates a metadata JSON containing `Endpoint`, `CodeSigningAccountName`, and `CertificateProfileName`, and lets Tauri invoke `scripts/windows-azure-sign.ps1` through `bundle.windows.signCommand`.
+The workflow uses `azure/login@v3.0.0`, downloads `Microsoft.ArtifactSigning.Client` from NuGet for the signing dlib only, generates a metadata JSON containing `Endpoint`, `CodeSigningAccountName`, and `CertificateProfileName`, and lets Tauri invoke `scripts/windows-azure-sign.ps1` through `bundle.windows.signCommand`.
 
 ## WinGet
 

@@ -82,7 +82,7 @@ The app currently keeps `bundle.macOS.entitlements` as `null`. The audit found n
 
 | Name                                              | Type   | Scope                | Consumed by                    |
 | ------------------------------------------------- | ------ | -------------------- | ------------------------------ |
-| `AZURE_CLIENT_ID`                                 | secret | `production-release` | `azure/login` in Windows build |
+| `AZURE_CLIENT_ID`                                 | secret | `production-release` | User-assigned managed identity client ID for `azure/login` in Windows build |
 | `AZURE_TENANT_ID`                                 | secret | `production-release` | `azure/login` in Windows build |
 | `AZURE_SUBSCRIPTION_ID`                           | secret | `production-release` | `azure/login` in Windows build |
 | `AZURE_ARTIFACT_SIGNING_ENDPOINT`                 | secret | `production-release` | Windows signing metadata       |
@@ -91,9 +91,11 @@ The app currently keeps `bundle.macOS.entitlements` as `null`. The audit found n
 
 Register the `Microsoft.CodeSigning` resource provider, create an Artifact Signing account in a supported region, complete identity validation, and create a certificate profile. Public Trust availability has regional and entity-type limits; verify the account region and endpoint before wiring the workflow.
 
-Assign the GitHub OIDC application identity the `Artifact Signing Certificate Profile Signer` role on the certificate profile or the narrowest parent scope that can sign. The federated credential should use audience `api://AzureADTokenExchange` and subject `repo:ZeroClover/SimpleAI-Translator:environment:production-release`.
+Create a user-assigned managed identity, assign it the `Artifact Signing Certificate Profile Signer` role on the certificate profile or the narrowest parent scope that can sign, and add a federated identity credential on that managed identity with audience `api://AzureADTokenExchange` and subject `repo:ZeroClover/SimpleAI-Translator:environment:production-release`. Store the managed identity client ID in `AZURE_CLIENT_ID`.
 
-The workflow uses `azure/login@v3.0.0`, downloads `Microsoft.ArtifactSigning.Client` from NuGet for the signing dlib only, generates a metadata JSON containing `Endpoint`, `CodeSigningAccountName`, and `CertificateProfileName`, and lets Tauri invoke `src-tauri/scripts/windows-azure-sign.ps1` through `bundle.windows.signCommand`. The Windows release job rewrites that path to an absolute file path before bundling so NSIS signing steps can find the script regardless of the current working directory.
+The Windows release job installs `Microsoft.ArtifactSigning.Client` from NuGet, prepares Artifact Signing metadata for SignTool, compiles the desktop app, then runs `azure/login@v3.0.0` immediately before bundling and signing. After login it prefetches an access token for `https://codesigning.azure.net` so SignTool can reuse the Azure CLI token cache instead of trying to exchange an expired GitHub OIDC JWT during the long compile and bundle steps. Managed identity access tokens are typically valid for about 24 hours; the GitHub OIDC JWT used during login is only valid for about 5 minutes.
+
+The workflow lets Tauri invoke `src-tauri/scripts/windows-azure-sign.ps1` through `bundle.windows.signCommand`. The Windows release job rewrites that path to an absolute file path before bundling so NSIS signing steps can find the script regardless of the current working directory. Artifact Signing metadata excludes non-Azure CLI `DefaultAzureCredential` sources so SignTool authenticates through the `azure/login` session only.
 
 ## Non-Required Credentials
 

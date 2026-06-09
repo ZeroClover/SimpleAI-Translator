@@ -355,13 +355,6 @@ jobs:
                   name: tauri-renderer
                   path: dist/tauri
 
-            - name: Authenticate to Azure
-              uses: azure/login@v3.0.0
-              with:
-                  client-id: ${{ secrets.AZURE_CLIENT_ID }}
-                  tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-                  subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
             - name: Configure Azure Artifact Signing client
               shell: pwsh
               env:
@@ -387,7 +380,19 @@ jobs:
                     Endpoint = $env:AZURE_ARTIFACT_SIGNING_ENDPOINT
                     CodeSigningAccountName = $env:AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME
                     CertificateProfileName = $env:AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME
-                  } | ConvertTo-Json | Set-Content -Path $metadataPath -Encoding utf8
+                    CorrelationId = "gha-$($env:GITHUB_RUN_ID)"
+                    ExcludeCredentials = @(
+                      'EnvironmentCredential',
+                      'WorkloadIdentityCredential',
+                      'ManagedIdentityCredential',
+                      'SharedTokenCacheCredential',
+                      'VisualStudioCredential',
+                      'VisualStudioCodeCredential',
+                      'AzurePowerShellCredential',
+                      'AzureDeveloperCliCredential',
+                      'InteractiveBrowserCredential'
+                    )
+                  } | ConvertTo-Json -Depth 4 | Set-Content -Path $metadataPath -Encoding utf8
                   "AZURE_CODESIGN_DLIB_PATH=$($dlib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
                   "AZURE_CODESIGN_METADATA_PATH=$metadataPath" | Out-File -FilePath $env:GITHUB_ENV -Append
 
@@ -400,6 +405,17 @@ jobs:
                   $ErrorActionPreference = 'Stop'
                   $env:SIGN_SCRIPT = (Resolve-Path 'src-tauri/scripts/windows-azure-sign.ps1').Path
                   node -e "const fs = require('node:fs'); const signScript = process.env.SIGN_SCRIPT; const configPath = 'src-tauri/tauri.conf.json'; const config = JSON.parse(fs.readFileSync(configPath, 'utf8')); const args = config.bundle.windows.signCommand.args; const fileFlagIndex = args.indexOf('-File'); if (fileFlagIndex < 0 || fileFlagIndex + 1 >= args.length) { throw new Error('signCommand is missing -File'); } args[fileFlagIndex + 1] = signScript; fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');"
+
+            - name: Authenticate to Azure
+              uses: azure/login@v3.0.0
+              with:
+                  client-id: ${{ secrets.AZURE_CLIENT_ID }}
+                  tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+                  subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+            - name: Prefetch Artifact Signing access token
+              shell: pwsh
+              run: az account get-access-token --resource https://codesigning.azure.net --output none
 
             - name: Build Tauri app
               uses: tauri-apps/tauri-action@action-v0.6.2

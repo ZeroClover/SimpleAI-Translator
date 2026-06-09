@@ -394,6 +394,13 @@ jobs:
             - name: Install Cargo Tauri
               run: cargo install tauri-cli --version "=2.8.4" --locked
 
+            - name: Configure Windows signing script path
+              shell: pwsh
+              run: |
+                  $ErrorActionPreference = 'Stop'
+                  $env:SIGN_SCRIPT = (Resolve-Path 'src-tauri/scripts/windows-azure-sign.ps1').Path
+                  node -e "const fs = require('node:fs'); const signScript = process.env.SIGN_SCRIPT; const configPath = 'src-tauri/tauri.conf.json'; const config = JSON.parse(fs.readFileSync(configPath, 'utf8')); const args = config.bundle.windows.signCommand.args; const fileFlagIndex = args.indexOf('-File'); if (fileFlagIndex < 0 || fileFlagIndex + 1 >= args.length) { throw new Error('signCommand is missing -File'); } args[fileFlagIndex + 1] = signScript; fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');"
+
             - name: Build Tauri app
               uses: tauri-apps/tauri-action@action-v0.6.2
               env:

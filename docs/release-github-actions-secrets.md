@@ -93,7 +93,7 @@ Register the `Microsoft.CodeSigning` resource provider, create an Artifact Signi
 
 Assign the GitHub OIDC application identity the `Artifact Signing Certificate Profile Signer` role on the certificate profile or the narrowest parent scope that can sign. The federated credential should use audience `api://AzureADTokenExchange` and subject `repo:ZeroClover/SimpleAI-Translator:environment:production-release`.
 
-The workflow uses `azure/login@v3.0.0`, downloads `Microsoft.ArtifactSigning.Client` from NuGet for the signing dlib only, generates a metadata JSON containing `Endpoint`, `CodeSigningAccountName`, and `CertificateProfileName`, and lets Tauri invoke `scripts/windows-azure-sign.ps1` through `bundle.windows.signCommand`.
+The workflow uses `azure/login@v3.0.0`, downloads `Microsoft.ArtifactSigning.Client` from NuGet for the signing dlib only, generates a metadata JSON containing `Endpoint`, `CodeSigningAccountName`, and `CertificateProfileName`, and lets Tauri invoke `src-tauri/scripts/windows-azure-sign.ps1` through `bundle.windows.signCommand`. The Windows release job rewrites that path to an absolute file path before bundling so NSIS signing steps can find the script regardless of the current working directory.
 
 ## Non-Required Credentials
 

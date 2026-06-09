@@ -852,6 +852,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             if (!text || !sourceLang || !targetLang) {
                 return
             }
+            const isCurrentTranslation = () => translationID === translationIDRef.current
             const persistHistory = async (resultText: string) => {
                 if (!resultText || !resultText.trim()) {
                     return
@@ -900,7 +901,16 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 startLoading()
             }
             const afterTranslate = (reason: string) => {
+                if (!isCurrentTranslation()) {
+                    return
+                }
                 stopLoading()
+                if (reason === 'aborted') {
+                    if (signal.reason === 'stop') {
+                        setActionStr('Stopped')
+                    }
+                    return
+                }
                 if (reason !== 'stop' && reason !== 'eos' && reason !== 'end_turn') {
                     if (reason === 'length' || reason === 'max_tokens') {
                         toast(t('Chars Limited'), {
@@ -960,10 +970,16 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     model: translateDeps.engineModel ?? selectedModel?.model,
                     onStatusCode: () => {},
                     onMessage: async (message) => {
+                        if (!isCurrentTranslation() || signal.aborted) {
+                            return
+                        }
                         if (!message.content) {
                             return
                         }
                         setTranslatedText((translatedText) => {
+                            if (!isCurrentTranslation()) {
+                                return translatedText
+                            }
                             if (message.isFullText) {
                                 return message.content
                             }
@@ -971,8 +987,17 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         })
                     },
                     onFinish: (reason) => {
+                        if (!isCurrentTranslation()) {
+                            return
+                        }
                         afterTranslate(reason)
+                        if (reason === 'aborted') {
+                            return
+                        }
                         setTranslatedText((translatedText) => {
+                            if (!isCurrentTranslation()) {
+                                return translatedText
+                            }
                             const result = translatedText
                             cache.set(cachedKey, result)
                             void persistHistory(result)
@@ -980,6 +1005,9 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         })
                     },
                     onError: (error) => {
+                        if (!isCurrentTranslation() || signal.aborted) {
+                            return
+                        }
                         setActionStr('Error')
                         setErrorMessage(error)
                     },
@@ -989,6 +1017,12 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 // if error is a AbortError then ignore this error
                 if (error.name === 'AbortError') {
                     isStopped = true
+                    if (isCurrentTranslation()) {
+                        stopLoading()
+                    }
+                    return
+                }
+                if (!isCurrentTranslation()) {
                     return
                 }
                 setActionStr('Error')
@@ -1014,11 +1048,12 @@ function InnerTranslator(props: IInnerTranslatorProps) {
 
     const translateControllerRef = useRef<AbortController | null>(null)
     useEffect(() => {
-        translateControllerRef.current = new AbortController()
-        const { signal } = translateControllerRef.current
+        const controller = new AbortController()
+        translateControllerRef.current = controller
+        const { signal } = controller
         translateText(signal)
         return () => {
-            translateControllerRef.current?.abort()
+            controller.abort()
         }
     }, [translateText])
 

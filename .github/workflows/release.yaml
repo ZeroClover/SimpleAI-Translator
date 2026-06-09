@@ -575,6 +575,18 @@ jobs:
                   path: release-assets
                   merge-multiple: true
 
+            # GitHub replaces spaces with dots in release asset names; rename
+            # up front so checksums and latest.json reference the final names.
+            - name: Normalize asset names
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  cd release-assets
+                  shopt -s nullglob
+                  for file in *' '*; do
+                    mv -- "$file" "${file// /.}"
+                  done
+
             - name: Generate Linux checksums
               shell: bash
               run: |

@@ -7,8 +7,7 @@ This document records the release automation baseline checked on 2026-05-21 and 
 -   Release repository: `ZeroClover/SimpleAI-Translator`.
 -   Tauri updater endpoint: `https://github.com/ZeroClover/SimpleAI-Translator/releases/latest/download/latest.json`.
 -   Tauri updater public key: embedded in `src-tauri/tauri.conf.json` under `plugins.updater.pubkey`.
--   Windows installer format: signed NSIS `.exe` remains the default. MSI is not produced unless a future release or WinGet requirement explicitly adds it.
--   WinGet package identifier: `ZeroClover.SimpleAITranslator`.
+-   Windows installer format: signed NSIS `.exe` remains the default. MSI is not produced by default release builds.
 -   Linux integrity file: `SHA256SUMS-linux.txt`, covering uploaded `.deb`, `.AppImage`, and `.AppImage.tar.gz` assets.
 
 The updater private key in `TAURI_SIGNING_PRIVATE_KEY` must match the embedded updater public key. Rotating the public key without a migration release can prevent already installed clients from accepting future updates.
@@ -27,7 +26,6 @@ Checked through GitHub release metadata and action manifests on 2026-05-21.
 | `tauri-apps/tauri-action`          | `v0`, `dev`                | `action-v0.6.2` | Platform jobs build artifacts only; final release upload and `latest.json` are assembled in one job. `updaterJsonPreferNsis` is kept true to document the NSIS updater preference. |
 | `crate-ci/typos`                   | `v1.16.10`                 | `v1.46.2`       | Spell-check action only.                                                                                                                                                           |
 | `azure/login`                      | not used                   | `v3.0.0`        | Windows signing job uses GitHub OIDC.                                                                                                                                              |
-| `vedantmgoyal2009/winget-releaser` | `v2`                       | `v2`            | Current major retained; installer regex now matches signed NSIS `.exe` assets.                                                                                                     |
 
 Removed instead of upgraded: `actions/upload-release-asset`, `actions/github-script`, `battila7/get-version-action`, `ncipollo/release-action`, `oNaiPs/secrets-to-env-action`, `giraffate/clippy-action`, and `LoliGothick/rustfmt-check`.
 
@@ -94,14 +92,6 @@ Assign the GitHub OIDC application identity the `Artifact Signing Certificate Pr
 
 The workflow uses `azure/login@v3.0.0`, downloads `Microsoft.ArtifactSigning.Client` from NuGet for the signing dlib only, generates a metadata JSON containing `Endpoint`, `CodeSigningAccountName`, and `CertificateProfileName`, and lets Tauri invoke `scripts/windows-azure-sign.ps1` through `bundle.windows.signCommand`.
 
-## WinGet
-
-| Name           | Type   | Scope                | Consumed by             |
-| -------------- | ------ | -------------------- | ----------------------- |
-| `WINGET_TOKEN` | secret | `production-release` | WinGet release workflow |
-
-Create a GitHub token for the account allowed to publish to the WinGet package repository. Scope it to the access required by `vedantmgoyal2009/winget-releaser`. The workflow consumes the signed NSIS installer matching `SimpleAI Translator_.*_x64-setup\.exe$` and publishes under `ZeroClover.SimpleAITranslator`.
-
 ## Non-Required Credentials
 
-Do not configure telemetry, analytics, crash-reporting, browser store publishing, or passive release-tracking credentials for this app. Those integrations are outside the current release automation and removed-feature scope.
+Do not configure telemetry, analytics, crash-reporting, browser store publishing, WinGet publishing, NuGet package publishing, or passive release-tracking credentials for this app. Those integrations are outside the current release automation and removed-feature scope.

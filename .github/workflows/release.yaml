@@ -461,12 +461,8 @@ jobs:
                   if ($LASTEXITCODE -ne 0) {
                     throw "signtool verify failed with exit code $LASTEXITCODE."
                   }
-                  $updaterZip = Get-ChildItem -Path src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis -Filter '*.nsis.zip' -Recurse | Select-Object -First 1
-                  if (-not $updaterZip) {
-                    throw 'Windows updater zip was not found.'
-                  }
-                  if (-not (Test-Path -LiteralPath "$($updaterZip.FullName).sig")) {
-                    throw "Windows updater signature was not found: $($updaterZip.FullName).sig"
+                  if (-not (Test-Path -LiteralPath "$($installer.FullName).sig")) {
+                    throw "Windows updater signature was not found: $($installer.FullName).sig"
                   }
 
             - name: Collect Windows release assets
@@ -627,7 +623,7 @@ jobs:
                   }
 
                   const platforms = {};
-                  const linuxAppImage = findAsset(/_(amd64|x86_64)\.AppImage\.tar\.gz$/);
+                  const linuxAppImage = findAsset(/_(amd64|x86_64)\.AppImage$/);
                   addPlatform(platforms, 'linux-x86_64', linuxAppImage, linuxAppImage && `${linuxAppImage}.sig`);
                   addPlatform(platforms, 'linux-x86_64-appimage', linuxAppImage, linuxAppImage && `${linuxAppImage}.sig`);
 
@@ -639,7 +635,7 @@ jobs:
                   addPlatform(platforms, 'darwin-aarch64', macArm64, macArm64 && `${macArm64}.sig`);
                   addPlatform(platforms, 'darwin-aarch64-app', macArm64, macArm64 && `${macArm64}.sig`);
 
-                  const windowsNsis = findAsset(/_x64-setup\.nsis\.zip$/);
+                  const windowsNsis = findAsset(/_x64-setup\.exe$/);
                   addPlatform(platforms, 'windows-x86_64', windowsNsis, windowsNsis && `${windowsNsis}.sig`);
                   addPlatform(platforms, 'windows-x86_64-nsis', windowsNsis, windowsNsis && `${windowsNsis}.sig`);
 

@@ -9,12 +9,11 @@ export const test = base.extend<{
 }>({
     context: async ({ headless }, use) => {
         const context = await chromium.launchPersistentContext('', {
+            // the 'chromium' channel keeps extensions working in headless mode,
+            // where the default chromium-headless-shell binary does not support them
+            channel: 'chromium',
             headless,
-            args: [
-                ...(headless ? ['--headless=new'] : []),
-                `--disable-extensions-except=${extensionPath}`,
-                `--load-extension=${extensionPath}`,
-            ],
+            args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
         })
         await use(context)
         await context.close()

@@ -18,8 +18,11 @@ pub fn remember_active_window() {
     if let Ok(window) = get_active_window() {
         if !is_translator_process(&window) {
             debug_println!(
-                "[insertion] remembered window: {}",
-                describe_window(&window)
+                "[insertion] remembered window: title='{}', app='{}', pid={}, id={}",
+                window.title,
+                window.app_name,
+                window.process_id,
+                window.window_id
             );
             *PREVIOUS_ACTIVE_WINDOW.lock() = Some(window);
         } else {
@@ -28,13 +31,6 @@ pub fn remember_active_window() {
     } else {
         debug_println!("[insertion] failed to fetch active window");
     }
-}
-
-fn describe_window(window: &ActiveWindow) -> String {
-    format!(
-        "title='{}', app='{}', pid={}, id={}",
-        window.title, window.app_name, window.process_id, window.window_id
-    )
 }
 
 #[cfg(target_os = "macos")]
@@ -214,8 +210,11 @@ fn focus_window(window: &ActiveWindow) -> Result<(), String> {
 fn focus_previous_window() -> Result<(), String> {
     if let Some(window) = PREVIOUS_ACTIVE_WINDOW.lock().clone() {
         debug_println!(
-            "[insertion] focusing previous window: {}",
-            describe_window(&window)
+            "[insertion] focusing previous window: title='{}', app='{}', pid={}, id={}",
+            window.title,
+            window.app_name,
+            window.process_id,
+            window.window_id
         );
         let result = focus_window(&window);
         if let Err(ref err) = result {

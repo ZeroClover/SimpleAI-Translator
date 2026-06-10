@@ -40,13 +40,22 @@ arboard = "3.2.0"
 tiny_http = "0.12.0"
 debug_print = "1.0.0"
 active-win-pos-rs = "0.8"
-reqwest = { version = "0.11.24", features = [ "json", "stream" ] }
+reqwest = { version = "0.12", features = [ "json", "stream" ] }
+reqwest-websocket = "0.5.0"
 tokio = { version = "1", features = [ "full" ] }
-futures-util = "0.3.29"
+futures-util = { version = "0.3.31", features = [ "sink" ] }
 get-selected-text = "0.1.6"
 specta = { version = "=2.0.0-rc.22", features = ["derive", "export"] }
 specta-typescript = "0.0.9"
 tauri-specta = { version = "2.0.0-rc.21", features = ["derive", "javascript", "typescript"] }
+base64 = "0.22.1"
+httpdate = "1.0.3"
+rand = "0.8.5"
+sha2 = "0.10.9"
+thiserror = "2.0.17"
+time = "0.3.44"
+url = "2.5.7"
+uuid = { version = "1.18.1", features = [ "v4" ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.24"

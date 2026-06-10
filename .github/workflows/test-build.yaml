@@ -1,93 +1,105 @@
 name: Test Build
 
 on:
-  workflow_dispatch:
+    workflow_dispatch:
+
+env:
+    NODE_VERSION: 18
 
 jobs:
-  build-tauri:
-    permissions:
-      contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [macos-latest, ubuntu-22.04, windows-latest]
+    build-tauri:
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - platform: ubuntu-22.04
+                      rust_targets: x86_64-unknown-linux-gnu
+                      args: --target x86_64-unknown-linux-gnu --config src-tauri/tauri.production-no-updater.conf.json
+                    - platform: macos-latest
+                      rust_targets: x86_64-apple-darwin aarch64-apple-darwin
+                      args: --target universal-apple-darwin --config src-tauri/tauri.production-no-updater.conf.json
+                    - platform: windows-latest
+                      rust_targets: x86_64-pc-windows-msvc
+                      args: --target x86_64-pc-windows-msvc --config src-tauri/tauri.production-no-updater.conf.json
 
-    runs-on: ${{ matrix.platform }}
-    steps:
-      - uses: actions/checkout@v4
+        runs-on: ${{ matrix.platform }}
+        permissions:
+            contents: read
 
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 8.6.0
+        steps:
+            - uses: actions/checkout@v6.0.2
 
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 18
-          cache: 'pnpm'
+            - uses: pnpm/action-setup@v6.0.8
 
-      - name: install Rust nightly
-        uses: dtolnay/rust-toolchain@nightly
+            - name: Setup Node
+              uses: actions/setup-node@v6.4.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: pnpm
 
-      - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf libx11-dev libxdo-dev libxcb-shape0-dev libxcb-xfixes0-dev
+            - name: Install Rust stable
+              run: |
+                  rustup toolchain install stable --profile minimal
+                  rustup default stable
+                  rustup target add ${{ matrix.rust_targets }}
 
-      - name: install dependencies (mac only)
-        if: matrix.platform == 'macos-latest'
-        run: |
-          rustup target add aarch64-apple-darwin
+            - name: Install Ubuntu dependencies
+              if: matrix.platform == 'ubuntu-22.04'
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libx11-dev libxdo-dev libxcb-shape0-dev libxcb-xfixes0-dev
+                  sudo apt-get install -y libunwind-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-qt5 gstreamer1.0-pulseaudio
 
-      - name: install frontend dependencies
-        run: pnpm install --no-frozen-lockfile # change this to npm or pnpm depending on which one you use
+            - name: Install frontend dependencies
+              run: pnpm install --frozen-lockfile
 
-      - name: Build Tauri App (MacOS Universal)
-        uses: tauri-apps/tauri-action@dev
-        if: matrix.platform == 'macos-latest'
-        id: tauri-action-mac
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          releaseId: test-release
-          args: --target universal-apple-darwin
+            - name: Build Tauri app
+              uses: tauri-apps/tauri-action@action-v0.6.2
+              with:
+                  tauriScript: cargo tauri
+                  args: ${{ matrix.args }}
+                  includeUpdaterJson: false
 
-      - name: Build Tauri App
-        uses: tauri-apps/tauri-action@dev
-        if: matrix.platform != 'macos-latest'
-        id: tauri-action
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          releaseId: test-release
+            - name: Collect Tauri artifacts
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  mkdir -p tauri-artifacts
+                  find src-tauri/target -path '*/release/bundle/*' -type f -exec cp {} tauri-artifacts/ \;
+                  test "$(find tauri-artifacts -type f | wc -l)" -gt 0
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tauri-client-app-artifact
-          path: |
-            ${{ fromJSON(steps.tauri-action-mac.outputs.artifactPaths)[0] }}
-            ${{ fromJSON(steps.tauri-action.outputs.artifactPaths)[0] }}
+            - name: Upload Tauri artifacts
+              uses: actions/upload-artifact@v7.0.1
+              with:
+                  name: tauri-client-${{ matrix.platform }}
+                  path: tauri-artifacts/
+                  if-no-files-found: error
 
+    build-browser-extension:
+        runs-on: ubuntu-22.04
+        permissions:
+            contents: read
 
-  build-browser-extension:
-    runs-on: ubuntu-22.04
+        steps:
+            - uses: actions/checkout@v6.0.2
 
-    steps:
-      - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v6.0.8
 
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 8.6.0
+            - name: Setup Node
+              uses: actions/setup-node@v6.4.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: pnpm
 
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 18
-          cache: 'pnpm'
+            - name: Install frontend dependencies
+              run: pnpm install --frozen-lockfile
 
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+            - name: Build browser extension
+              run: make build-browser-extension
 
-      - name: Build
-        run: make build-browser-extension
-      # todo: upload browser extension artifacts
+            - name: Upload browser extension artifacts
+              uses: actions/upload-artifact@v7.0.1
+              with:
+                  name: browser-extension
+                  path: dist/browser-extension/
+                  if-no-files-found: error

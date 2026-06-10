@@ -53,13 +53,13 @@ https://github.com/nextai-translator/nextai-translator/tree/v-pre-slim
 
 ### Windows
 
-1. 在 [Latest Release](https://github.com/nextai-translator/nextai-translator/releases/latest) 页面下载 `.exe` 安装包。
+1. 在 [Latest Release](https://github.com/ZeroClover/SimpleAI-Translator/releases/latest) 页面下载 `.exe` 安装包。
 2. 双击安装包进行安装。
 3. 如果系统提示不安全，点击 `更多信息` -> `仍要运行`。
 
 ### macOS
 
-1. 在 [Latest Release](https://github.com/nextai-translator/nextai-translator/releases/latest) 页面下载对应芯片的 `.dmg` 安装包。
+1. 在 [Latest Release](https://github.com/ZeroClover/SimpleAI-Translator/releases/latest) 页面下载对应芯片的 `.dmg` 安装包。
 2. 打开 `.dmg`，将 `SimpleAI Translator` 拖入 `Applications`。
 
 如果 macOS 提示开发者无法验证，请打开 `设置` -> `隐私与安全性`，点击 `仍要打开`，再确认 `打开`。

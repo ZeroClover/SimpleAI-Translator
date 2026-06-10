@@ -4,6 +4,7 @@
 )]
 
 mod config;
+mod edge_tts;
 mod fetch;
 mod insertion;
 mod lang;
@@ -28,6 +29,7 @@ use tray::{PinnedFromTrayEvent, PinnedFromWindowEvent};
 use windows::{get_translator_window, CheckUpdateEvent, CheckUpdateResultEvent};
 
 use crate::config::{clear_config_cache, get_config_content, ConfigUpdatedEvent};
+use crate::edge_tts::{edge_tts_list_voices, edge_tts_synthesize};
 use crate::fetch::fetch_stream;
 use crate::lang::detect_lang;
 use crate::windows::{
@@ -132,6 +134,8 @@ fn main() {
             show_history_window,
             get_translator_window_always_on_top,
             fetch_stream,
+            edge_tts_list_voices,
+            edge_tts_synthesize,
             insert_translation_into_previous_input,
             remember_active_window_command,
             detect_lang,
@@ -182,7 +186,33 @@ fn main() {
             specta_builder_setup.mount_events(app);
             let app_handle = app.handle();
             APP_HANDLE.get_or_init(|| app.handle().clone());
-            tray::create_tray(&app_handle)?;
+            tray::create_tray(app_handle)?;
+            // The tray menu accelerator is display-only on macOS, so the standard
+            // Cmd+, shortcut must be registered through the application menu.
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::menu::{Menu, MenuItem, MenuItemKind, PredefinedMenuItem};
+                let menu = Menu::default(app_handle)?;
+                if let Some(MenuItemKind::Submenu(app_submenu)) = menu.items()?.first() {
+                    app_submenu.insert(&PredefinedMenuItem::separator(app_handle)?, 1)?;
+                    app_submenu.insert(
+                        &MenuItem::with_id(
+                            app_handle,
+                            "settings",
+                            "Settings…",
+                            true,
+                            Some("Cmd+,"),
+                        )?,
+                        2,
+                    )?;
+                }
+                app.set_menu(menu)?;
+                app.on_menu_event(|_app, event| {
+                    if event.id.as_ref() == "settings" {
+                        windows::show_settings_window();
+                    }
+                });
+            }
             app_handle.plugin(tauri_plugin_updater::Builder::new().build())?;
             if silently {
                 // create translator window
@@ -282,9 +312,7 @@ fn main() {
                         tray::create_tray(&handle).unwrap();
                         let config = get_config().unwrap();
                         if config.automatic_check_for_updates.is_none()
-                            || config
-                                .automatic_check_for_updates
-                                .is_some_and(|x| x == true)
+                            || config.automatic_check_for_updates.is_some_and(|x| x)
                         {
                             std::thread::sleep(std::time::Duration::from_secs(3));
                             show_updater_window();
@@ -319,13 +347,11 @@ fn main() {
         }
         #[cfg(target_os = "macos")]
         tauri::RunEvent::Reopen {
-            has_visible_windows,
+            has_visible_windows: false,
             ..
         } => {
-            if !has_visible_windows {
-                remember_active_window();
-                windows::show_translator_window(false, false, false);
-            }
+            remember_active_window();
+            windows::show_translator_window(false, false, false);
         }
         _ => {}
     });

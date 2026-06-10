@@ -1,341 +1,684 @@
 name: Release
 
 on:
-  push:
-    tags: [ v\d+\.\d+\.\d+ ]
+    push:
+        tags:
+            - 'v[0-9]*.[0-9]*.[0-9]*'
+
+concurrency:
+    group: release-${{ github.ref_name }}
+    cancel-in-progress: false
+
+env:
+    NODE_VERSION: 18
 
 jobs:
-  create-release:
-    permissions:
-      contents: write
-    runs-on: ubuntu-22.04
-    outputs:
-      release_id: ${{ steps.create-release.outputs.id }}
-      release_upload_url: ${{ steps.create-release.outputs.upload_url }}
-      release_body: "${{ steps.tag.outputs.message }}"
+    create-release:
+        runs-on: ubuntu-22.04
+        environment: production-release
+        permissions:
+            contents: write
+        outputs:
+            tag_name: ${{ steps.version.outputs.tag_name }}
+            version: ${{ steps.version.outputs.version }}
 
-    steps:
-      - uses: actions/checkout@v4
+        steps:
+            - uses: actions/checkout@v6.0.2
+              with:
+                  fetch-depth: 0
 
-      - name: Get version
-        id: get_version
-        uses: battila7/get-version-action@v2
+            - name: Resolve release version
+              id: version
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  tag_name="${GITHUB_REF_NAME}"
+                  if [[ ! "$tag_name" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    echo "Release tags must use vX.Y.Z format: $tag_name" >&2
+                    exit 1
+                  fi
+                  echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+                  echo "version=${tag_name#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Get tag message
-        id: tag
-        run: |
-          git fetch --depth=1 origin +refs/tags/*:refs/tags/*
-          echo "message<<EOF" >> $GITHUB_OUTPUT
-          echo "$(git tag -l --format='%(contents)' ${{ steps.get_version.outputs.version }})" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+            - name: Read tag message
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  git fetch --force --tags origin
+                  git tag -l --format='%(contents)' "${{ steps.version.outputs.tag_name }}" > release-notes.md
+                  if [[ ! -s release-notes.md ]]; then
+                    printf 'release: %s\n' "${{ steps.version.outputs.tag_name }}" > release-notes.md
+                  fi
 
-      - name: Create Release
-        id: create-release
-        uses: ncipollo/release-action@v1
-        with:
-          draft: true
-          name: ${{ steps.get_version.outputs.version }}
-          tag: ${{ steps.get_version.outputs.version }}
-          body: "${{ steps.tag.outputs.message }}"
+            - name: Create draft release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  TAG_NAME: ${{ steps.version.outputs.tag_name }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+                    gh release edit "$TAG_NAME" --draft=true --title "$TAG_NAME" --notes-file release-notes.md
+                  else
+                    gh release create "$TAG_NAME" --draft --verify-tag --title "$TAG_NAME" --notes-file release-notes.md
+                  fi
 
-  build-tauri-renderer:
-    needs: create-release
-    permissions:
-      contents: write
-      packages: write
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
+    build-tauri-renderer:
+        runs-on: ubuntu-22.04
+        needs: create-release
+        permissions:
+            contents: read
 
-      - name: Get version
-        id: get_version
-        uses: battila7/get-version-action@v2
+        steps:
+            - uses: actions/checkout@v6.0.2
 
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 8.6.0
+            - uses: pnpm/action-setup@v6.0.8
 
-      - name: setup node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
-          cache: 'pnpm'
+            - name: Setup Node
+              uses: actions/setup-node@v6.4.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: pnpm
 
-      - name: Install Rust nightly
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          toolchain: nightly
-          override: true
+            - name: Install frontend dependencies
+              run: pnpm install --frozen-lockfile
 
-      - name: install frontend dependencies
-        run: pnpm install --no-frozen-lockfile # change this to npm or pnpm depending on which one you use
+            - name: Change version
+              env:
+                  VERSION: ${{ needs.create-release.outputs.version }}
+              run: node -e "const fs = require('node:fs'); const version = process.env.VERSION; for (const file of ['package.json', 'src-tauri/tauri.conf.json']) { const data = JSON.parse(fs.readFileSync(file, 'utf8')); data.version = version; fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n'); }"
 
-      - name: Change Version
-        env:
-          VERSION: "${{ steps.get_version.outputs.version-without-v }}"
-        run: make change-version change-package-version
+            - name: Build Tauri renderer
+              run: pnpm build-tauri-renderer
 
-      - uses: oNaiPs/secrets-to-env-action@v1
-        with:
-          secrets: ${{ toJSON(secrets) }}
+            - name: Upload Tauri renderer
+              uses: actions/upload-artifact@v7.0.1
+              with:
+                  name: tauri-renderer
+                  path: dist/tauri/
+                  if-no-files-found: error
 
-      - name: build tauri renderer
-        run: pnpm build-tauri-renderer
+    build-linux:
+        runs-on: ubuntu-22.04
+        needs: [create-release, build-tauri-renderer]
+        environment: production-release
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@v6.0.2
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: tauri-renderer
-          path: dist/tauri/
+            - uses: pnpm/action-setup@v6.0.8
 
-  build-tauri:
-    needs: [create-release, build-tauri-renderer]
-    permissions:
-      contents: write
-      packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          - os: ubuntu-latest
-            arch: x86_64
-            rust_target: x86_64-unknown-linux-gnu
-          - os: macos-latest
-            arch: x86_64
-            rust_target: x86_64-apple-darwin
-          - os: macos-latest
-            arch: aarch64
-            rust_target: aarch64-apple-darwin
-          - os: windows-latest
-            arch: x86_64
-            rust_target: x86_64-pc-windows-msvc
+            - name: Setup Node
+              uses: actions/setup-node@v6.4.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: pnpm
 
-    runs-on: ${{ matrix.config.os }}
-    steps:
-      - uses: actions/checkout@v4
+            - name: Install Rust stable
+              run: |
+                  rustup toolchain install stable --profile minimal --target x86_64-unknown-linux-gnu
+                  rustup default stable
 
-      - name: Get version
-        id: get_version
-        uses: battila7/get-version-action@v2
+            - name: Install Ubuntu dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libx11-dev libxdo-dev libxcb-shape0-dev libxcb-xfixes0-dev
+                  sudo apt-get install -y libunwind-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-qt5 gstreamer1.0-pulseaudio
 
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 8.6.0
+            - name: Install frontend dependencies
+              run: pnpm install --frozen-lockfile
 
-      - name: Setup node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
-          cache: 'pnpm'
+            - name: Change version
+              env:
+                  VERSION: ${{ needs.create-release.outputs.version }}
+              run: node -e "const fs = require('node:fs'); const version = process.env.VERSION; for (const file of ['package.json', 'src-tauri/tauri.conf.json']) { const data = JSON.parse(fs.readFileSync(file, 'utf8')); data.version = version; fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n'); }"
 
-      - name: Install Rust nightly
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          targets: ${{ matrix.config.rust_target }}
-          toolchain: nightly
-          override: true
+            - uses: actions/download-artifact@v8.0.1
+              with:
+                  name: tauri-renderer
+                  path: dist/tauri
 
-      - name: Install frontend dependencies
-        run: pnpm install --no-frozen-lockfile # change this to npm or pnpm depending on which one you use
+            - name: Install Cargo Tauri
+              run: cargo install tauri-cli --version "=2.8.4" --locked
 
-      - name: Install dependencies (ubuntu only)
-        if: matrix.config.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libx11-dev libxdo-dev libxcb-shape0-dev libxcb-xfixes0-dev
-          sudo apt-get install -y libunwind-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-qt5 gstreamer1.0-pulseaudio
+            - name: Build Tauri app
+              uses: tauri-apps/tauri-action@action-v0.6.2
+              env:
+                  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+                  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+              with:
+                  tauriScript: cargo tauri
+                  args: --target x86_64-unknown-linux-gnu
+                  updaterJsonPreferNsis: true
 
-      - name: Install dependencies (mac only)
-        if: matrix.config.os == 'macos-latest'
-        run: |
-          rustup target add aarch64-apple-darwin
+            - name: Collect Linux release assets
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  mkdir -p release-assets
+                  find src-tauri/target/x86_64-unknown-linux-gnu/release/bundle -type f \
+                    \( -name '*.deb' -o -name '*.AppImage' -o -name '*.AppImage.tar.gz' -o -name '*.sig' \) \
+                    -exec cp {} release-assets/ \;
+                  test "$(find release-assets -type f | wc -l)" -gt 0
 
-      - name: Change Version
-        env:
-          VERSION: "${{ steps.get_version.outputs.version-without-v }}"
-        run: make change-version change-package-version
+            - name: Upload Linux release assets
+              uses: actions/upload-artifact@v7.0.1
+              with:
+                  name: release-linux-x86_64
+                  path: release-assets/
+                  if-no-files-found: error
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: tauri-renderer
-          path: dist/tauri
+    build-macos:
+        runs-on: macos-latest
+        needs: [create-release, build-tauri-renderer]
+        environment: production-release
+        permissions:
+            contents: read
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - arch: x64
+                      rust_target: x86_64-apple-darwin
+                    - arch: aarch64
+                      rust_target: aarch64-apple-darwin
 
-      - name: Install Cargo Tauri for info
-        run: cargo install tauri-cli --version "=2.8.4" --locked
+        steps:
+            - uses: actions/checkout@v6.0.2
 
-      - name: Tauri info
-        run: cargo tauri info
+            - uses: pnpm/action-setup@v6.0.8
 
-      - uses: oNaiPs/secrets-to-env-action@v1
-        with:
-          secrets: ${{ toJSON(secrets) }}
+            - name: Setup Node
+              uses: actions/setup-node@v6.4.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: pnpm
 
-      - name: Build Tauri App
-        uses: tauri-apps/tauri-action@v0
-        if: matrix.config.os != 'macos-latest' || matrix.config.arch != 'aarch64'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          releaseId: ${{ needs.create-release.outputs.release_id }}
-          releaseBody: ${{ needs.create-release.outputs.release_body }}
-          tauriScript: cargo tauri
-          updaterJsonPreferNsis: true
+            - name: Install Rust stable
+              run: |
+                  rustup toolchain install stable --profile minimal --target ${{ matrix.rust_target }}
+                  rustup default stable
 
-      - name: Build Tauri App (macOS aarch64)
-        uses: tauri-apps/tauri-action@v0
-        if: matrix.config.os == 'macos-latest' && matrix.config.arch == 'aarch64'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          releaseId: ${{ needs.create-release.outputs.release_id }}
-          releaseBody: ${{ needs.create-release.outputs.release_body }}
-          args: --target aarch64-apple-darwin
-          tauriScript: cargo tauri
-          updaterJsonPreferNsis: true
+            - name: Install frontend dependencies
+              run: pnpm install --frozen-lockfile
 
-  build-clip-extension:
-    runs-on: ubuntu-22.04
+            - name: Change version
+              env:
+                  VERSION: ${{ needs.create-release.outputs.version }}
+              run: node -e "const fs = require('node:fs'); const version = process.env.VERSION; for (const file of ['package.json', 'src-tauri/tauri.conf.json']) { const data = JSON.parse(fs.readFileSync(file, 'utf8')); data.version = version; fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n'); }"
 
-    permissions:
-      contents: write
-      packages: write
+            - uses: actions/download-artifact@v8.0.1
+              with:
+                  name: tauri-renderer
+                  path: dist/tauri
 
-    needs: create-release
+            - name: Import Apple Developer ID certificate
+              env:
+                  APPLE_DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_BASE64 }}
+                  APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  cert_path="$RUNNER_TEMP/developer-id-application.p12"
+                  keychain_path="$RUNNER_TEMP/release-signing.keychain-db"
+                  keychain_password="$(openssl rand -base64 32)"
+                  printf '%s' "$APPLE_DEVELOPER_ID_CERTIFICATE_BASE64" | base64 --decode > "$cert_path"
+                  security create-keychain -p "$keychain_password" "$keychain_path"
+                  security set-keychain-settings -lut 21600 "$keychain_path"
+                  security unlock-keychain -p "$keychain_password" "$keychain_path"
+                  security import "$cert_path" -P "$APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain_path"
+                  security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain_path"
+                  security list-keychains -d user -s "$keychain_path" $(security list-keychains -d user | sed 's/"//g')
+                  security default-keychain -s "$keychain_path"
 
-    steps:
-      - uses: actions/checkout@v4
+            - name: Configure macOS signing identity
+              env:
+                  APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  if [[ -z "$APPLE_SIGNING_IDENTITY" ]]; then
+                    echo "APPLE_SIGNING_IDENTITY variable is required." >&2
+                    exit 1
+                  fi
+                  jq --arg identity "$APPLE_SIGNING_IDENTITY" '.bundle.macOS.signingIdentity = $identity' src-tauri/tauri.conf.json > "$RUNNER_TEMP/tauri.macos.conf.json"
 
-      - name: Get version
-        id: get_version
-        uses: battila7/get-version-action@v2
+            - name: Prepare App Store Connect API key
+              env:
+                  NOTARY_ASC_API_KEY_ID: ${{ secrets.NOTARY_ASC_API_KEY_ID }}
+                  NOTARY_ASC_API_KEY_BASE64: ${{ secrets.NOTARY_ASC_API_KEY_BASE64 }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  if [[ -z "$NOTARY_ASC_API_KEY_ID" || -z "$NOTARY_ASC_API_KEY_BASE64" ]]; then
+                    echo "NOTARY_ASC_API_KEY_ID and NOTARY_ASC_API_KEY_BASE64 secrets are required." >&2
+                    exit 1
+                  fi
+                  key_path="$RUNNER_TEMP/AuthKey_${NOTARY_ASC_API_KEY_ID}.p8"
+                  printf '%s' "$NOTARY_ASC_API_KEY_BASE64" | base64 --decode > "$key_path"
+                  chmod 600 "$key_path"
+                  echo "APPLE_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
 
-      - name: Build PopClip extension
-        run: make build-popclip-extension
+            - name: Install Cargo Tauri
+              run: cargo install tauri-cli --version "=2.8.4" --locked
 
-      - name: Upload PopClip extension to release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.release_upload_url }}
-          asset_path: dist/nextai-translator.popclipextz
-          asset_name: nextai-translator.popclipextz
-          asset_content_type: application/zip
+            - name: Build Tauri app
+              uses: tauri-apps/tauri-action@action-v0.6.2
+              env:
+                  APPLE_API_KEY: ${{ secrets.NOTARY_ASC_API_KEY_ID }}
+                  APPLE_API_ISSUER: ${{ secrets.ASC_API_ISSUER }}
+                  APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
+                  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+                  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+              with:
+                  tauriScript: cargo tauri
+                  args: --target ${{ matrix.rust_target }} --config ${{ runner.temp }}/tauri.macos.conf.json
+                  updaterJsonPreferNsis: true
 
-      - name: Build SnipDo extension
-        run: make build-snipdo-extension
+            - name: Verify macOS signing and notarization
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  app_path="src-tauri/target/${{ matrix.rust_target }}/release/bundle/macos/SimpleAI Translator.app"
+                  codesign --verify --deep --strict --verbose=2 "$app_path"
+                  for attempt in 1 2 3 4 5; do
+                    if xcrun stapler validate "$app_path"; then
+                      break
+                    fi
+                    if [[ "$attempt" == 5 ]]; then
+                      exit 1
+                    fi
+                    sleep 30
+                  done
+                  spctl --assess --type execute --verbose=4 "$app_path"
 
-      - name: Upload SnipDo extension to release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.release_upload_url }}
-          asset_path: dist/nextai-translator.pbar
-          asset_name: nextai-translator.pbar
-          asset_content_type: application/zip
+            - name: Collect macOS release assets
+              env:
+                  ARCH: ${{ matrix.arch }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  mkdir -p release-assets
+                  find "src-tauri/target/${{ matrix.rust_target }}/release/bundle" -type f -name '*.dmg' -exec cp {} release-assets/ \;
+                  while IFS= read -r file; do
+                    base="$(basename "$file" .app.tar.gz)"
+                    cp "$file" "release-assets/${base}_${ARCH}.app.tar.gz"
+                  done < <(find "src-tauri/target/${{ matrix.rust_target }}/release/bundle" -type f -name '*.app.tar.gz')
+                  while IFS= read -r file; do
+                    base="$(basename "$file" .app.tar.gz.sig)"
+                    cp "$file" "release-assets/${base}_${ARCH}.app.tar.gz.sig"
+                  done < <(find "src-tauri/target/${{ matrix.rust_target }}/release/bundle" -type f -name '*.app.tar.gz.sig')
+                  test "$(find release-assets -type f | wc -l)" -gt 0
 
-  build-browser-extension:
-    runs-on: ubuntu-22.04
+            - name: Upload macOS release assets
+              uses: actions/upload-artifact@v7.0.1
+              with:
+                  name: release-macos-${{ matrix.arch }}
+                  path: release-assets/
+                  if-no-files-found: error
 
-    permissions:
-      contents: write
-      packages: write
+    build-windows:
+        runs-on: windows-latest
+        needs: [create-release, build-tauri-renderer]
+        environment: production-release
+        permissions:
+            contents: read
+            id-token: write
+        steps:
+            - uses: actions/checkout@v6.0.2
 
-    needs: create-release
+            - uses: pnpm/action-setup@v6.0.8
 
-    steps:
-      - uses: actions/checkout@v4
+            - name: Setup Node
+              uses: actions/setup-node@v6.4.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: pnpm
 
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 8.6.0
+            - name: Install Rust stable
+              shell: pwsh
+              run: |
+                  rustup toolchain install stable --profile minimal --target x86_64-pc-windows-msvc
+                  rustup default stable
 
-      - name: setup node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
-          cache: 'pnpm'
+            - name: Install frontend dependencies
+              run: pnpm install --frozen-lockfile
 
-      - name: Install Rust nightly
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          toolchain: nightly
-          override: true
+            - name: Change version
+              env:
+                  VERSION: ${{ needs.create-release.outputs.version }}
+              run: node -e "const fs = require('node:fs'); const version = process.env.VERSION; for (const file of ['package.json', 'src-tauri/tauri.conf.json']) { const data = JSON.parse(fs.readFileSync(file, 'utf8')); data.version = version; fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n'); }"
 
-      - name: Get version
-        id: get_version
-        uses: battila7/get-version-action@v2
+            - uses: actions/download-artifact@v8.0.1
+              with:
+                  name: tauri-renderer
+                  path: dist/tauri
 
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+            - name: Configure Azure Artifact Signing client
+              shell: pwsh
+              env:
+                  AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+                  AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
+                  AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+              run: |
+                  $ErrorActionPreference = 'Stop'
+                  foreach ($name in @('AZURE_ARTIFACT_SIGNING_ENDPOINT', 'AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME', 'AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME')) {
+                    if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+                      throw "$name variable is required."
+                    }
+                  }
+                  $clientVersion = '1.0.128'
+                  $packageRoot = Join-Path $env:RUNNER_TEMP 'artifact-signing-client'
+                  nuget install Microsoft.ArtifactSigning.Client -Version $clientVersion -OutputDirectory $packageRoot -NonInteractive -DirectDownload
+                  $dlib = Get-ChildItem -Path $packageRoot -Recurse -Filter Azure.CodeSigning.Dlib.dll |
+                    Where-Object { $_.Directory.Name -eq 'x64' } |
+                    Select-Object -First 1
+                  if (-not $dlib) {
+                    throw 'x64 Azure.CodeSigning.Dlib.dll was not found.'
+                  }
+                  $metadataPath = Join-Path $env:RUNNER_TEMP 'azure-codesigning-metadata.json'
+                  $metadataJson = @{
+                    Endpoint = $env:AZURE_ARTIFACT_SIGNING_ENDPOINT
+                    CodeSigningAccountName = $env:AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME
+                    CertificateProfileName = $env:AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME
+                    CorrelationId = "gha-$($env:GITHUB_RUN_ID)"
+                    ExcludeCredentials = @(
+                      'EnvironmentCredential',
+                      'WorkloadIdentityCredential',
+                      'ManagedIdentityCredential',
+                      'SharedTokenCacheCredential',
+                      'VisualStudioCredential',
+                      'VisualStudioCodeCredential',
+                      'AzurePowerShellCredential',
+                      'AzureDeveloperCliCredential',
+                      'InteractiveBrowserCredential'
+                    )
+                  } | ConvertTo-Json -Depth 4
+                  [System.IO.File]::WriteAllText($metadataPath, $metadataJson, [System.Text.UTF8Encoding]::new($false))
+                  "AZURE_CODESIGN_DLIB_PATH=$($dlib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+                  "AZURE_CODESIGN_METADATA_PATH=$metadataPath" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Build browser extension
-        run: make build-browser-extension
-        env:
-          VERSION: "${{ steps.get_version.outputs.version-without-v }}"
+            - name: Install Cargo Tauri
+              run: cargo install tauri-cli --version "=2.8.4" --locked
 
-      - name: Build userscript
-        run: make build-userscript
-        env:
-          VERSION: "${{ steps.get_version.outputs.version-without-v }}"
+            - name: Authenticate to Azure
+              uses: azure/login@v3.0.0
+              with:
+                  client-id: ${{ secrets.AZURE_CLIENT_ID }}
+                  tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+                  subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Package plugin and create userscript
-        run: |
-          mkdir release
-          mv dist/browser-extension/*.zip release/
-          mv dist/nextai-translator.user.js release/nextai-translator-${{ steps.get_version.outputs.version-without-v }}.user.js
+            - name: Prefetch Artifact Signing access token
+              shell: pwsh
+              run: az account get-access-token --resource https://codesigning.azure.net --output none
 
-      - name: Upload Chromium extensions to release
-        id: upload-chromium-release-asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.release_upload_url }}
-          asset_path: release/chromium.zip
-          asset_name: nextai-translator-chromium-extension-${{ steps.get_version.outputs.version-without-v }}.zip
-          asset_content_type: application/zip
+            - name: Configure Windows sign command
+              shell: pwsh
+              run: |
+                  $ErrorActionPreference = 'Stop'
+                  # Azure.CodeSigning.Dlib.dll is 64-bit, so SignTool must be the x64 build.
+                  $windowsKits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+                  $signtool = Get-ChildItem -Path $windowsKits -Recurse -Filter signtool.exe |
+                    Where-Object { $_.Directory.Name -eq 'x64' -and $_.Directory.Parent.Name -match '^\d+(\.\d+)+$' } |
+                    Sort-Object { [version]$_.Directory.Parent.Name } -Descending |
+                    Select-Object -First 1
+                  if (-not $signtool) {
+                    throw 'x64 signtool.exe was not found.'
+                  }
+                  $env:SIGN_CMD = $signtool.FullName.Replace('\', '/')
+                  $env:SIGN_DLIB = $env:AZURE_CODESIGN_DLIB_PATH.Replace('\', '/')
+                  $env:SIGN_METADATA = $env:AZURE_CODESIGN_METADATA_PATH.Replace('\', '/')
+                  node -e "const fs = require('node:fs'); const configPath = 'src-tauri/tauri.conf.json'; const config = JSON.parse(fs.readFileSync(configPath, 'utf8')); config.bundle.windows.signCommand = { cmd: process.env.SIGN_CMD, args: ['sign', '/fd', 'SHA256', '/tr', 'http://timestamp.acs.microsoft.com', '/td', 'SHA256', '/dlib', process.env.SIGN_DLIB, '/dmdf', process.env.SIGN_METADATA, '%1'] }; fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');"
 
-      - name: Upload Firefox extensions to release
-        id: upload-firefox-release-asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.release_upload_url }}
-          asset_path: release/firefox.zip
-          asset_name: nextai-translator-firefox-extension-${{ steps.get_version.outputs.version-without-v }}.xpi
-          asset_content_type: application/zip
+            - name: Build Tauri app
+              uses: tauri-apps/tauri-action@action-v0.6.2
+              env:
+                  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+                  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+              with:
+                  tauriScript: cargo tauri
+                  args: --target x86_64-pc-windows-msvc --verbose
+                  updaterJsonPreferNsis: true
 
-      - name: Upload userscript to release
-        id: upload-userscript-asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.release_upload_url }}
-          asset_path: release/nextai-translator-${{ steps.get_version.outputs.version-without-v }}.user.js
-          asset_name: nextai-translator-${{ steps.get_version.outputs.version-without-v }}.user.js
-          asset_content_type: application/javascript
+            - name: Verify Windows signatures and updater signature
+              shell: pwsh
+              run: |
+                  $ErrorActionPreference = 'Stop'
+                  $installer = Get-ChildItem -Path src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis -Filter '*-setup.exe' -Recurse | Select-Object -First 1
+                  if (-not $installer) {
+                    throw 'NSIS installer was not found.'
+                  }
+                  $windowsKits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+                  $signtool = Get-ChildItem -Path $windowsKits -Recurse -Filter signtool.exe |
+                    Where-Object { $_.Directory.Name -eq 'x64' -and $_.Directory.Parent.Name -match '^\d+(\.\d+)+$' } |
+                    Sort-Object { [version]$_.Directory.Parent.Name } -Descending |
+                    Select-Object -First 1
+                  if (-not $signtool) {
+                    throw 'x64 signtool.exe was not found.'
+                  }
+                  & $signtool.FullName verify /pa /v $installer.FullName
+                  if ($LASTEXITCODE -ne 0) {
+                    throw "signtool verify failed with exit code $LASTEXITCODE."
+                  }
+                  if (-not (Test-Path -LiteralPath "$($installer.FullName).sig")) {
+                    throw "Windows updater signature was not found: $($installer.FullName).sig"
+                  }
 
-  publish-release:
-    permissions:
-      contents: write
-    runs-on: ubuntu-22.04
-    needs: [create-release, build-tauri, build-clip-extension, build-browser-extension]
+            - name: Collect Windows release assets
+              shell: pwsh
+              run: |
+                  $ErrorActionPreference = 'Stop'
+                  New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+                  Get-ChildItem -Path src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis -File |
+                    Where-Object { $_.Name -match '(\.exe|\.zip|\.sig)$' } |
+                    Copy-Item -Destination release-assets
+                  if (-not (Get-ChildItem -Path release-assets -File)) {
+                    throw 'No Windows release assets were collected.'
+                  }
 
-    steps:
-      - name: publish release
-        id: publish-release
-        uses: actions/github-script@v6
-        env:
-          release_id: ${{ needs.create-release.outputs.release_id }}
-        with:
-          script: |
-            github.rest.repos.updateRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              release_id: process.env.release_id,
-              draft: false,
-              prerelease: false
-            })
+            - name: Upload Windows release assets
+              uses: actions/upload-artifact@v7.0.1
+              with:
+                  name: release-windows-x86_64
+                  path: release-assets/
+                  if-no-files-found: error
+
+    build-clip-extension:
+        runs-on: ubuntu-22.04
+        needs: create-release
+        permissions:
+            contents: read
+
+        steps:
+            - uses: actions/checkout@v6.0.2
+
+            - name: Build PopClip extension
+              run: make build-popclip-extension
+
+            - name: Build SnipDo extension
+              run: make build-snipdo-extension
+
+            - name: Upload clip extension assets
+              uses: actions/upload-artifact@v7.0.1
+              with:
+                  name: release-clip-extensions
+                  path: |
+                      dist/SimpleAI-Translator.popclipextz
+                      dist/SimpleAI-Translator.pbar
+                  if-no-files-found: error
+
+    build-browser-extension:
+        runs-on: ubuntu-22.04
+        needs: create-release
+        permissions:
+            contents: read
+
+        steps:
+            - uses: actions/checkout@v6.0.2
+
+            - uses: pnpm/action-setup@v6.0.8
+
+            - name: Setup Node
+              uses: actions/setup-node@v6.4.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: pnpm
+
+            - name: Install frontend dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Build browser extension
+              run: make build-browser-extension
+              env:
+                  VERSION: ${{ needs.create-release.outputs.version }}
+
+            - name: Build userscript
+              run: make build-userscript
+              env:
+                  VERSION: ${{ needs.create-release.outputs.version }}
+
+            - name: Package browser extension assets
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  mkdir -p release-assets
+                  cp dist/browser-extension/chromium.zip "release-assets/SimpleAI-Translator-chromium-extension-${{ needs.create-release.outputs.version }}.zip"
+                  cp dist/browser-extension/firefox.zip "release-assets/SimpleAI-Translator-firefox-extension-${{ needs.create-release.outputs.version }}.xpi"
+                  cp "dist/simpleai-translator.user.js" "release-assets/SimpleAI-Translator-${{ needs.create-release.outputs.version }}.user.js"
+
+            - name: Upload browser extension assets
+              uses: actions/upload-artifact@v7.0.1
+              with:
+                  name: release-browser-extension
+                  path: release-assets/
+                  if-no-files-found: error
+
+    assemble-release:
+        runs-on: ubuntu-22.04
+        needs:
+            - create-release
+            - build-linux
+            - build-macos
+            - build-windows
+            - build-clip-extension
+            - build-browser-extension
+        environment: production-release
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v6.0.2
+
+            - uses: actions/download-artifact@v8.0.1
+              with:
+                  pattern: release-*
+                  path: release-assets
+                  merge-multiple: true
+
+            # GitHub replaces spaces with dots in release asset names; rename
+            # up front so checksums and latest.json reference the final names.
+            - name: Normalize asset names
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  cd release-assets
+                  shopt -s nullglob
+                  for file in *' '*; do
+                    mv -- "$file" "${file// /.}"
+                  done
+
+            - name: Generate Linux checksums
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  cd release-assets
+                  sha256sum ./*.deb ./*.AppImage > SHA256SUMS-linux.txt
+
+            - name: Generate final updater metadata
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  TAG_NAME: ${{ needs.create-release.outputs.tag_name }}
+                  VERSION: ${{ needs.create-release.outputs.version }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  gh release view "$TAG_NAME" --json body --jq .body > release-notes.md
+                  node <<'NODE'
+                  const fs = require('node:fs');
+                  const path = require('node:path');
+
+                  const assetDir = 'release-assets';
+                  const tagName = process.env.TAG_NAME;
+                  const version = process.env.VERSION;
+                  const repository = process.env.GITHUB_REPOSITORY;
+                  const files = new Set(fs.readdirSync(assetDir));
+                  const notes = fs.readFileSync('release-notes.md', 'utf8');
+                  const missing = [];
+
+                  function findAsset(pattern) {
+                    return [...files].find((file) => pattern.test(file));
+                  }
+
+                  function downloadUrl(file) {
+                    return `https://github.com/${repository}/releases/download/${encodeURIComponent(tagName)}/${encodeURIComponent(file)}`;
+                  }
+
+                  function addPlatform(platforms, key, artifact, signature) {
+                    if (!artifact || !signature || !files.has(artifact) || !files.has(signature)) {
+                      missing.push(`${key}: ${artifact || '<missing artifact>'} / ${signature || '<missing signature>'}`);
+                      return;
+                    }
+                    platforms[key] = {
+                      signature: fs.readFileSync(path.join(assetDir, signature), 'utf8').trim(),
+                      url: downloadUrl(artifact),
+                    };
+                  }
+
+                  const platforms = {};
+                  const linuxAppImage = findAsset(/_(amd64|x86_64)\.AppImage$/);
+                  addPlatform(platforms, 'linux-x86_64', linuxAppImage, linuxAppImage && `${linuxAppImage}.sig`);
+                  addPlatform(platforms, 'linux-x86_64-appimage', linuxAppImage, linuxAppImage && `${linuxAppImage}.sig`);
+
+                  const macX64 = findAsset(/_x64\.app\.tar\.gz$/);
+                  addPlatform(platforms, 'darwin-x86_64', macX64, macX64 && `${macX64}.sig`);
+                  addPlatform(platforms, 'darwin-x86_64-app', macX64, macX64 && `${macX64}.sig`);
+
+                  const macArm64 = findAsset(/_aarch64\.app\.tar\.gz$/);
+                  addPlatform(platforms, 'darwin-aarch64', macArm64, macArm64 && `${macArm64}.sig`);
+                  addPlatform(platforms, 'darwin-aarch64-app', macArm64, macArm64 && `${macArm64}.sig`);
+
+                  const windowsNsis = findAsset(/_x64-setup\.exe$/);
+                  addPlatform(platforms, 'windows-x86_64', windowsNsis, windowsNsis && `${windowsNsis}.sig`);
+                  addPlatform(platforms, 'windows-x86_64-nsis', windowsNsis, windowsNsis && `${windowsNsis}.sig`);
+
+                  if (missing.length > 0) {
+                    throw new Error(`Missing updater assets:\n${missing.join('\n')}`);
+                  }
+
+                  fs.writeFileSync(
+                    path.join(assetDir, 'latest.json'),
+                    `${JSON.stringify({
+                      version,
+                      notes,
+                      pub_date: new Date().toISOString(),
+                      platforms,
+                    }, null, 2)}\n`,
+                  );
+                  NODE
+
+            - name: Upload release assets
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  TAG_NAME: ${{ needs.create-release.outputs.tag_name }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  while IFS= read -r asset; do
+                    gh release upload "$TAG_NAME" "$asset" --clobber
+                  done < <(find release-assets -maxdepth 1 -type f | sort)
+
+            - name: Publish release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  TAG_NAME: ${{ needs.create-release.outputs.tag_name }}
+              run: gh release edit "$TAG_NAME" --draft=false --latest

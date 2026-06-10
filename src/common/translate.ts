@@ -4,7 +4,8 @@ import { getLangConfig, getLangName, LangCode } from '../common/lang'
 import { codeBlock, oneLine, oneLineTrim } from 'common-tags'
 import { getEngine } from './engines'
 import { StructuredOutputMode, StructuredOutputRequest } from './engines/interfaces'
-import { getSettings } from './utils'
+import { getSettings, resolveProviderModelOutputControls } from './utils'
+import { AnthropicThinkingEffort, OpenAIReasoningEffort } from './types'
 
 export type APIModel =
     | 'gpt-3.5-turbo-1106'
@@ -47,6 +48,9 @@ export interface TranslationCacheKeyInput {
     sourceLang: LangCode
     targetLang: LangCode
     text: string
+    thinkingEnabled?: boolean
+    openaiReasoningEffort?: OpenAIReasoningEffort
+    anthropicThinkingEffort?: AnthropicThinkingEffort
     useStructuredOutput?: boolean
     useStrictSchema?: boolean
     translationFlag: number
@@ -211,6 +215,8 @@ export function getTranslationCacheKey(input: TranslationCacheKeyInput): string 
         : 'off'
     return `translate:${input.providerId ?? ''}:${input.model ?? ''}:${input.sourceLang}:${input.targetLang}:${
         input.text
+    }:thinking=${input.thinkingEnabled ?? false}:openai_effort=${input.openaiReasoningEffort ?? ''}:anthropic_effort=${
+        input.anthropicThinkingEffort ?? ''
     }:structured=${input.useStructuredOutput ?? false}:strict=${
         input.useStrictSchema ?? true
     }:mode=${structuredOutputMode}:${input.translationFlag}`
@@ -443,12 +449,6 @@ Etymology:
     }
 
     const settings = await getSettings()
-    const structuredOutput = settings.useStructuredOutput
-        ? getStructuredOutputRequest(structuredOutputMode, settings.useStrictSchema ?? true)
-        : undefined
-    if (structuredOutput) {
-        rolePrompt = `${rolePrompt}\n\n${getStructuredOutputPrompt(structuredOutput.mode, structuredOutput.schema)}`
-    }
     const providerId = query.providerId ?? settings.defaultModel?.providerId ?? settings.defaultProviderId
     const providerConfig = settings.providers.find((provider) => provider.id === providerId)
     if (!providerConfig) {
@@ -462,20 +462,21 @@ Etymology:
         query.onFinish('error')
         return
     }
-    const modelThinking =
-        settings.defaultModel?.providerId === providerConfig.id && settings.defaultModel.model === model
-            ? {
-                  thinkingEnabled: settings.defaultModel.thinkingEnabled,
-                  openaiReasoningEffort: settings.defaultModel.openaiReasoningEffort,
-                  anthropicThinkingEffort: settings.defaultModel.anthropicThinkingEffort,
-              }
-            : {}
+    const outputControls = resolveProviderModelOutputControls(settings, providerConfig.id, model)
+    const structuredOutput = outputControls.useStructuredOutput
+        ? getStructuredOutputRequest(structuredOutputMode, outputControls.useStrictSchema)
+        : undefined
+    if (structuredOutput) {
+        rolePrompt = `${rolePrompt}\n\n${getStructuredOutputPrompt(structuredOutput.mode, structuredOutput.schema)}`
+    }
 
     try {
         const engine = getEngine({
             ...providerConfig,
             model,
-            ...modelThinking,
+            thinkingEnabled: outputControls.thinkingEnabled,
+            openaiReasoningEffort: outputControls.openaiReasoningEffort,
+            anthropicThinkingEffort: outputControls.anthropicThinkingEffort,
         })
         await engine.sendMessage({
             signal: query.signal,

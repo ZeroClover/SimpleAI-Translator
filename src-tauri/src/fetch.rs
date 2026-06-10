@@ -62,14 +62,15 @@ pub async fn fetch_stream(id: String, url: String, options_str: String) -> Resul
                     proxy_config.server.unwrap_or_default(),
                     proxy_config.port.unwrap_or_default()
                 );
-                let proxy_url = match proxy_config.protocol.unwrap() {
-                    ProxyProtocol::HTTP => format!("http://{}", proxy_url),
-                    ProxyProtocol::HTTPS => format!("https://{}", proxy_url),
+                let proxy_url = match proxy_config.protocol {
+                    Some(ProxyProtocol::HTTP) => format!("http://{}", proxy_url),
+                    Some(ProxyProtocol::HTTPS) => format!("https://{}", proxy_url),
+                    None => proxy_url,
                 };
                 let mut proxy = reqwest::Proxy::all(&proxy_url).unwrap();
                 if let Some(basic_auth) = proxy_config.basic_auth {
                     let username = basic_auth.username.unwrap_or_default();
-                    if username.len() > 0 {
+                    if !username.is_empty() {
                         proxy =
                             proxy.basic_auth(&username, &basic_auth.password.unwrap_or_default());
                     }
@@ -119,7 +120,7 @@ pub async fn fetch_stream(id: String, url: String, options_str: String) -> Resul
     let (abort_handle, abort_registration) = AbortHandle::new_pair();
     let cloned_id = id.clone();
     let listen_id = app_handle.listen_any("abort-fetch-stream", move |msg| {
-        let payload: AbortEventPayload = serde_json::from_str(&msg.payload()).unwrap();
+        let payload: AbortEventPayload = serde_json::from_str(msg.payload()).unwrap();
         if payload.id == cloned_id {
             debug_println!("aborting fetch stream: {}", payload.id);
             abort_handle.abort();

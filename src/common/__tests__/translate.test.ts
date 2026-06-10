@@ -12,7 +12,10 @@ import {
 } from '../translate'
 
 vi.mock('../engines', () => ({ getEngine: vi.fn() }))
-vi.mock('../utils', () => ({ getSettings: vi.fn() }))
+vi.mock('../utils', async () => {
+    const actual = await vi.importActual<typeof import('../utils')>('../utils')
+    return { ...actual, getSettings: vi.fn() }
+})
 
 const provider: ProviderConfig = {
     id: 'provider-1',
@@ -50,7 +53,7 @@ describe('translate', () => {
         vi.mocked(getSettings).mockResolvedValue({
             providers: [provider],
             defaultProviderId: provider.id,
-        } as Awaited<ReturnType<typeof getSettings>>)
+        } as unknown as Awaited<ReturnType<typeof getSettings>>)
     })
 
     it('streams ordinary sentence translation through the default provider', async () => {
@@ -64,7 +67,12 @@ describe('translate', () => {
 
         await translate(query)
 
-        expect(getEngine).toHaveBeenCalledWith(provider)
+        expect(getEngine).toHaveBeenCalledWith({
+            ...provider,
+            thinkingEnabled: false,
+            openaiReasoningEffort: undefined,
+            anthropicThinkingEffort: undefined,
+        })
         expect(query.onMessage).toHaveBeenCalledWith({ content: '你好', role: 'assistant', isWordMode: false })
         expect(query.onFinish).toHaveBeenCalledWith('stop')
     })
@@ -82,20 +90,29 @@ describe('translate', () => {
         expect(getEngine).toHaveBeenCalledWith({
             ...provider,
             model: 'gpt-4o',
+            thinkingEnabled: false,
+            openaiReasoningEffort: undefined,
+            anthropicThinkingEffort: undefined,
         })
     })
 
-    it('passes thinking controls from the selected model', async () => {
+    it('passes thinking controls from the active provider and model record', async () => {
         vi.mocked(getSettings).mockResolvedValue({
             providers: [provider],
             defaultProviderId: provider.id,
             defaultModel: {
                 providerId: provider.id,
                 model: provider.model,
-                thinkingEnabled: true,
-                openaiReasoningEffort: 'high',
             },
-        } as Awaited<ReturnType<typeof getSettings>>)
+            providerModelOutputControls: [
+                {
+                    providerId: provider.id,
+                    model: provider.model,
+                    thinkingEnabled: true,
+                    openaiReasoningEffort: 'high',
+                },
+            ],
+        } as unknown as Awaited<ReturnType<typeof getSettings>>)
         const sendMessage = vi.fn(async (req) => {
             await req.onMessage({ content: '你好', role: 'assistant' })
             req.onFinished('stop')
@@ -108,6 +125,46 @@ describe('translate', () => {
             ...provider,
             thinkingEnabled: true,
             openaiReasoningEffort: 'high',
+            anthropicThinkingEffort: undefined,
+        })
+    })
+
+    it('uses explicit provider and model controls instead of default model controls', async () => {
+        vi.mocked(getSettings).mockResolvedValue({
+            providers: [provider],
+            defaultProviderId: provider.id,
+            defaultModel: {
+                providerId: provider.id,
+                model: provider.model,
+            },
+            providerModelOutputControls: [
+                {
+                    providerId: provider.id,
+                    model: provider.model,
+                    thinkingEnabled: true,
+                    openaiReasoningEffort: 'high',
+                },
+                {
+                    providerId: provider.id,
+                    model: 'gpt-4o',
+                    thinkingEnabled: true,
+                    openaiReasoningEffort: 'low',
+                },
+            ],
+        } as Awaited<ReturnType<typeof getSettings>>)
+        const sendMessage = vi.fn(async (req) => {
+            await req.onMessage({ content: '你好', role: 'assistant' })
+            req.onFinished('stop')
+        })
+        vi.mocked(getEngine).mockReturnValue(createMockEngine(sendMessage))
+
+        await translate(createTranslateQuery({ providerId: provider.id, model: 'gpt-4o' }))
+
+        expect(getEngine).toHaveBeenCalledWith({
+            ...provider,
+            model: 'gpt-4o',
+            thinkingEnabled: true,
+            openaiReasoningEffort: 'low',
             anthropicThinkingEffort: undefined,
         })
     })
@@ -130,8 +187,14 @@ describe('translate', () => {
         vi.mocked(getSettings).mockResolvedValue({
             providers: [provider],
             defaultProviderId: provider.id,
-            useStructuredOutput: true,
-            useStrictSchema: false,
+            providerModelOutputControls: [
+                {
+                    providerId: provider.id,
+                    model: provider.model,
+                    useStructuredOutput: true,
+                    useStrictSchema: false,
+                },
+            ],
         } as Awaited<ReturnType<typeof getSettings>>)
         const sendMessage = vi.fn(async (req) => {
             expect(req.structuredOutput).toMatchObject({
@@ -145,6 +208,26 @@ describe('translate', () => {
             })
             expect(req.rolePrompt).toContain('Structured output schema')
             expect(req.rolePrompt).not.toContain('literalMeaning')
+            await req.onMessage({ content: '你好', role: 'assistant' })
+            req.onFinished('stop')
+        })
+        vi.mocked(getEngine).mockReturnValue(createMockEngine(sendMessage))
+
+        await translate(createTranslateQuery())
+
+        expect(sendMessage).toHaveBeenCalledOnce()
+    })
+
+    it('does not enable structured output from legacy global settings', async () => {
+        vi.mocked(getSettings).mockResolvedValue({
+            providers: [provider],
+            defaultProviderId: provider.id,
+            useStructuredOutput: true,
+            useStrictSchema: false,
+        } as unknown as Awaited<ReturnType<typeof getSettings>>)
+        const sendMessage = vi.fn(async (req) => {
+            expect(req.structuredOutput).toBeUndefined()
+            expect(req.rolePrompt).not.toContain('Structured output schema')
             await req.onMessage({ content: '你好', role: 'assistant' })
             req.onFinished('stop')
         })
@@ -180,6 +263,21 @@ describe('translate', () => {
         )
         expect(getTranslationCacheKey({ ...base, useStructuredOutput: false })).not.toEqual(
             getTranslationCacheKey({ ...base, useStructuredOutput: true, useStrictSchema: true })
+        )
+        expect(
+            getTranslationCacheKey({
+                ...base,
+                thinkingEnabled: true,
+                openaiReasoningEffort: 'low',
+                useStructuredOutput: true,
+            })
+        ).not.toEqual(
+            getTranslationCacheKey({
+                ...base,
+                thinkingEnabled: true,
+                openaiReasoningEffort: 'high',
+                useStructuredOutput: true,
+            })
         )
         expect(
             getTranslationCacheKey({ ...base, text: 'hi!', useStructuredOutput: true, useStrictSchema: true })

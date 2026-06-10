@@ -53,13 +53,13 @@ https://github.com/nextai-translator/nextai-translator/tree/v-pre-slim
 
 ### Windows
 
-1. Download the `.exe` installer from the [Latest Release](https://github.com/nextai-translator/nextai-translator/releases/latest) page.
+1. Download the `.exe` installer from the [Latest Release](https://github.com/ZeroClover/SimpleAI-Translator/releases/latest) page.
 2. Double-click the installer.
 3. If Windows shows a warning, choose `More Info` -> `Run Anyway`.
 
 ### macOS
 
-1. Download the `.dmg` for your CPU from the [Latest Release](https://github.com/nextai-translator/nextai-translator/releases/latest) page.
+1. Download the `.dmg` for your CPU from the [Latest Release](https://github.com/ZeroClover/SimpleAI-Translator/releases/latest) page.
 2. Open the `.dmg` and move `SimpleAI Translator` to `Applications`.
 
 If macOS reports that the app cannot be opened because the developer cannot be verified, open `Settings` -> `Privacy & Security`, choose `Still Open`, then confirm `Open`.

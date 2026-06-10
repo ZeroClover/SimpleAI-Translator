@@ -32,6 +32,22 @@ export const commands = {
             else return { status: 'error', error: e as any }
         }
     },
+    async edgeTtsListVoices(): Promise<Result<EdgeTtsVoice[], string>> {
+        try {
+            return { status: 'ok', data: await TAURI_INVOKE('edge_tts_list_voices') }
+        } catch (e) {
+            if (e instanceof Error) throw e
+            else return { status: 'error', error: e as any }
+        }
+    },
+    async edgeTtsSynthesize(request: EdgeTtsSynthesizeRequest): Promise<Result<EdgeTtsSynthesizeResult, string>> {
+        try {
+            return { status: 'ok', data: await TAURI_INVOKE('edge_tts_synthesize', { request }) }
+        } catch (e) {
+            if (e instanceof Error) throw e
+            else return { status: 'error', error: e as any }
+        }
+    },
     async insertTranslationIntoPreviousInput(text: string): Promise<Result<null, string>> {
         try {
             return { status: 'ok', data: await TAURI_INVOKE('insert_translation_into_previous_input', { text }) }
@@ -74,6 +90,15 @@ export const events = __makeEvents__<{
 export type CheckUpdateEvent = null
 export type CheckUpdateResultEvent = UpdateResult
 export type ConfigUpdatedEvent = null
+export type EdgeTtsSynthesizeRequest = {
+    text: string
+    voice: string
+    rate: string
+    volume: string
+    pitch: string | null
+}
+export type EdgeTtsSynthesizeResult = { mimeType: string; audioSegments: string[] }
+export type EdgeTtsVoice = { shortName: string; friendlyName: string; locale: string }
 export type PinnedFromTrayEvent = { pinned: boolean }
 export type PinnedFromWindowEvent = { pinned: boolean }
 export type UpdateResult = { version: string; currentVersion: string; body: string | null }

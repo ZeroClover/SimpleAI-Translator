@@ -5,7 +5,7 @@ import monkey, { cdn } from 'vite-plugin-monkey'
 import { visualizer } from 'rollup-plugin-visualizer'
 import svgr from 'vite-plugin-svgr'
 import { fileURLToPath, URL } from 'url'
-import { version, license, name } from './package.json'
+import { version, license } from './package.json'
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -17,11 +17,11 @@ export default defineConfig({
         monkey({
             entry: 'src/browser-extension/content_script/index.tsx',
             userscript: {
-                name,
-                icon: 'https://cdn.jsdelivr.net/gh/nextai-translator/nextai-translator/public/icon.png',
-                namespace: 'https://github.com/nextai-translator/nextai-translator',
+                name: 'SimpleAI Translator',
+                icon: 'https://cdn.jsdelivr.net/gh/ZeroClover/SimpleAI-Translator@main/public/icon.png',
+                namespace: 'https://github.com/ZeroClover/SimpleAI-Translator',
                 match: ['*://*/*'],
-                author: 'https://github.com/nextai-translator',
+                author: 'https://github.com/ZeroClover',
                 license,
                 description: {
                     '': '基于 ChatGPT API 的划词翻译浏览器插件和跨平台桌面端应用',

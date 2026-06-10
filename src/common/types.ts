@@ -58,6 +58,13 @@ export interface ThinkingControl {
     anthropicThinkingEffort?: AnthropicThinkingEffort
 }
 
+export interface ProviderModelOutputControls extends ThinkingControl {
+    providerId: string
+    model: string
+    useStructuredOutput?: boolean
+    useStrictSchema?: boolean
+}
+
 export interface ProviderConfig {
     id: string
     name: string
@@ -69,7 +76,7 @@ export interface ProviderConfig {
     extraHeaders?: Record<string, string>
 }
 
-export interface ModelSelection extends ThinkingControl {
+export interface ModelSelection {
     providerId: string
     model: string
 }
@@ -79,11 +86,11 @@ export interface ISettings {
     providers: ProviderConfig[]
     defaultProviderId: string | null
     defaultModel: ModelSelection | null
-    useStructuredOutput?: boolean
-    useStrictSchema?: boolean
+    providerModelOutputControls?: ProviderModelOutputControls[]
     enableBackgroundBlur: boolean
     enableMica: boolean // deprecated, please use enableBackgroundBlur
-    defaultTargetLanguage: string
+    nativeLanguage: string
+    translationTargetLanguage: string
     themeType?: ThemeType
     i18n?: string
     tts?: {

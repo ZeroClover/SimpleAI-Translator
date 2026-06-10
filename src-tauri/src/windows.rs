@@ -4,7 +4,6 @@ use crate::utils;
 use crate::UpdateResult;
 use crate::ALWAYS_ON_TOP;
 use crate::APP_HANDLE;
-use active_win_pos_rs::get_active_window;
 #[cfg(target_os = "macos")]
 use cocoa::appkit::NSWindow;
 use debug_print::debug_println;
@@ -146,28 +145,18 @@ pub async fn show_translator_window_with_selected_text_command() {
     utils::show();
 }
 
-fn is_translator_foreground() -> bool {
-    match get_active_window() {
-        Ok(window) => window.process_id == std::process::id() as u64,
-        Err(_) => false,
-    }
-}
-
 pub fn do_hide_translator_window() {
     if let Some(handle) = APP_HANDLE.get() {
-        match handle.get_webview_window(TRANSLATOR_WIN_NAME) {
-            Some(window) => {
-                #[cfg(not(target_os = "macos"))]
-                {
-                    window.hide().unwrap();
-                }
-                #[cfg(target_os = "macos")]
-                {
-                    tauri::AppHandle::hide(&handle).unwrap();
-                    window.hide().unwrap();
-                }
+        if let Some(window) = handle.get_webview_window(TRANSLATOR_WIN_NAME) {
+            #[cfg(not(target_os = "macos"))]
+            {
+                window.hide().unwrap();
             }
-            None => {}
+            #[cfg(target_os = "macos")]
+            {
+                tauri::AppHandle::hide(handle).unwrap();
+                window.hide().unwrap();
+            }
         }
     }
 }

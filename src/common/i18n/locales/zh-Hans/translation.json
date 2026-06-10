@@ -63,6 +63,8 @@
     "No LLM Provider": "未配置 LLM Provider",
     "Please add an LLM Provider in settings first.": "请先在设置中添加 LLM Provider。",
     "Manage OpenAI-compatible and Anthropic providers.": "管理 OpenAI 兼容协议与 Anthropic 协议的 Provider。",
+    "Add Provider": "添加 Provider",
+    "Edit Provider": "编辑 Provider",
     "Default": "默认",
     "Set default": "设为默认",
     "Use": "使用",

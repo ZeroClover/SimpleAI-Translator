@@ -187,6 +187,32 @@ fn main() {
             let app_handle = app.handle();
             APP_HANDLE.get_or_init(|| app.handle().clone());
             tray::create_tray(app_handle)?;
+            // The tray menu accelerator is display-only on macOS, so the standard
+            // Cmd+, shortcut must be registered through the application menu.
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::menu::{Menu, MenuItem, MenuItemKind, PredefinedMenuItem};
+                let menu = Menu::default(app_handle)?;
+                if let Some(MenuItemKind::Submenu(app_submenu)) = menu.items()?.first() {
+                    app_submenu.insert(&PredefinedMenuItem::separator(app_handle)?, 1)?;
+                    app_submenu.insert(
+                        &MenuItem::with_id(
+                            app_handle,
+                            "settings",
+                            "Settings…",
+                            true,
+                            Some("Cmd+,"),
+                        )?,
+                        2,
+                    )?;
+                }
+                app.set_menu(menu)?;
+                app.on_menu_event(|_app, event| {
+                    if event.id.as_ref() == "settings" {
+                        windows::show_settings_window();
+                    }
+                });
+            }
             app_handle.plugin(tauri_plugin_updater::Builder::new().build())?;
             if silently {
                 // create translator window

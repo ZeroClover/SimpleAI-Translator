@@ -63,6 +63,8 @@
     "No LLM Provider": "No LLM Provider",
     "Please add an LLM Provider in settings first.": "Please add an LLM Provider in settings first.",
     "Manage OpenAI-compatible and Anthropic providers.": "Manage OpenAI-compatible and Anthropic providers.",
+    "Add Provider": "Add Provider",
+    "Edit Provider": "Edit Provider",
     "Default": "Default",
     "Set default": "Set default",
     "Use": "Use",

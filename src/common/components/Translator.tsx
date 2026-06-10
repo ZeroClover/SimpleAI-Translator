@@ -24,6 +24,10 @@ import {
     isTauri,
     isBrowserExtensionContentScript,
     isMacOS,
+    areSameLanguageForTargetSelection,
+    resolveAutomaticTargetLanguage,
+    resolveProviderModelOutputControls,
+    resolveTargetLanguageForSource,
     setSettings as persistSettings,
 } from '../utils'
 import { InnerSettings } from './Settings'
@@ -52,6 +56,7 @@ import { SpeakerIcon } from './SpeakerIcon'
 import color from 'color'
 import { useAtom } from 'jotai'
 import { showSettingsAtom } from '../store/setting'
+import { sortModelIds } from '../engines/model-filter'
 
 const cache = new LRUCache({
     max: 500,
@@ -80,7 +85,7 @@ function getProviderModelOptions(provider: ISettings['providers'][number] | unde
     if (!provider) {
         return []
     }
-    const models = Array.from(new Set([provider.model, ...(provider.modelOptions ?? [])].filter(Boolean)))
+    const models = sortModelIds(Array.from(new Set([provider.model, ...(provider.modelOptions ?? [])].filter(Boolean))))
     return models.map((model) => ({
         id: `${provider.id}:${model}`,
         label: model,
@@ -688,22 +693,15 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             setSourceLang(newSourceLang)
             return await new Promise((resolve) => {
                 setTargetLang((targetLang_) => {
-                    const newTargetLang = (() => {
-                        if (!stopAutomaticallyChangeTargetLang.current || newSourceLang === targetLang_) {
-                            return (
-                                (newSourceLang === 'zh-Hans' || newSourceLang === 'zh-Hant'
-                                    ? 'en'
-                                    : (settings?.defaultTargetLanguage as LangCode | undefined)) ?? 'en'
-                            )
-                        }
-                        if (!targetLang_) {
-                            if (settings?.defaultTargetLanguage) {
-                                return settings.defaultTargetLanguage as LangCode
-                            }
-                            return newSourceLang
-                        }
-                        return targetLang_
-                    })()
+                    const result = resolveTargetLanguageForSource(
+                        newSourceLang,
+                        targetLang_,
+                        manualTargetLangSourceRef.current,
+                        settings.nativeLanguage,
+                        settings.translationTargetLanguage
+                    )
+                    const newTargetLang = result.targetLanguage as LangCode
+                    manualTargetLangSourceRef.current = result.manualTargetLanguageSource as LangCode | null
                     setTranslateDeps((oldV) => {
                         const newV: typeof translateDeps = {
                             ...oldV,
@@ -720,7 +718,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 })
             })
         },
-        [selectedModel?.model, selectedModel?.providerId, settings.defaultTargetLanguage]
+        [selectedModel?.model, selectedModel?.providerId, settings.nativeLanguage, settings.translationTargetLanguage]
     )
 
     const { externalOriginalText } = useTranslatorStore()
@@ -762,14 +760,27 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         setIsLoading(false)
     }, [])
     const [sourceLang, setSourceLang] = useState<LangCode>('en')
-    const [targetLang, setTargetLang] = useState<LangCode>(settings.defaultTargetLanguage as LangCode)
-    const stopAutomaticallyChangeTargetLang = useRef(false)
+    const [targetLang, setTargetLang] = useState<LangCode>(
+        () =>
+            resolveAutomaticTargetLanguage(
+                'en',
+                settings.nativeLanguage,
+                settings.translationTargetLanguage
+            ) as LangCode
+    )
+    const manualTargetLangSourceRef = useRef<LangCode | null>(null)
 
     useEffect(() => {
-        if (!stopAutomaticallyChangeTargetLang.current) {
-            setTargetLang(settings.defaultTargetLanguage as LangCode)
+        if (!manualTargetLangSourceRef.current) {
+            setTargetLang(
+                resolveAutomaticTargetLanguage(
+                    sourceLang,
+                    settings.nativeLanguage,
+                    settings.translationTargetLanguage
+                ) as LangCode
+            )
         }
-    }, [settings.defaultTargetLanguage])
+    }, [settings.nativeLanguage, settings.translationTargetLanguage, sourceLang])
 
     const [actionStr, setActionStr] = useState('')
 
@@ -841,6 +852,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             if (!text || !sourceLang || !targetLang) {
                 return
             }
+            const isCurrentTranslation = () => translationID === translationIDRef.current
             const persistHistory = async (resultText: string) => {
                 if (!resultText || !resultText.trim()) {
                     return
@@ -889,7 +901,16 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 startLoading()
             }
             const afterTranslate = (reason: string) => {
+                if (!isCurrentTranslation()) {
+                    return
+                }
                 stopLoading()
+                if (reason === 'aborted') {
+                    if (signal.reason === 'stop') {
+                        setActionStr('Stopped')
+                    }
+                    return
+                }
                 if (reason !== 'stop' && reason !== 'eos' && reason !== 'end_turn') {
                     if (reason === 'length' || reason === 'max_tokens') {
                         toast(t('Chars Limited'), {
@@ -911,14 +932,22 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 }
             }
             beforeTranslate()
+            const outputControls = resolveProviderModelOutputControls(
+                settings,
+                translateDeps.providerId ?? selectedModel?.providerId,
+                translateDeps.engineModel ?? selectedModel?.model
+            )
             const cachedKey = getTranslationCacheKey({
                 providerId: translateDeps.providerId,
                 model: translateDeps.engineModel,
                 sourceLang,
                 targetLang,
                 text,
-                useStructuredOutput: settings.useStructuredOutput,
-                useStrictSchema: settings.useStrictSchema,
+                thinkingEnabled: outputControls.thinkingEnabled,
+                openaiReasoningEffort: outputControls.openaiReasoningEffort,
+                anthropicThinkingEffort: outputControls.anthropicThinkingEffort,
+                useStructuredOutput: outputControls.useStructuredOutput,
+                useStrictSchema: outputControls.useStrictSchema,
                 translationFlag,
             })
             const cachedValue = cache.get(cachedKey)
@@ -941,10 +970,16 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     model: translateDeps.engineModel ?? selectedModel?.model,
                     onStatusCode: () => {},
                     onMessage: async (message) => {
+                        if (!isCurrentTranslation() || signal.aborted) {
+                            return
+                        }
                         if (!message.content) {
                             return
                         }
                         setTranslatedText((translatedText) => {
+                            if (!isCurrentTranslation()) {
+                                return translatedText
+                            }
                             if (message.isFullText) {
                                 return message.content
                             }
@@ -952,8 +987,17 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         })
                     },
                     onFinish: (reason) => {
+                        if (!isCurrentTranslation()) {
+                            return
+                        }
                         afterTranslate(reason)
+                        if (reason === 'aborted') {
+                            return
+                        }
                         setTranslatedText((translatedText) => {
+                            if (!isCurrentTranslation()) {
+                                return translatedText
+                            }
                             const result = translatedText
                             cache.set(cachedKey, result)
                             void persistHistory(result)
@@ -961,6 +1005,9 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         })
                     },
                     onError: (error) => {
+                        if (!isCurrentTranslation() || signal.aborted) {
+                            return
+                        }
                         setActionStr('Error')
                         setErrorMessage(error)
                     },
@@ -970,6 +1017,12 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 // if error is a AbortError then ignore this error
                 if (error.name === 'AbortError') {
                     isStopped = true
+                    if (isCurrentTranslation()) {
+                        stopLoading()
+                    }
+                    return
+                }
+                if (!isCurrentTranslation()) {
                     return
                 }
                 setActionStr('Error')
@@ -984,10 +1037,9 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         [
             selectedModel?.model,
             selectedModel?.providerId,
+            settings,
             translateDeps,
             translationFlag,
-            settings.useStructuredOutput,
-            settings.useStrictSchema,
             startLoading,
             stopLoading,
             t,
@@ -996,11 +1048,12 @@ function InnerTranslator(props: IInnerTranslatorProps) {
 
     const translateControllerRef = useRef<AbortController | null>(null)
     useEffect(() => {
-        translateControllerRef.current = new AbortController()
-        const { signal } = translateControllerRef.current
+        const controller = new AbortController()
+        translateControllerRef.current = controller
+        const { signal } = controller
         translateText(signal)
         return () => {
-            translateControllerRef.current?.abort()
+            controller.abort()
         }
     }, [translateText])
 
@@ -1008,6 +1061,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         (item: HistoryItem) => {
             historyEntryIdRef.current = item.id ?? null
             lastHistoryKeyRef.current = null
+            manualTargetLangSourceRef.current = null
             skipNextTranslateRef.current = true
             setSourceLang(item.fromLang)
             setTargetLang(item.toLang)
@@ -1226,12 +1280,29 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                     }}
                                     onChange={({ value }) => {
                                         const langId = value.length > 0 ? value[0].id : sourceLangOptions[0].id
-                                        setSourceLang(langId as LangCode)
+                                        const nextSourceLang = langId as LangCode
+                                        const sourceChanged = !areSameLanguageForTargetSelection(
+                                            sourceLang,
+                                            nextSourceLang
+                                        )
+                                        const nextTargetLang = sourceChanged
+                                            ? (resolveAutomaticTargetLanguage(
+                                                  nextSourceLang,
+                                                  settings.nativeLanguage,
+                                                  settings.translationTargetLanguage
+                                              ) as LangCode)
+                                            : targetLang
+                                        if (sourceChanged) {
+                                            manualTargetLangSourceRef.current = null
+                                            setTargetLang(nextTargetLang)
+                                        }
+                                        setSourceLang(nextSourceLang)
                                         setTranslateDeps((v) => {
                                             return {
                                                 ...v,
                                                 text: editableText,
-                                                sourceLang: langId as LangCode,
+                                                sourceLang: nextSourceLang,
+                                                targetLang: nextTargetLang,
                                             }
                                         })
                                     }}
@@ -1240,13 +1311,15 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             <div
                                 className={styles.arrow}
                                 onClick={() => {
+                                    const nextSourceLang = targetLang
+                                    manualTargetLangSourceRef.current = nextSourceLang
                                     setTranslateDeps((v) => ({
                                         ...v,
                                         text: translatedText,
-                                        sourceLang: targetLang ?? 'en',
+                                        sourceLang: nextSourceLang,
                                         targetLang: sourceLang,
                                     }))
-                                    setSourceLang(targetLang ?? 'en')
+                                    setSourceLang(nextSourceLang)
                                     setTargetLang(sourceLang)
                                     editorRef.current?.focus()
                                 }}
@@ -1271,7 +1344,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                         },
                                     }}
                                     onChange={({ value }) => {
-                                        stopAutomaticallyChangeTargetLang.current = true
+                                        manualTargetLangSourceRef.current = sourceLang
                                         const langId = value.length > 0 ? value[0].id : targetLangOptions[0].id
                                         setTargetLang(langId as LangCode)
                                         setTranslateDeps((v) => {

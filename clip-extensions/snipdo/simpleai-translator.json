@@ -1,0 +1,12 @@
+{
+    "name": "SimpleAI Translator",
+    "identifier": "io.zeroclover.app.simpleai-translator.clip-extensions.snipdo",
+    "icon": "icon.png",
+    "actions": [
+        {
+            "title": "SimpleAI Translator",
+            "icon": "icon.png",
+            "powershellFile": "simpleai-translator.ps1"
+        }
+    ]
+}

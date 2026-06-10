@@ -97,7 +97,7 @@
     "use-deep-compare": "^1.1.0",
     "use-resize-observer": "^9.1.0",
     "uuid": "^14.0.0",
-    "web-streams-polyfill": "^3.2.1",
+    "web-streams-polyfill": "^4.2.0",
     "zustand": "^4.4.0"
   },
   "devDependencies": {

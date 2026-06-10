@@ -1,6 +1,6 @@
 import { isFirefox } from '../utils'
 import { BackgroundEventNames } from './eventnames'
-import { ReadableStream as ReadableStreamPolyfill } from 'web-streams-polyfill/ponyfill'
+import { ReadableStream as ReadableStreamPolyfill } from 'web-streams-polyfill'
 
 export interface BackgroundFetchRequestMessage {
     type: 'open' | 'abort'

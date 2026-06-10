@@ -180,8 +180,8 @@ importers:
         specifier: ^14.0.0
         version: 14.0.0
       web-streams-polyfill:
-        specifier: ^3.2.1
-        version: 3.2.1
+        specifier: ^4.2.0
+        version: 4.2.0
       zustand:
         specifier: ^4.4.0
         version: 4.4.0(@types/react@18.2.18)(react@18.2.0)
@@ -4232,8 +4232,8 @@ packages:
   warning@4.0.3:
     resolution: {integrity: sha512-rpJyN222KWIvHJ/F53XSZv0Zl/accqHR8et1kpaMTD/fLCRxtV8iX8czMzY7sVZupTI3zcUTg8eycS2kNF9l6w==}
 
-  web-streams-polyfill@3.2.1:
-    resolution: {integrity: sha512-e0MO3wdXWKrLbL0DgGnUV7WHVuw9OUvL4hjgnPkIeEvESk74gAITi5G606JtZPp39cd8HA9VQzCIvA49LpPN5Q==}
+  web-streams-polyfill@4.2.0:
+    resolution: {integrity: sha512-0rYDzGOh9EZpig92umN5g5D/9A1Kff7k0/mzPSSCY8jEQeYkgRMoY7LhbXtUCWzLCMX0TUE9aoHkjFNB7D9pfA==}
     engines: {node: '>= 8'}
 
   webextension-polyfill@0.10.0:
@@ -8572,7 +8572,7 @@ snapshots:
     dependencies:
       loose-envify: 1.4.0
 
-  web-streams-polyfill@3.2.1: {}
+  web-streams-polyfill@4.2.0: {}
 
   webextension-polyfill@0.10.0: {}
 

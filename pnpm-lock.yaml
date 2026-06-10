@@ -222,9 +222,6 @@ importers:
       '@types/underscore':
         specifier: ^1.11.6
         version: 1.11.6
-      '@types/uuid':
-        specifier: ^9.0.2
-        version: 9.0.2
       '@types/webextension-polyfill':
         specifier: ^0.10.1
         version: 0.10.1
@@ -1162,9 +1159,6 @@ packages:
 
   '@types/underscore@1.11.6':
     resolution: {integrity: sha512-G2oC64I/sR817KDL2b2Mc7+diXyxcibyUeLMyexU4K/sG8hyt/YMlbBK0TVhx/YQ1ehfzgXhLuq2YQHIL4bXUQ==}
-
-  '@types/uuid@9.0.2':
-    resolution: {integrity: sha512-kNnC1GFBLuhImSnV7w4njQkUiJi0ZXUycu1rUaouPqiKlXkh77JKgdRnTAp1x5eBwcIwbtI+3otwzuIDEuDoxQ==}
 
   '@types/webextension-polyfill@0.10.1':
     resolution: {integrity: sha512-Sdg+E2F5JUbhkE1qX15QUxpyhfMFKRGJqND9nb1C0gNN4NR7kCV31/1GvNbg6Xe+m/JElJ9/lG5kepMzjGPuQw==}
@@ -5144,8 +5138,6 @@ snapshots:
   '@types/tampermonkey@5.0.5': {}
 
   '@types/underscore@1.11.6': {}
-
-  '@types/uuid@9.0.2': {}
 
   '@types/webextension-polyfill@0.10.1': {}
 

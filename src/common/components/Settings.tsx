@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import _ from 'underscore'
 import { Tabs, Tab, StyledTabList, StyledTabPanel } from 'baseui-sd/tabs-motion'
+import { Modal, ModalBody, ModalHeader } from 'baseui-sd/modal'
 import icon from '../assets/images/icon-large.png'
 import beams from '../assets/images/beams.jpg'
 import toast, { Toaster } from 'react-hot-toast'
@@ -1304,7 +1305,10 @@ function LLMProvidersSettings({
                     type='button'
                     size='compact'
                     startEnhancer={<IoMdAdd />}
-                    onClick={() => setIsAddingProvider(true)}
+                    onClick={() => {
+                        setEditingProvider(null)
+                        setIsAddingProvider(true)
+                    }}
                 >
                     {t('Add')}
                 </Button>
@@ -1375,7 +1379,15 @@ function LLMProvidersSettings({
                         >
                             {t('Refresh')}
                         </Button>
-                        <Button type='button' size='mini' kind='secondary' onClick={() => setEditingProvider(provider)}>
+                        <Button
+                            type='button'
+                            size='mini'
+                            kind='secondary'
+                            onClick={() => {
+                                setIsAddingProvider(false)
+                                setEditingProvider(provider)
+                            }}
+                        >
                             {t('Edit')}
                         </Button>
                         <Button type='button' size='mini' kind='tertiary' onClick={() => deleteProvider(provider.id)}>
@@ -1535,9 +1547,24 @@ function LLMProvidersSettings({
                     />
                 </div>
             )}
-            {(isAddingProvider || editingProvider) && (
-                <ProviderForm initialValue={editingProvider ?? undefined} onCancel={closeForm} onSave={saveProvider} />
-            )}
+            <Modal
+                isOpen={isAddingProvider || Boolean(editingProvider)}
+                onClose={closeForm}
+                closeable
+                animate
+                autoFocus
+                role='dialog'
+            >
+                <ModalHeader>{editingProvider ? t('Edit Provider') : t('Add Provider')}</ModalHeader>
+                <ModalBody>
+                    <ProviderForm
+                        key={editingProvider?.id ?? 'new'}
+                        initialValue={editingProvider ?? undefined}
+                        onCancel={closeForm}
+                        onSave={saveProvider}
+                    />
+                </ModalBody>
+            </Modal>
         </div>
     )
 }

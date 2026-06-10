@@ -217,8 +217,8 @@ importers:
         specifier: ^18.2.7
         version: 18.2.7
       '@types/tampermonkey':
-        specifier: ^4.0.10
-        version: 4.0.10
+        specifier: ^5.0.5
+        version: 5.0.5
       '@types/underscore':
         specifier: ^1.11.6
         version: 1.11.6
@@ -1152,8 +1152,8 @@ packages:
   '@types/semver@7.5.0':
     resolution: {integrity: sha512-G8hZ6XJiHnuhQKR7ZmysCeJWE08o8T0AXtk5darsCaTVsYZhhgUrq53jizaR2FvsoeCwJhlmwTjkXBY5Pn/ZHw==}
 
-  '@types/tampermonkey@4.0.10':
-    resolution: {integrity: sha512-E3SYtXgeXG/nnq6uAPiZh7i0XA8jLbtiXraxxHTnsSjzQcQMxWBzbcoGkHgiC+zbHXxxkynUT9zt85SpF8loNw==}
+  '@types/tampermonkey@5.0.5':
+    resolution: {integrity: sha512-ZWitwJH4T/jcQiynhc3I5DNiwlsDzVTKPXg6A8ltTw3SDuf0b00bNRSV0Z/yldnhhBi9e8g8vY/X3LVSQcaCKQ==}
 
   '@types/underscore@1.11.6':
     resolution: {integrity: sha512-G2oC64I/sR817KDL2b2Mc7+diXyxcibyUeLMyexU4K/sG8hyt/YMlbBK0TVhx/YQ1ehfzgXhLuq2YQHIL4bXUQ==}
@@ -5124,7 +5124,7 @@ snapshots:
 
   '@types/semver@7.5.0': {}
 
-  '@types/tampermonkey@4.0.10': {}
+  '@types/tampermonkey@5.0.5': {}
 
   '@types/underscore@1.11.6': {}
 

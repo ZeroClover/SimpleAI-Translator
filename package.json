@@ -53,7 +53,7 @@
     "@types/qs": "^6.9.10",
     "@types/react-copy-to-clipboard": "^5.0.4",
     "baseui-sd": "^12.2.4",
-    "best-effort-json-parser": "^1.0.1",
+    "best-effort-json-parser": "^1.4.1",
     "clsx": "^1.2.1",
     "color": "^4.2.3",
     "common-tags": "^1.8.2",

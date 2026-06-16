@@ -80,6 +80,8 @@ function genLangOptions(langs: [LangCode, string][]): Value {
 }
 const sourceLangOptions = genLangOptions(sourceLanguages)
 const targetLangOptions = genLangOptions(targetLanguages)
+const DEFAULT_DESKTOP_HEADER_OFFSET = isMacOS ? 82 : 58
+const DESKTOP_HEADER_OFFSET_VAR = `var(--simpleai-translator-header-offset, ${DEFAULT_DESKTOP_HEADER_OFFSET}px)`
 
 function getProviderModelOptions(provider: ISettings['providers'][number] | undefined) {
     if (!provider) {
@@ -285,11 +287,10 @@ const useStyles = createUseStyles({
         fontSize: '12px',
         flexShrink: 0,
     }),
-    'popupCardContentContainer': (props: IThemedStyleProps) => ({
-        paddingTop: props.isDesktopApp ? '52px' : undefined,
+    'popupCardContentContainer': {
         display: 'flex',
         flexDirection: 'column',
-    }),
+    },
     'loadingContainer': {
         margin: '0 auto',
         display: 'flex',
@@ -469,7 +470,9 @@ const useStyles = createUseStyles({
         height: '100vh',
         boxSizing: 'border-box',
         overflow: 'auto',
-        borderTop: isMacOS ? '82px solid transparent' : '58px solid transparent',
+        // The transparent top border both clears the fixed header and insets the
+        // scrollbar below it. The editor container owns the visible content gap.
+        borderTop: `${DESKTOP_HEADER_OFFSET_VAR} solid transparent`,
         borderBottom: '42px solid transparent',
     },
     // Background-blur mode keeps the original behaviour: content scrolls UNDER the
@@ -480,7 +483,7 @@ const useStyles = createUseStyles({
         'height': '100vh',
         'boxSizing': 'border-box',
         'overflow': 'auto',
-        'paddingTop': isMacOS ? '82px !important' : '58px !important',
+        'paddingTop': DESKTOP_HEADER_OFFSET_VAR,
         'paddingBottom': '42px',
         'scrollbarWidth': 'none',
         '&::-webkit-scrollbar': {
@@ -685,6 +688,30 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         providerId: undefined,
         engineModel: undefined,
     })
+
+    useEffect(() => {
+        if (!isDesktopApp()) {
+            return undefined
+        }
+        const header = headerRef.current
+        const content = contentScrollRef.current
+        if (!header || !content) {
+            return undefined
+        }
+
+        const updateHeaderOffset = () => {
+            content.style.setProperty('--simpleai-translator-header-offset', `${header.offsetHeight}px`)
+        }
+        updateHeaderOffset()
+
+        const observer = new ResizeObserver(updateHeaderOffset)
+        observer.observe(header)
+        window.addEventListener('resize', updateHeaderOffset)
+        return () => {
+            observer.disconnect()
+            window.removeEventListener('resize', updateHeaderOffset)
+        }
+    }, [showSettings])
 
     useEffect(() => {
         setTranslateDeps((prev) => ({

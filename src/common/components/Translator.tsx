@@ -458,6 +458,24 @@ const useStyles = createUseStyles({
     'flexPlaceHolder': {
         marginRight: 'auto',
     },
+    // Non-blur desktop scroll: cap to the viewport and scroll inside this element
+    // (the header and footer are position:fixed, so a 100vh box fills the window
+    // exactly), keeping scrolling off the document where macOS WKWebView renders
+    // its ugly native main-frame scrollbar. The top/bottom offsets are TRANSPARENT
+    // BORDERS, not padding: WebKit paints the scrollbar inside the border box, so
+    // the border insets the visible scrollbar so its ends clear the fixed header,
+    // footer and the rounded window corners (same fix as the settings window).
+    'popupCardContentContainerDesktopScroll': {
+        height: '100vh',
+        boxSizing: 'border-box',
+        overflow: 'auto',
+        borderTop: isMacOS ? '82px solid transparent' : '58px solid transparent',
+        borderBottom: '42px solid transparent',
+    },
+    // Background-blur mode keeps the original behaviour: content scrolls UNDER the
+    // translucent header with a mask fade, and the scrollbar is hidden — so it uses
+    // padding (scroll-under) rather than the border inset, and needs the full
+    // geometry here since DesktopScroll is not applied in blur mode.
     'popupCardContentContainerBackgroundBlur': {
         'height': '100vh',
         'boxSizing': 'border-box',
@@ -633,6 +651,9 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const containerRef = useRef<HTMLDivElement>(null)
     const editorContainerRef = useRef<HTMLDivElement>(null)
     const translatedContainerRef = useRef<HTMLDivElement>(null)
+    // The desktop content scrolls inside this element (see popupCardContentContainerDesktopScroll)
+    // rather than at the document level, which would show the ugly native macOS scrollbar.
+    const contentScrollRef = useRef<HTMLDivElement>(null)
 
     const translatedContentRef = useRef<HTMLDivElement>(null)
 
@@ -1150,17 +1171,23 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const [isScrolledToBottom, setIsScrolledToBottom] = useState(false)
 
     useEffect(() => {
+        const container = contentScrollRef.current
+        const scrollOnContainer = isDesktopApp() && !!container
         const isOnTop = () => {
+            if (scrollOnContainer && container) {
+                return container.scrollTop === 0
+            }
             return document.documentElement.scrollTop === 0
         }
         const isOnBottom = () => {
+            if (scrollOnContainer && container) {
+                // -1px tolerance for sub-pixel/zoom rounding.
+                return container.scrollTop + container.clientHeight >= container.scrollHeight - 1
+            }
             const scrollTop = document.documentElement.scrollTop
-
             const windowHeight = window.innerHeight
-
             const documentHeight = document.documentElement.scrollHeight
-
-            return scrollTop + windowHeight >= documentHeight
+            return scrollTop + windowHeight >= documentHeight - 1
         }
 
         setIsScrolledToTop(isOnTop())
@@ -1171,15 +1198,16 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             setIsScrolledToBottom(isOnBottom())
         }
 
-        window.addEventListener('scroll', onScroll)
+        const scrollTarget: HTMLElement | Window = scrollOnContainer && container ? container : window
+        scrollTarget.addEventListener('scroll', onScroll, { passive: true })
         window.addEventListener('resize', onScroll)
         const observer = new MutationObserver(onScroll)
-        observer.observe(document.body, {
+        observer.observe(scrollOnContainer && container ? container : document.body, {
             childList: true,
             subtree: true,
         })
         return () => {
-            window.removeEventListener('scroll', onScroll)
+            scrollTarget.removeEventListener('scroll', onScroll)
             window.removeEventListener('resize', onScroll)
             observer.disconnect()
         }
@@ -1233,7 +1261,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             ref={containerRef}
             style={{
                 background: isDesktopApp() ? 'transparent' : theme.colors.backgroundPrimary,
-                paddingBottom: showSettings || settings.enableBackgroundBlur ? '0px' : '42px',
+                paddingBottom: showSettings || settings.enableBackgroundBlur || isDesktopApp() ? '0px' : '42px',
             }}
         >
             {showSettings && (
@@ -1421,8 +1449,12 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         </div>
                     </div>
                     <div
+                        ref={contentScrollRef}
                         className={clsx(
                             styles.popupCardContentContainer,
+                            isDesktopApp() &&
+                                !settings.enableBackgroundBlur &&
+                                styles.popupCardContentContainerDesktopScroll,
                             settings.enableBackgroundBlur && styles.popupCardContentContainerBackgroundBlur
                         )}
                     >

@@ -1735,20 +1735,33 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
 
     const styles = useStyles({ theme, themeType, isDesktopApp })
 
+    // On the desktop app (and userscript) the long settings form must scroll
+    // inside an inner overflow container instead of at the document level. The
+    // macOS WKWebView main-frame scrollbar is a native AppKit scroller that
+    // ignores the global ::-webkit-scrollbar style and renders an ugly legacy
+    // bar whenever a mouse is connected or "Show scroll bars: Always" is set;
+    // an inner overflow:auto element does honor the thin style declared in
+    // src/tauri/index.html.
+    const usesInnerScroll = isDesktopApp || utils.isUserscript()
+    const scrollContainerRef = useRef<HTMLDivElement>(null)
+
     const [isScrolledToBottom, setIsScrolledToBottom] = useState(false)
 
     useEffect(() => {
         if (!showFooter) {
             return undefined
         }
+        const container = scrollContainerRef.current
+        const scrollOnContainer = usesInnerScroll && !!container
         const isOnBottom = () => {
+            if (scrollOnContainer && container) {
+                // -1px tolerance for sub-pixel/zoom rounding.
+                return container.scrollTop + container.clientHeight >= container.scrollHeight - 1
+            }
             const scrollTop = document.documentElement.scrollTop
-
             const windowHeight = window.innerHeight
-
             const documentHeight = document.documentElement.scrollHeight
-
-            return scrollTop + windowHeight >= documentHeight
+            return scrollTop + windowHeight >= documentHeight - 1
         }
 
         setIsScrolledToBottom(isOnBottom())
@@ -1757,33 +1770,39 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
             setIsScrolledToBottom(isOnBottom())
         }
 
-        window.addEventListener('scroll', onScroll)
+        const scrollTarget: HTMLElement | Window = scrollOnContainer && container ? container : window
+        scrollTarget.addEventListener('scroll', onScroll, { passive: true })
         window.addEventListener('resize', onScroll)
         const observer = new MutationObserver(onScroll)
-        observer.observe(document.body, {
+        observer.observe(scrollOnContainer && container ? container : document.body, {
             childList: true,
             subtree: true,
         })
         return () => {
-            window.removeEventListener('scroll', onScroll)
+            scrollTarget.removeEventListener('scroll', onScroll)
             window.removeEventListener('resize', onScroll)
             observer.disconnect()
         }
-    }, [showFooter])
+    }, [showFooter, usesInnerScroll])
 
     const [activeTab, setActiveTab] = useState('general')
 
-    const [isScrolled, setIsScrolled] = useState(window.scrollY > 0)
+    const [isScrolled, setIsScrolled] = useState(false)
 
     useEffect(() => {
+        const container = scrollContainerRef.current
+        const scrollOnContainer = usesInnerScroll && !!container
+        const getScrollTop = () => (scrollOnContainer && container ? container.scrollTop : window.scrollY)
+        setIsScrolled(getScrollTop() > 0)
         const onScroll = () => {
-            setIsScrolled(window.scrollY > 0)
+            setIsScrolled(getScrollTop() > 0)
         }
-        window.addEventListener('scroll', onScroll)
+        const scrollTarget: HTMLElement | Window = scrollOnContainer && container ? container : window
+        scrollTarget.addEventListener('scroll', onScroll, { passive: true })
         return () => {
-            window.removeEventListener('scroll', onScroll)
+            scrollTarget.removeEventListener('scroll', onScroll)
         }
-    }, [])
+    }, [usesInnerScroll])
 
     const tabsOverrides = {
         Root: {
@@ -1842,13 +1861,30 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
 
     return (
         <div
+            ref={scrollContainerRef}
             style={{
-                paddingTop: utils.isBrowserExtensionOptions() ? undefined : '136px',
-                paddingBottom: utils.isBrowserExtensionOptions() ? undefined : '32px',
+                // Desktop: scroll inside this 100vh element (not the document) so a
+                // custom scrollbar is used instead of the ugly native macOS bar. The
+                // top/bottom offsets are TRANSPARENT BORDERS, not padding: a WebKit
+                // scrollbar is painted INSIDE the border box, so the border insets the
+                // scrollbar itself — keeping its ends clear of the fixed nav (top), the
+                // save footer (bottom) and the rounded window corners that would
+                // otherwise clip it ("切头去尾"). (::-webkit-scrollbar-track margin is
+                // ignored by WebKit, so this border-box trick is the reliable inset.)
+                paddingTop: utils.isBrowserExtensionOptions() || isDesktopApp ? undefined : '136px',
+                paddingBottom: utils.isBrowserExtensionOptions() ? undefined : isDesktopApp ? '16px' : '32px',
+                borderTop: isDesktopApp ? '136px solid transparent' : undefined,
+                borderBottom: isDesktopApp
+                    ? showFooter
+                        ? '42px solid transparent'
+                        : '12px solid transparent'
+                    : undefined,
                 background: isDesktopApp ? 'transparent' : theme.colors.backgroundPrimary,
                 minWidth: isDesktopApp ? 450 : 400,
+                height: isDesktopApp ? '100vh' : undefined,
+                boxSizing: isDesktopApp ? 'border-box' : undefined,
                 maxHeight: utils.isUserscript() ? 'calc(100vh - 32px)' : undefined,
-                overflow: utils.isUserscript() ? 'auto' : undefined,
+                overflow: usesInnerScroll ? 'auto' : undefined,
             }}
             data-testid='settings-container'
         >

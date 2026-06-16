@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
@@ -10,12 +10,13 @@
         <script type="module" src="/src/tauri/index.tsx"></script>
         <title>SimpleAI Translator</title>
         <style>
-            html, body {
+            html,
+            body {
                 margin: 0px;
                 padding: 0px;
                 overscroll-behavior: none;
                 scrollbar-width: thin;
-                scrollbar-color: rgba(0,0,0,0.15) transparent;
+                scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
                 -ms-overflow-style: none;
                 -ms-user-select: none;
                 -webkit-user-select: none;
@@ -26,10 +27,13 @@
                 text-rendering: optimizeLegibility;
             }
 
-            /* custom scrollbar - refined thin style */
+            /* custom scrollbar - thin floating thumb, macOS overlay-like.
+               The transparent border + background-clip:padding-box makes the
+               visible thumb ~4px and inset from the edge, so it reads thinner
+               and more native than a solid 6px bar. */
             *::-webkit-scrollbar {
-                width: 6px;
-                height: 6px;
+                width: 8px;
+                height: 8px;
             }
 
             *::-webkit-scrollbar-track {
@@ -37,20 +41,22 @@
             }
 
             *::-webkit-scrollbar-thumb {
-                background-color: rgba(0, 0, 0, 0.12);
-                border-radius: 3px;
+                background-color: rgba(0, 0, 0, 0.22);
+                border-radius: 10px;
+                border: 2px solid transparent;
+                background-clip: padding-box;
             }
 
             *::-webkit-scrollbar-thumb:hover {
-                background-color: rgba(0, 0, 0, 0.22);
+                background-color: rgba(0, 0, 0, 0.4);
             }
 
             @media (prefers-color-scheme: dark) {
                 *::-webkit-scrollbar-thumb {
-                    background-color: rgba(255, 255, 255, 0.12);
+                    background-color: rgba(255, 255, 255, 0.22);
                 }
                 *::-webkit-scrollbar-thumb:hover {
-                    background-color: rgba(255, 255, 255, 0.22);
+                    background-color: rgba(255, 255, 255, 0.4);
                 }
             }
 
@@ -86,13 +92,16 @@
                 background-color: rgba(0, 0, 0, 0.22);
             }
 
-            *, a, button {
+            *,
+            a,
+            button {
                 -ms-user-select: none;
                 -webkit-user-select: none;
                 user-select: none;
             }
 
-            input, textarea {
+            input,
+            textarea {
                 -webkit-user-select: text;
             }
 
@@ -104,7 +113,8 @@
             }
 
             /* Smooth transitions for interactive elements */
-            button, [role="button"] {
+            button,
+            [role='button'] {
                 transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             }
         </style>

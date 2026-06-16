@@ -103,7 +103,10 @@ const useStyles = createUseStyles({
     windowRoot: {
         display: 'flex',
         flexDirection: 'column',
-        minHeight: '100vh',
+        // Cap to the viewport (height, not minHeight) so the flex:1 windowBody is
+        // constrained and its own overflowY:auto scrolls instead of the document.
+        // Scrolling the document would show the ugly native macOS WKWebView bar.
+        height: '100vh',
         boxSizing: 'border-box',
         gap: '16px',
     },
@@ -492,7 +495,12 @@ export function TranslationHistory(props: TranslationHistoryProps) {
                     style={{
                         background: theme.colors.backgroundPrimary,
                         overflowY: 'auto',
-                        paddingTop: 170,
+                        // Transparent borders inset the scrollbar below the fixed header
+                        // (top) and above the rounded bottom corner: WebKit paints the
+                        // bar inside the border box, so its ends aren't clipped (same fix
+                        // as the settings window). 170px clears the fixed header.
+                        borderTop: '170px solid transparent',
+                        borderBottom: '16px solid transparent',
                     }}
                 >
                     {bodyContent}

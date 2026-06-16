@@ -102,7 +102,10 @@ export function UpdaterWindow() {
                 </div>
                 <div
                     style={{
-                        height: '80px',
+                        // Matches the 90px fixed header so the scrollable region (and
+                        // its scrollbar) starts below the header instead of being
+                        // clipped by it.
+                        height: '90px',
                         width: '100%',
                         flexShrink: 0,
                     }}
@@ -110,6 +113,11 @@ export function UpdaterWindow() {
                 <div
                     style={{
                         flexGrow: 1,
+                        // Scroll a long changelog inside this region instead of the
+                        // document, so the ugly native macOS WKWebView scrollbar
+                        // never appears. minHeight:0 lets the flex child shrink.
+                        minHeight: 0,
+                        overflowY: 'auto',
                         color: theme.colors.contentPrimary,
                         display: 'flex',
                         justifyContent: 'center',

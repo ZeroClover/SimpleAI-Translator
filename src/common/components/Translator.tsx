@@ -1008,7 +1008,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             }
             let isStopped = false
             try {
-                // console.debug('translate', sourceLang, targetLang, text)
                 await translate({
                     signal,
                     text,

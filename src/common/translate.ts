@@ -98,18 +98,9 @@ export class QuoteProcessor {
         let result = textDelta
         // process quote start
         let quoteStartBuffer = this.prevQuoteStartBuffer
-        // console.debug('\n\n')
-        // console.debug('---- process quote start -----')
-        // console.debug('textDelta', textDelta)
-        // console.debug('this.quoteStartbuffer', this.quoteStartBuffer)
-        // console.debug('start loop:')
         let startIdx = 0
         for (let i = 0; i < textDelta.length; i++) {
             const char = textDelta[i]
-            // console.debug(`---- i: ${i} startIdx: ${startIdx} ----`)
-            // console.debug('char', char)
-            // console.debug('quoteStartBuffer', quoteStartBuffer)
-            // console.debug('result', result)
             if (char === this.quoteStart[quoteStartBuffer.length]) {
                 if (this.prevQuoteStartBuffer.length > 0) {
                     if (i === startIdx) {
@@ -137,26 +128,13 @@ export class QuoteProcessor {
                 }
             }
         }
-        // console.debug('end loop!')
         this.prevQuoteStartBuffer = quoteStartBuffer
-        // console.debug('result', result)
-        // console.debug('this.quoteStartBuffer', this.quoteStartBuffer)
-        // console.debug('---- end of process quote start -----')
         textDelta = result
         // process quote end
         let quoteEndBuffer = this.prevQuoteEndBuffer
-        // console.debug('\n\n')
-        // console.debug('---- start process quote end -----')
-        // console.debug('textDelta', textDelta)
-        // console.debug('this.quoteEndBuffer', this.quoteEndBuffer)
-        // console.debug('start loop:')
         let endIdx = 0
         for (let i = 0; i < textDelta.length; i++) {
             const char = textDelta[i]
-            // console.debug(`---- i: ${i}, endIdx: ${endIdx} ----`)
-            // console.debug('char', char)
-            // console.debug('quoteEndBuffer', quoteEndBuffer)
-            // console.debug('result', result)
             if (char === this.quoteEnd[quoteEndBuffer.length]) {
                 if (this.prevQuoteEndBuffer.length > 0) {
                     if (i === endIdx) {
@@ -184,11 +162,7 @@ export class QuoteProcessor {
                 }
             }
         }
-        // console.debug('end loop!')
         this.prevQuoteEndBuffer = quoteEndBuffer
-        // console.debug('totally result', result)
-        // console.debug('this.quoteEndBuffer', this.quoteEndBuffer)
-        // console.debug('---- end of process quote end -----')
         return result
     }
 }

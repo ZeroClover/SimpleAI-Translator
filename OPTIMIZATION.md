@@ -129,11 +129,11 @@
 
 ## 🟢 低优先级 / 小改进
 
-### 11. `src/common/i18n.d.ts` 破坏类型安全
+### 11. ✅ `src/common/i18n.d.ts` 破坏类型安全（已修复）
 
 **问题**：`src/common/i18n.d.ts` 只有一行 `declare module 'i18next' {}`，会覆盖 i18next 自带类型，丢失所有类型安全。
 
-**建议**：删除该文件，让 i18next 用其自身类型。
+**处理**：随 Item 7 的 i18n.js → i18n/index.ts 转换一并删除（否则 tsc 报 `Property 'use' does not exist`）。
 
 ### 12. `usehooks.ts` 命名与位置违反约定
 

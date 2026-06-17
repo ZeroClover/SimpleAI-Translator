@@ -119,11 +119,11 @@
 - 统一到 `*.spec.ts` 同级风格（或统一 `__tests__/`）
 - `"test": "vitest test"` → `"test": "vitest run"`（vitest 自动发现 spec/test）
 
-### 10. `src-tauri/src/edge_tts.rs` 1152 行单文件
+### 10. ⏸️ `src-tauri/src/edge_tts.rs` 1152 行单文件（暂不拆分）
 
 **问题**：Edge TTS 完整 WebSocket 协议、token 生成、语音列表、SSML 构造、流式合成全部塞在一个文件。
 
-**建议**：按职责拆分为 `tts/` 子模块（如 `auth.rs`、`ws.rs`、`ssml.rs`、`voices.rs`）。非紧急，可在下次大改时进行。
+**结论**（已评估，暂不动）：文件虽大但内聚——60 余个函数共享 `EdgeTtsError`/`CLOCK_SKEW_MILLIS` 等私有状态，且 `mod tests` 通过 `use super::*` 覆盖 auth/headers/text 多个关注点（含硬编码 token 期望值）。强行拆分会破坏私有可见性、迁移测试、且收益有限。按"避免过度设计"原则留待下次该模块大改时随业务改动一起拆。
 
 ---
 

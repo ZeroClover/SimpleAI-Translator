@@ -17,7 +17,7 @@
     "clean": "make clean",
     "check:no-telemetry": "scripts/check-no-telemetry.sh",
     "check:no-old-identity": "scripts/check-no-old-identity.sh",
-    "test": "vitest test",
+    "test": "vitest run",
     "test:e2e": "playwright test",
     "lint": "eslint \"src/**/*.{ts,tsx}\" --cache",
     "lint:fix": "eslint --fix \"src/**/*.{ts,tsx}\"",

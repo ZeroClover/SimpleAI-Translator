@@ -65,7 +65,7 @@
         "withGlobalTauri": true,
         "macOSPrivateApi": true,
         "security": {
-            "csp": null,
+            "csp": "default-src 'self'; img-src 'self' data: asset: https://asset.localhost http://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https: http: ipc: http://ipc.localhost",
             "assetProtocol": {
                 "enable": true,
                 "scope": {

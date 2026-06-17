@@ -1,10 +1,24 @@
 import { useCallback, useEffect } from 'react'
+import { create } from 'zustand'
 import { isTauri } from '../utils'
-import { useGlobalState } from './global'
 import { events } from '@/tauri/bindings'
 
+interface PinnedState {
+    pinned: boolean
+    setPinned: (updater: boolean | ((prev: boolean) => boolean)) => void
+}
+
+const usePinnedStore = create<PinnedState>((set) => ({
+    pinned: false,
+    setPinned: (updater) =>
+        set((state) => ({
+            pinned: typeof updater === 'function' ? updater(state.pinned) : updater,
+        })),
+}))
+
 export function usePinned() {
-    const [pinned, setPinned_] = useGlobalState('pinned')
+    const pinned = usePinnedStore((s) => s.pinned)
+    const setPinned_ = usePinnedStore((s) => s.setPinned)
 
     useEffect(() => {
         if (!isTauri()) {

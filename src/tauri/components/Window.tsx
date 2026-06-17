@@ -16,9 +16,8 @@ import { createUseStyles } from 'react-jss'
 import { open } from '@tauri-apps/plugin-shell'
 import { usePinned } from '../../common/hooks/usePinned'
 import { isMacOS, isTauri, isWindows } from '@/common/utils'
-import { useSetAtom } from 'jotai'
 
-import { showSettingsAtom } from '@/common/store/setting'
+import { useSettingsVisibility } from '@/common/store/setting'
 import { commands } from '../bindings'
 
 const engine = new Styletron({
@@ -34,14 +33,14 @@ export interface IWindowProps {
 export function Window(props: IWindowProps) {
     const { theme } = useTheme()
 
-    const setShowSettings = useSetAtom(showSettingsAtom)
+    const toggleSettingsVisibility = useSettingsVisibility((s) => s.toggleSettingsVisibility)
 
     useEffect(() => {
         async function handleKeyPress(event: KeyboardEvent) {
             if ((event.metaKey || event.ctrlKey) && event.key === ',') {
                 event.preventDefault()
                 if (isTauri()) {
-                    setShowSettings((prevIsVisible) => !prevIsVisible)
+                    toggleSettingsVisibility()
                 }
             }
         }
@@ -51,7 +50,7 @@ export function Window(props: IWindowProps) {
         return () => {
             document.removeEventListener('keydown', handleKeyPress)
         }
-    }, [setShowSettings])
+    }, [toggleSettingsVisibility])
 
     return (
         <ErrorBoundary FallbackComponent={ErrorFallback}>

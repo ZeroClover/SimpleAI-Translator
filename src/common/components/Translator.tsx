@@ -54,8 +54,7 @@ import { useDeepCompareCallback } from 'use-deep-compare'
 import { useTranslatorStore } from '../store'
 import { SpeakerIcon } from './SpeakerIcon'
 import color from 'color'
-import { useAtom } from 'jotai'
-import { showSettingsAtom } from '../store/setting'
+import { useSettingsVisibility } from '../store/setting'
 import { sortModelIds } from '../engines/model-filter'
 
 const cache = new LRUCache({
@@ -539,7 +538,9 @@ export function Translator(props: ITranslatorProps) {
 }
 
 function InnerTranslator(props: IInnerTranslatorProps) {
-    const [showSettings, setShowSettings] = useAtom(showSettingsAtom)
+    const showSettings = useSettingsVisibility((s) => s.showSettings)
+    const setShowSettings = useSettingsVisibility((s) => s.setShowSettings)
+    const toggleSettingsVisibility = useSettingsVisibility((s) => s.toggleSettingsVisibility)
 
     useEffect(() => {
         setShowSettings(props.showSettings ?? false)
@@ -1844,7 +1845,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                         type: 'openOptionsPage',
                                     })
                                 } else {
-                                    setShowSettings((s: boolean) => !s)
+                                    toggleSettingsVisibility()
                                 }
                             }}
                         >

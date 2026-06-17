@@ -3,11 +3,8 @@ VERSION ?= 1.0.0
 clean:
 	rm -rf dist
 
-change-version:
-	sed -i -e "s/\"version\": \".*\"/\"version\": \"$(VERSION)\"/" src-tauri/tauri.conf.json
-
 change-package-version:
-	sed -i -e "s/\"version\": \".*\"/\"version\": \"$(VERSION)\"/" package.json
+	sed "s/\"version\": \".*\"/\"version\": \"$(VERSION)\"/" package.json > package.json.tmp && mv package.json.tmp package.json
 
 build-browser-extension: change-package-version
 	pnpm vite build -c vite.config.chromium.ts

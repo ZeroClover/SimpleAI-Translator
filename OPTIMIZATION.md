@@ -143,13 +143,13 @@
 
 **建议**：移到 `src/common/hooks/useLazyEffect.ts`。
 
-### 13. `Makefile` 与 `package.json scripts` 职责重叠
+### 13. ✅ `Makefile` 与 `package.json scripts` 职责重叠（已处理）
 
 **问题**：`build-browser-extension`、`build-userscript`、`clean` 既在 Makefile 也在 package.json scripts（package.json 调用 make）。
 
-**证据**：`Makefile:13-21` 与 `package.json:16-18` 重叠。`change-version` 用 `sed -i`，在 macOS/Linux 行为不一致。Windows 上无 `make`。
-
-**建议**：统一到 `package.json` scripts（纯 Node 项目生态习惯）。若保留 Makefile，注意 `sed -i` 跨平台差异。
+**结论**（已评估）：**保留 Makefile**。CI（release.yaml / test-build.yaml）直接调用 `make build-*`，且 clip-extension 的 zip/cp 打包步骤不适合塞进 package.json；package.json 的薄封装是合理的 `pnpm` 入口。处理掉的实际问题：
+- 删除无人引用的 `change-version` 目标；
+- 修复 `sed -i -e` 跨平台 bug（macOS BSD 会误建 `-e` 备份文件），改用临时文件重定向，GNU/BSD 均正确。
 
 ### 14. `typos.toml` 存在但 `actionlint` 在根目录
 

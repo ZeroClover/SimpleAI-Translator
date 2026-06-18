@@ -4,12 +4,12 @@ import { initReactI18next } from 'react-i18next'
 import Backend from 'i18next-http-backend'
 import LanguageDetector from 'i18next-browser-languagedetector'
 
-import ENtranslation from './i18n/locales/en/translation.json'
-import JAtranslation from './i18n/locales/ja/translation.json'
-import THtranslation from './i18n/locales/th/translation.json'
-import zhHanstranslation from './i18n/locales/zh-Hans/translation.json'
-import zhHanttranslation from './i18n/locales/zh-Hant/translation.json'
-import TRtranslation from './i18n/locales/tr/translation.json'
+import ENtranslation from './locales/en/translation.json'
+import JAtranslation from './locales/ja/translation.json'
+import THtranslation from './locales/th/translation.json'
+import zhHanstranslation from './locales/zh-Hans/translation.json'
+import zhHanttranslation from './locales/zh-Hant/translation.json'
+import TRtranslation from './locales/tr/translation.json'
 
 const resources = {
     'zh-Hans': {

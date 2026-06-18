@@ -1,14 +1,9 @@
 {
-  "identifier": "migrated",
-  "description": "permissions that were migrated from v1",
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Capabilities for the desktop windows (translator, settings, updater, history).",
   "context": "local",
-  "windows": [
-    "translator",
-    "settings",
-    "updater",
-    "thumb",
-    "history"
-  ],
+  "windows": ["translator", "settings", "updater", "history"],
   "permissions": [
     {
       "identifier": "http:default",
@@ -103,10 +98,7 @@
     "core:menu:default",
     "core:tray:default",
     "updater:default",
-    "shell:allow-execute",
-    "shell:allow-kill",
     "shell:allow-open",
-    "shell:allow-stdin-write",
     "autostart:allow-is-enabled",
     "autostart:allow-enable",
     "autostart:allow-disable",
@@ -123,43 +115,19 @@
     "notification:default",
     "notification:allow-is-permission-granted",
     "fs:default",
-    "fs:read-all",
-    "fs:write-all",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
     {
       "identifier": "fs:scope",
       "allow": [
         {
-          "path": "**"
+          "path": "$APPCONFIG/*"
         },
         {
-          "path": "$CONFIG/**"
-        },
-        {
-          "path": "$APPCONFIG/**"
-        },
-        {
-          "path": "$APPDATA/**"
-        },
-        {
-          "path": "$APPLOCALDATA/**"
-        },
-        {
-          "path": "$APPCACHE/**"
-        },
-        {
-          "path": "$APPLOG/**"
-        },
-        {
-          "path": "$DESKTOP/**"
+          "path": "$DESKTOP/*"
         }
       ]
     }
   ],
-  "platforms": [
-    "linux",
-    "macOS",
-    "windows",
-    "android",
-    "iOS"
-  ]
+  "platforms": ["linux", "macOS", "windows"]
 }

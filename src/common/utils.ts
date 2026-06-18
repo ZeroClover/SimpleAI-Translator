@@ -38,13 +38,10 @@ const settingKeys = {
     tts: 1,
     restorePreviousPosition: 1,
     runAtStartup: 1,
-    allowUsingClipboardWhenSelectedTextNotAvailable: 1,
     pinned: 1,
     languageDetectionEngine: 1,
     proxy: 1,
     fontSize: 1,
-    uiFontSize: 1,
-    iconSize: 1,
 } satisfies Partial<Record<keyof ISettings, number>>
 
 const legacySettingKeys = [
@@ -364,7 +361,6 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
         tts: normalizeTTSSettings(rawSettings.tts, providers),
         restorePreviousPosition: rawSettings.restorePreviousPosition,
         runAtStartup: rawSettings.runAtStartup,
-        allowUsingClipboardWhenSelectedTextNotAvailable: rawSettings.allowUsingClipboardWhenSelectedTextNotAvailable,
         pinned: rawSettings.pinned,
         languageDetectionEngine: rawSettings.languageDetectionEngine || 'local',
         proxy: rawSettings.proxy ?? {
@@ -379,8 +375,6 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
             noProxy: 'localhost,127.0.0.1',
         },
         fontSize: rawSettings.fontSize ?? 15,
-        uiFontSize: rawSettings.uiFontSize ?? 12,
-        iconSize: rawSettings.iconSize ?? 15,
     } as ISettings
 }
 
@@ -431,9 +425,6 @@ export async function setSettings(settings: Partial<ISettings>) {
 }
 
 export async function getBrowser(): Promise<IBrowser> {
-    if (isElectron()) {
-        return (await import('./polyfills/electron')).electronBrowser
-    }
     if (isTauri()) {
         return (await import('./polyfills/tauri')).tauriBrowser
     }
@@ -441,10 +432,6 @@ export async function getBrowser(): Promise<IBrowser> {
         return (await import('./polyfills/userscript')).userscriptBrowser
     }
     return (await import('webextension-polyfill')).default
-}
-
-export const isElectron = () => {
-    return navigator.userAgent.indexOf('Electron') >= 0
 }
 
 export const isTauri = () => {
@@ -469,7 +456,7 @@ export const isBrowserExtensionContentScript = () => {
 }
 
 export const isDesktopApp = () => {
-    return isElectron() || isTauri()
+    return isTauri()
 }
 
 export const isUserscript = () => {
@@ -540,7 +527,6 @@ export async function exportToCsv<T extends Record<string, string | number>>(fil
         if (link.download !== undefined) {
             link.setAttribute('href', 'data:text/csv;charset=utf-8,ufeff' + encodeURIComponent(csvFile))
             link.setAttribute('download', filename)
-            // link.style.visibility = 'hidden'
             document.body.appendChild(link)
             link.click()
             document.body.removeChild(link)

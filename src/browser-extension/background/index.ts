@@ -128,17 +128,6 @@ browser.runtime.onMessage.addListener(async (request) => {
     switch (request.type) {
         case BackgroundEventNames.historyService:
             return await callMethod(request, historyInternalService)
-        case BackgroundEventNames.getItem:
-            const resp = await browser.storage.local.get(request.key)
-            return {
-                value: resp[request.key],
-            }
-        case BackgroundEventNames.setItem:
-            return await browser.storage.local.set({
-                [request.key]: request.value,
-            })
-        case BackgroundEventNames.removeItem:
-            return await browser.storage.local.remove(request.key)
         case 'openOptionsPage':
             browser.runtime.openOptionsPage()
             return

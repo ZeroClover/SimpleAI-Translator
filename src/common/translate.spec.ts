@@ -1,19 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getEngine } from '../engines'
-import { IEngine } from '../engines/interfaces'
-import { ProviderConfig } from '../types'
-import { getSettings } from '../utils'
-import {
-    getStructuredOutputMode,
-    getTranslationCacheKey,
-    QuoteProcessor,
-    TranslateQuery,
-    translate,
-} from '../translate'
+import { getEngine } from './engines'
+import { IEngine } from './engines/interfaces'
+import { ProviderConfig } from './types'
+import { getSettings } from './utils'
+import { getStructuredOutputMode, getTranslationCacheKey, QuoteProcessor, TranslateQuery, translate } from './translate'
 
-vi.mock('../engines', () => ({ getEngine: vi.fn() }))
-vi.mock('../utils', async () => {
-    const actual = await vi.importActual<typeof import('../utils')>('../utils')
+vi.mock('./engines', () => ({ getEngine: vi.fn() }))
+vi.mock('./utils', async () => {
+    const actual = await vi.importActual<typeof import('./utils')>('./utils')
     return { ...actual, getSettings: vi.fn() }
 })
 

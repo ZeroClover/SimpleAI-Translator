@@ -105,7 +105,6 @@ export interface ISettings {
     }
     restorePreviousPosition?: boolean
     runAtStartup?: boolean
-    allowUsingClipboardWhenSelectedTextNotAvailable?: boolean
     pinned?: boolean
     languageDetectionEngine?: LanguageDetectionEngine
     proxy?: {
@@ -120,6 +119,4 @@ export interface ISettings {
         noProxy?: string
     }
     fontSize: number
-    uiFontSize: number
-    iconSize: number
 }

@@ -46,7 +46,7 @@ import { TranslationHistory } from './TranslationHistory'
 import { IoIosRocket } from 'react-icons/io'
 import _ from 'underscore'
 import { GlobalSuspense } from './GlobalSuspense'
-import { useLazyEffect } from '../usehooks'
+import { useLazyEffect } from '../hooks/useLazyEffect'
 import LogoWithText, { type LogoWithTextRef } from './LogoWithText'
 import Toaster from './Toaster'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
@@ -54,8 +54,7 @@ import { useDeepCompareCallback } from 'use-deep-compare'
 import { useTranslatorStore } from '../store'
 import { SpeakerIcon } from './SpeakerIcon'
 import color from 'color'
-import { useAtom } from 'jotai'
-import { showSettingsAtom } from '../store/setting'
+import { useSettingsVisibility } from '../store/setting'
 import { sortModelIds } from '../engines/model-filter'
 
 const cache = new LRUCache({
@@ -80,6 +79,8 @@ function genLangOptions(langs: [LangCode, string][]): Value {
 }
 const sourceLangOptions = genLangOptions(sourceLanguages)
 const targetLangOptions = genLangOptions(targetLanguages)
+const DEFAULT_DESKTOP_HEADER_OFFSET = isMacOS ? 82 : 58
+const DESKTOP_HEADER_OFFSET_VAR = `var(--simpleai-translator-header-offset, ${DEFAULT_DESKTOP_HEADER_OFFSET}px)`
 
 function getProviderModelOptions(provider: ISettings['providers'][number] | undefined) {
     if (!provider) {
@@ -285,11 +286,10 @@ const useStyles = createUseStyles({
         fontSize: '12px',
         flexShrink: 0,
     }),
-    'popupCardContentContainer': (props: IThemedStyleProps) => ({
-        paddingTop: props.isDesktopApp ? '52px' : undefined,
+    'popupCardContentContainer': {
         display: 'flex',
         flexDirection: 'column',
-    }),
+    },
     'loadingContainer': {
         margin: '0 auto',
         display: 'flex',
@@ -469,7 +469,9 @@ const useStyles = createUseStyles({
         height: '100vh',
         boxSizing: 'border-box',
         overflow: 'auto',
-        borderTop: isMacOS ? '82px solid transparent' : '58px solid transparent',
+        // The transparent top border both clears the fixed header and insets the
+        // scrollbar below it. The editor container owns the visible content gap.
+        borderTop: `${DESKTOP_HEADER_OFFSET_VAR} solid transparent`,
         borderBottom: '42px solid transparent',
     },
     // Background-blur mode keeps the original behaviour: content scrolls UNDER the
@@ -480,7 +482,7 @@ const useStyles = createUseStyles({
         'height': '100vh',
         'boxSizing': 'border-box',
         'overflow': 'auto',
-        'paddingTop': isMacOS ? '82px !important' : '58px !important',
+        'paddingTop': DESKTOP_HEADER_OFFSET_VAR,
         'paddingBottom': '42px',
         'scrollbarWidth': 'none',
         '&::-webkit-scrollbar': {
@@ -536,7 +538,9 @@ export function Translator(props: ITranslatorProps) {
 }
 
 function InnerTranslator(props: IInnerTranslatorProps) {
-    const [showSettings, setShowSettings] = useAtom(showSettingsAtom)
+    const showSettings = useSettingsVisibility((s) => s.showSettings)
+    const setShowSettings = useSettingsVisibility((s) => s.setShowSettings)
+    const toggleSettingsVisibility = useSettingsVisibility((s) => s.toggleSettingsVisibility)
 
     useEffect(() => {
         setShowSettings(props.showSettings ?? false)
@@ -685,6 +689,30 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         providerId: undefined,
         engineModel: undefined,
     })
+
+    useEffect(() => {
+        if (!isDesktopApp()) {
+            return undefined
+        }
+        const header = headerRef.current
+        const content = contentScrollRef.current
+        if (!header || !content) {
+            return undefined
+        }
+
+        const updateHeaderOffset = () => {
+            content.style.setProperty('--simpleai-translator-header-offset', `${header.offsetHeight}px`)
+        }
+        updateHeaderOffset()
+
+        const observer = new ResizeObserver(updateHeaderOffset)
+        observer.observe(header)
+        window.addEventListener('resize', updateHeaderOffset)
+        return () => {
+            observer.disconnect()
+            window.removeEventListener('resize', updateHeaderOffset)
+        }
+    }, [showSettings])
 
     useEffect(() => {
         setTranslateDeps((prev) => ({
@@ -981,7 +1009,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             }
             let isStopped = false
             try {
-                // console.debug('translate', sourceLang, targetLang, text)
                 await translate({
                     signal,
                     text,
@@ -1818,7 +1845,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                         type: 'openOptionsPage',
                                     })
                                 } else {
-                                    setShowSettings((s: boolean) => !s)
+                                    toggleSettingsVisibility()
                                 }
                             }}
                         >

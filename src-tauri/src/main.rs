@@ -44,9 +44,7 @@ use specta_typescript::{formatter::prettier, Typescript};
 use tauri::AppHandle;
 use tauri_plugin_notification::NotificationExt;
 use tiny_http::{Response as HttpResponse, Server};
-use tokio::runtime::{
-    Builder as TokioRuntimeBuilder, EnterGuard as TokioEnterGuard, Runtime as TokioRuntime,
-};
+use tokio::runtime::Runtime as TokioRuntime;
 
 pub static APP_HANDLE: OnceCell<AppHandle> = OnceCell::new();
 pub static ALWAYS_ON_TOP: AtomicBool = AtomicBool::new(false);
@@ -65,29 +63,22 @@ pub struct UpdateResult {
 
 pub static UPDATE_RESULT: Mutex<Option<Option<UpdateResult>>> = Mutex::new(None);
 
-fn init_tokio_runtime() -> &'static TokioRuntime {
+// A dedicated multi-thread runtime backs `tauri::async_runtime` so that blocking
+// async work (update checks, network) cannot stall the UI thread. It lives for
+// the whole process, which is the intended lifetime for a global runtime.
+fn init_tokio_runtime() {
     use std::sync::OnceLock;
 
-    static RUNTIME: OnceLock<&'static TokioRuntime> = OnceLock::new();
-    static ENTER_GUARD: OnceLock<&'static TokioEnterGuard<'static>> = OnceLock::new();
-    static SET_HANDLE: OnceLock<()> = OnceLock::new();
+    static RUNTIME: OnceLock<TokioRuntime> = OnceLock::new();
 
     let runtime = RUNTIME.get_or_init(|| {
-        Box::leak(Box::new(
-            TokioRuntimeBuilder::new_multi_thread()
-                .enable_all()
-                .build()
-                .expect("failed to initialize Tokio runtime"),
-        ))
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("failed to initialize Tokio runtime")
     });
 
-    ENTER_GUARD.get_or_init(|| Box::leak(Box::new(runtime.enter())));
-
-    if SET_HANDLE.set(()).is_ok() {
-        tauri::async_runtime::set(runtime.handle().clone());
-    }
-
-    runtime
+    tauri::async_runtime::set(runtime.handle().clone());
 }
 
 #[tauri::command]
@@ -114,7 +105,7 @@ fn launch_ipc_server(server: &Server) {
 }
 
 fn main() {
-    let _ = init_tokio_runtime();
+    init_tokio_runtime();
     let silently = env::args().any(|arg| arg == "--silently");
 
     let mut sys = System::new();

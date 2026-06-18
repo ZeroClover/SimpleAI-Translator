@@ -8,6 +8,8 @@ npm-error.log
 .DS_Store
 *.json-e
 *.js-e
+.pnpm-store/
+/actionlint
 
 .vscode
 .idea

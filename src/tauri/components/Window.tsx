@@ -8,7 +8,7 @@ import { Client as Styletron } from 'styletron-engine-atomic'
 import { PREFIX } from '../../common/constants'
 import { ErrorBoundary } from 'react-error-boundary'
 import { ErrorFallback } from '../../common/components/ErrorFallback'
-import '../../common/i18n.js'
+import '../../common/i18n'
 import { useTranslation } from 'react-i18next'
 import { useSettings } from '../../common/hooks/useSettings'
 import { IThemedStyleProps } from '../../common/types'
@@ -16,9 +16,8 @@ import { createUseStyles } from 'react-jss'
 import { open } from '@tauri-apps/plugin-shell'
 import { usePinned } from '../../common/hooks/usePinned'
 import { isMacOS, isTauri, isWindows } from '@/common/utils'
-import { useSetAtom } from 'jotai'
 
-import { showSettingsAtom } from '@/common/store/setting'
+import { useSettingsVisibility } from '@/common/store/setting'
 import { commands } from '../bindings'
 
 const engine = new Styletron({
@@ -34,14 +33,14 @@ export interface IWindowProps {
 export function Window(props: IWindowProps) {
     const { theme } = useTheme()
 
-    const setShowSettings = useSetAtom(showSettingsAtom)
+    const toggleSettingsVisibility = useSettingsVisibility((s) => s.toggleSettingsVisibility)
 
     useEffect(() => {
         async function handleKeyPress(event: KeyboardEvent) {
             if ((event.metaKey || event.ctrlKey) && event.key === ',') {
                 event.preventDefault()
                 if (isTauri()) {
-                    setShowSettings((prevIsVisible) => !prevIsVisible)
+                    toggleSettingsVisibility()
                 }
             }
         }
@@ -51,7 +50,7 @@ export function Window(props: IWindowProps) {
         return () => {
             document.removeEventListener('keydown', handleKeyPress)
         }
-    }, [setShowSettings])
+    }, [toggleSettingsVisibility])
 
     return (
         <ErrorBoundary FallbackComponent={ErrorFallback}>

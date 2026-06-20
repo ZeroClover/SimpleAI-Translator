@@ -656,6 +656,96 @@ describe('protocol engines', () => {
         expect(onError).not.toHaveBeenCalled()
         expect(onFinished).toHaveBeenCalledWith('aborted')
     })
+
+    it.each<ProtocolThinkingFilterCase>([
+        [
+            'OpenAI Chat',
+            () => new OpenAIChatEngine(providerConfig),
+            async (options: MockFetchSSEOptions) => {
+                await options.onMessage(
+                    JSON.stringify({ choices: [{ delta: { content: '{"translatedText":' }, finish_reason: 'stop' }] })
+                )
+            },
+        ],
+        [
+            'OpenAI Responses',
+            () => new OpenAIResponsesEngine({ ...providerConfig, protocol: 'openai-responses' }),
+            async (options: MockFetchSSEOptions) => {
+                await options.onMessage(
+                    JSON.stringify({ type: 'response.output_text.delta', delta: '{"translatedText":' })
+                )
+                await options.onMessage(JSON.stringify({ type: 'response.completed' }))
+            },
+        ],
+        [
+            'Anthropic',
+            () => new AnthropicEngine({ ...providerConfig, protocol: 'anthropic', model: 'claude-sonnet-4-6' }),
+            async (options: MockFetchSSEOptions) => {
+                await options.onMessage(
+                    JSON.stringify({
+                        type: 'content_block_delta',
+                        delta: { type: 'text_delta', text: '{"translatedText":' },
+                    })
+                )
+                await options.onMessage(JSON.stringify({ type: 'message_stop' }))
+            },
+        ],
+    ])('routes malformed structured JSON to onError for %s', async (_name, createEngine, sendMessages) => {
+        const { req, onMessage, onError, onFinished } = createRequest(undefined, {
+            structuredOutput: sentenceStructuredOutput,
+        })
+
+        vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+            await sendMessages(options)
+        })
+
+        await createEngine().sendMessage(req)
+
+        expect(onError).toHaveBeenCalledTimes(1)
+        expect(onFinished).toHaveBeenCalledTimes(1)
+        expect(onFinished).toHaveBeenCalledWith('error')
+        expect(onFinished).not.toHaveBeenCalledWith('stop')
+        expect(onMessage).not.toHaveBeenCalled()
+    })
+
+    it('reports a missing required structured field through onError for OpenAI Chat', async () => {
+        const engine = new OpenAIChatEngine(providerConfig)
+        const { req, onMessage, onError, onFinished } = createRequest(undefined, {
+            structuredOutput: sentenceStructuredOutput,
+        })
+
+        vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+            await options.onMessage(
+                JSON.stringify({ choices: [{ delta: { content: '{"unexpected":"x"}' }, finish_reason: 'stop' }] })
+            )
+        })
+
+        await engine.sendMessage(req)
+
+        expect(onError).toHaveBeenCalledTimes(1)
+        expect(onFinished).toHaveBeenCalledWith('error')
+        expect(onMessage).not.toHaveBeenCalled()
+    })
+
+    it('reports Anthropic max_tokens truncation instead of a normal stop', async () => {
+        const engine = new AnthropicEngine({ ...providerConfig, protocol: 'anthropic', model: 'claude-sonnet-4-6' })
+        const { req, onMessage, onError, onFinished } = createRequest()
+
+        vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+            await options.onMessage(
+                JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: '部分译文' } })
+            )
+            await options.onMessage(JSON.stringify({ type: 'message_delta', delta: { stop_reason: 'max_tokens' } }))
+            await options.onMessage(JSON.stringify({ type: 'message_stop' }))
+        })
+
+        await engine.sendMessage(req)
+
+        expect(onMessage).toHaveBeenCalledWith({ content: '部分译文', role: 'assistant' })
+        expect(onError).not.toHaveBeenCalled()
+        expect(onFinished).toHaveBeenCalledWith('max_tokens')
+        expect(onFinished).not.toHaveBeenCalledWith('stop')
+    })
 })
 
 describe('structured output formatting', () => {

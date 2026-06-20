@@ -107,17 +107,28 @@ export class OpenAIChatEngine implements IEngine {
         let structuredContentEmitted = false
         const thinkingFilter = new ThinkingFilter()
 
-        const emitStructuredContent = async () => {
+        const emitStructuredContent = async (): Promise<boolean> => {
             if (!req.structuredOutput || structuredContentEmitted) {
-                return
+                return true
             }
             structuredContentEmitted = true
             structuredContent += thinkingFilter.finish()
+            let content: string
+            try {
+                content = formatStructuredOutput(req.structuredOutput.mode, structuredContent)
+            } catch (error) {
+                hasError = true
+                finished = true
+                req.onError(getErrorMessage(error))
+                req.onFinished('error')
+                return false
+            }
             await req.onMessage({
-                content: formatStructuredOutput(req.structuredOutput.mode, structuredContent),
+                content,
                 role: 'assistant',
                 isFullText: true,
             })
+            return true
         }
 
         const emitText = async (content: string, role = 'assistant') => {
@@ -154,7 +165,9 @@ export class OpenAIChatEngine implements IEngine {
                 onMessage: async (message) => {
                     if (finished) return
                     if (message.trim() === '[DONE]') {
-                        await emitStructuredContent()
+                        if (!(await emitStructuredContent())) {
+                            return
+                        }
                         await emitRemainingText()
                         finished = true
                         req.onFinished('stop')
@@ -177,7 +190,9 @@ export class OpenAIChatEngine implements IEngine {
                     }
                     const finishReason = choice?.finish_reason
                     if (finishReason) {
-                        await emitStructuredContent()
+                        if (!(await emitStructuredContent())) {
+                            return
+                        }
                         await emitRemainingText()
                         finished = true
                         req.onFinished(finishReason)

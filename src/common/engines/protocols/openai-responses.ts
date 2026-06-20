@@ -107,17 +107,28 @@ export class OpenAIResponsesEngine implements IEngine {
         let structuredContentEmitted = false
         const thinkingFilter = new ThinkingFilter()
 
-        const emitStructuredContent = async () => {
+        const emitStructuredContent = async (): Promise<boolean> => {
             if (!req.structuredOutput || structuredContentEmitted) {
-                return
+                return true
             }
             structuredContentEmitted = true
             structuredContent += thinkingFilter.finish()
+            let content: string
+            try {
+                content = formatStructuredOutput(req.structuredOutput.mode, structuredContent)
+            } catch (error) {
+                hasError = true
+                finished = true
+                req.onError(getErrorMessage(error))
+                req.onFinished('error')
+                return false
+            }
             await req.onMessage({
-                content: formatStructuredOutput(req.structuredOutput.mode, structuredContent),
+                content,
                 role: 'assistant',
                 isFullText: true,
             })
+            return true
         }
 
         const emitText = async (content: string) => {
@@ -181,7 +192,9 @@ export class OpenAIResponsesEngine implements IEngine {
                             req.onFinished('error')
                             return
                         }
-                        await emitStructuredContent()
+                        if (!(await emitStructuredContent())) {
+                            return
+                        }
                         await emitRemainingText()
                         finished = true
                         req.onFinished('stop')

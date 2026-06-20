@@ -3,9 +3,7 @@
 ## Purpose
 
 TBD - created by archiving change simpleai-translator-rebrand. Update Purpose after archive.
-
 ## Requirements
-
 ### Requirement: 翻译只能由用户显式触发
 
 翻译流 SHALL 仅在用户**显式**操作下启动:
@@ -287,6 +285,8 @@ TBD - created by archiving change simpleai-translator-rebrand. Update Purpose af
 
 系统 SHALL 从 SSE 解析 `content_block_delta` 事件，仅把 `delta.type === 'text_delta'` 的 `delta.text` 经过 thinking 内容过滤后传给 `onMessage`，忽略 `ping`、`delta.type === 'thinking_delta'`、`delta.type === 'signature_delta'`、以及 `content_block_start` / `content_block_stop` 中 `content_block.type === 'thinking'` 的块与未知事件；在 `message_stop` 时结束，在 `error` event 时走错误路径。
 
+系统 SHALL 从 `message_delta` 事件捕获 `stop_reason`(位于 `delta.stop_reason` 或等价位置)。当 `stop_reason === 'max_tokens'` 时,系统 SHALL 在随后的 `message_stop` 以 `onFinish('max_tokens')` 结束,使上层(`Translator.tsx`)能提示输出因长度被截断;仅在未发生 `max_tokens` 截断时 `message_stop` 才以 `onFinish('stop')` 结束。`stop_reason` 缺失时系统 SHALL 维持 `onFinish('stop')`。
+
 #### Scenario: Anthropic 文本增量
 
 -   **WHEN** 上游返回 event `content_block_delta` 且 data 中 `delta: { type: 'text_delta', text: '好' }`
@@ -342,10 +342,16 @@ TBD - created by archiving change simpleai-translator-rebrand. Update Purpose af
 -   **THEN** 系统 SHALL 不修改翻译结果
 -   **AND** SHALL NOT 抛出流解析错误
 
-#### Scenario: Anthropic 完成事件
+#### Scenario: Anthropic 正常完成
 
--   **WHEN** 上游返回 event `message_stop`
+-   **WHEN** 上游返回 event `message_stop` 且此前未收到 `stop_reason === 'max_tokens'`
 -   **THEN** 系统 SHALL 调用 `onFinish('stop')`
+
+#### Scenario: Anthropic 因 max_tokens 截断
+
+-   **WHEN** 上游在 `message_delta` 中返回 `stop_reason: 'max_tokens'`,随后返回 `message_stop`
+-   **THEN** 系统 SHALL 调用 `onFinish('max_tokens')`
+-   **AND** SHALL NOT 以 `'stop'` 结束本次翻译
 
 ### Requirement: Request Builder Payload Injection
 
@@ -431,3 +437,4 @@ UI 层 (`Translator.tsx`) 期望接收到的是可以直接拼接渲染的 Markd
 
 -   **WHEN** 上游返回文本 `"<thinking>A<thinking>B</thinking>C</thinking>正文"`
 -   **THEN** 系统 SHALL 向 `onMessage` 传递 `"正文"`
+

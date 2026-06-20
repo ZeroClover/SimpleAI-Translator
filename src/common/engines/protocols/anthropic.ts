@@ -148,19 +148,31 @@ export class AnthropicEngine implements IEngine {
         let hasError = false
         let structuredContent = ''
         let structuredContentEmitted = false
+        let lastStopReason: string | null = null
         const thinkingFilter = new ThinkingFilter()
 
-        const emitStructuredContent = async () => {
+        const emitStructuredContent = async (): Promise<boolean> => {
             if (!req.structuredOutput || structuredContentEmitted) {
-                return
+                return true
             }
             structuredContentEmitted = true
             structuredContent += thinkingFilter.finish()
+            let content: string
+            try {
+                content = formatStructuredOutput(req.structuredOutput.mode, structuredContent)
+            } catch (error) {
+                hasError = true
+                finished = true
+                req.onError(getErrorMessage(error))
+                req.onFinished('error')
+                return false
+            }
             await req.onMessage({
-                content: formatStructuredOutput(req.structuredOutput.mode, structuredContent),
+                content,
                 role: 'assistant',
                 isFullText: true,
             })
+            return true
         }
 
         const emitText = async (content: string) => {
@@ -207,6 +219,9 @@ export class AnthropicEngine implements IEngine {
                     const resp = JSON.parse(message)
                     const type = resp?.type
                     const stopReason = resp?.delta?.stop_reason ?? resp?.message?.stop_reason ?? resp?.stop_reason
+                    if (stopReason) {
+                        lastStopReason = stopReason
+                    }
                     if (stopReason === 'refusal') {
                         hasError = true
                         finished = true
@@ -239,10 +254,12 @@ export class AnthropicEngine implements IEngine {
                         return
                     }
                     if (type === 'message_stop') {
-                        await emitStructuredContent()
+                        if (!(await emitStructuredContent())) {
+                            return
+                        }
                         await emitRemainingText()
                         finished = true
-                        req.onFinished('stop')
+                        req.onFinished(lastStopReason === 'max_tokens' ? 'max_tokens' : 'stop')
                         return
                     }
                     if (type === 'error') {

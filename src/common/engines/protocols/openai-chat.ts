@@ -19,8 +19,14 @@ function getHeaders(providerConfig: ProviderConfig): Record<string, string> {
     }
 }
 
-function getPrompt(req: IMessageRequest): string {
-    return req.rolePrompt ? `${req.rolePrompt}\n\n${req.commandPrompt}` : req.commandPrompt
+function getMessages(req: IMessageRequest): Array<{ role: string; content: string }> {
+    // Instructions go in the system role; the untrusted source data goes in the user role.
+    const messages: Array<{ role: string; content: string }> = []
+    if (req.rolePrompt) {
+        messages.push({ role: 'system', content: req.rolePrompt })
+    }
+    messages.push({ role: 'user', content: req.commandPrompt })
+    return messages
 }
 
 function getErrorMessage(error: unknown): string {
@@ -156,7 +162,7 @@ export class OpenAIChatEngine implements IEngine {
                 headers: getHeaders(this.providerConfig),
                 body: JSON.stringify({
                     model: this.providerConfig.model,
-                    messages: [{ role: 'user', content: getPrompt(req) }],
+                    messages: getMessages(req),
                     stream: true,
                     ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
                     ...(responseFormat ? { response_format: responseFormat } : {}),

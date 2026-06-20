@@ -23,10 +23,6 @@ function getHeaders(providerConfig: ProviderConfig): Record<string, string> {
     }
 }
 
-function getPrompt(req: IMessageRequest): string {
-    return req.rolePrompt ? `${req.rolePrompt}\n\n${req.commandPrompt}` : req.commandPrompt
-}
-
 function getErrorMessage(error: unknown): string {
     if (error instanceof Error) {
         return error.message
@@ -201,7 +197,8 @@ export class AnthropicEngine implements IEngine {
                 body: JSON.stringify({
                     model: this.providerConfig.model,
                     ['max_tokens']: thinkingRequest.maxTokens,
-                    messages: [{ role: 'user', content: getPrompt(req) }],
+                    ...(req.rolePrompt ? { system: req.rolePrompt } : {}),
+                    messages: [{ role: 'user', content: req.commandPrompt }],
                     ...(thinkingRequest.thinking ? { thinking: thinkingRequest.thinking } : {}),
                     ...(outputConfig || thinkingRequest.outputEffort
                         ? {

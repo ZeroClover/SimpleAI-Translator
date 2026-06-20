@@ -19,7 +19,13 @@ export interface StructuredOutputRequest {
 }
 
 export interface IMessageRequest {
+    // System-channel instruction: role, task, constraints, anti-injection clauses,
+    // and any structured-output schema prompt. Adapters map it to the system message
+    // (openai-chat), the top-level `system` parameter (anthropic), or `instructions`
+    // (openai-responses). Never carries the source text.
     rolePrompt: string
+    // Untrusted user data: the source text wrapped in a per-request random boundary.
+    // Adapters map it to the user message / `input`. Never placed in the system channel.
     commandPrompt: string
     structuredOutput?: StructuredOutputRequest
     modelOverride?: string

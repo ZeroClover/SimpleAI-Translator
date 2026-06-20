@@ -48,8 +48,8 @@ importers:
         specifier: ^12.2.4
         version: 12.2.4(@types/react@18.2.18)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styletron-react@6.1.0(react@18.2.0))
       best-effort-json-parser:
-        specifier: ^1.0.1
-        version: 1.0.1
+        specifier: ^1.4.1
+        version: 1.4.1
       clsx:
         specifier: ^1.2.1
         version: 1.2.1
@@ -1242,8 +1242,8 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
-  acorn@8.16.0:
-    resolution: {integrity: sha512-UVJyE9MttOsBQIDKw1skb9nAwQuR5wuGD3+82K6JgJlm/Y+KI92oNsMNGZCYdDsVtRHSak0pcV5Dno5+4jh9sw==}
+  acorn@8.17.0:
+    resolution: {integrity: sha512-xRQbDb9BnwDafYNn6Vwl839DYVjqXYb1XVGtWAZ1kcDc6iwAL4hg3B1dZlRiuENFeO2H53gFG3in621AdERVAg==}
     engines: {node: '>=0.4.0'}
     hasBin: true
 
@@ -1381,8 +1381,8 @@ packages:
       react-dom: '>= 16.8.0 < 19'
       styletron-react: '>=6.1.0 < 7'
 
-  best-effort-json-parser@1.0.1:
-    resolution: {integrity: sha512-Fbne5nLqmDQXUmHf6cxeFAAIcsiFaSbCBoK0Rt+wgWv/7SacNhViNeXnuf0H0wXupwW5Io8FfB1FHPUfZujwwg==}
+  best-effort-json-parser@1.4.1:
+    resolution: {integrity: sha512-1e2yvg4LieOlqDw7rAOvHetMJeJ2sGezLX/2Ma0oykFd8TMfMxdDBzNUXjISPeMZAHe5CCvPRJtHmISoTC6MsA==}
 
   big-integer@1.6.51:
     resolution: {integrity: sha512-GPEid2Y9QU1Exl1rpO9B2IPJGHPSupF5GnVIP0blYvNOMer2bTvSWs1jGOUg04hTmu67nmLsQ9TBo1puaotBHg==}
@@ -4970,7 +4970,7 @@ snapshots:
 
   acorn@8.10.0: {}
 
-  acorn@8.16.0:
+  acorn@8.17.0:
     optional: true
 
   acorn@8.9.0: {}
@@ -5151,7 +5151,7 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react'
 
-  best-effort-json-parser@1.0.1: {}
+  best-effort-json-parser@1.4.1: {}
 
   big-integer@1.6.51: {}
 
@@ -7712,7 +7712,7 @@ snapshots:
   terser@5.44.1:
     dependencies:
       '@jridgewell/source-map': 0.3.11
-      acorn: 8.16.0
+      acorn: 8.17.0
       commander: 2.20.3
       source-map-support: 0.5.21
     optional: true

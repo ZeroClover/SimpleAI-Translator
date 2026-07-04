@@ -54,7 +54,7 @@ jobs:
               run: pnpm install --frozen-lockfile
 
             - name: Build Tauri app
-              uses: tauri-apps/tauri-action@action-v0.6.2
+              uses: tauri-apps/tauri-action@action-v1.0.0
               with:
                   tauriScript: cargo tauri
                   args: ${{ matrix.args }}

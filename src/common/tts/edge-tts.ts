@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast/headless'
 import { langCode2TTSLang } from '.'
 import { SpeakOptions } from './types'
 import { isDesktopApp } from '../utils'
@@ -190,10 +191,19 @@ export async function speak({
             onStartSpeaking,
         })
     } catch (error) {
+        if (signal.aborted) {
+            return
+        }
         console.error('Edge TTS error:', error)
+        toast(getEdgeTTSErrorMessage(error))
         onFinish?.()
         throw error
     }
+}
+
+function getEdgeTTSErrorMessage(error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error)
+    return message.startsWith('Edge TTS') ? message : `Edge TTS: ${message}`
 }
 
 type EdgePlaybackOptions = {

@@ -103,6 +103,21 @@ if (window.speechSynthesis) {
     }
 }
 
+let activePlaybackStop: (() => void) | undefined
+
+// Only one playback may be active: claiming the slot stops the previous owner.
+// The returned release frees the slot if it is still held by this stop callback.
+export function startExclusivePlayback(stop: () => void): () => void {
+    const previousStop = activePlaybackStop
+    activePlaybackStop = stop
+    previousStop?.()
+    return () => {
+        if (activePlaybackStop === stop) {
+            activePlaybackStop = undefined
+        }
+    }
+}
+
 export async function speak({ text, lang, onFinish, signal }: SpeakOptions) {
     const settings = await getSettings()
     const voiceCfg = settings.tts?.voices?.find((item) => item.lang === lang)

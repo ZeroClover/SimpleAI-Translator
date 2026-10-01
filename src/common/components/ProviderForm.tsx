@@ -7,6 +7,7 @@ import { Textarea } from 'baseui-sd/textarea'
 import { useTranslation } from 'react-i18next'
 import { ProviderConfig, ProviderProtocol } from '../types'
 import { useTheme } from '../hooks/useTheme'
+import { requestHostPermission } from '../background/fetch'
 
 const protocolOptions: { id: ProviderProtocol; labelKey: string }[] = [
     { id: 'openai-chat', labelKey: 'OpenAI Chat Completions' },
@@ -92,6 +93,13 @@ export function ProviderForm({ initialValue, onCancel, onSave }: ProviderFormPro
         }
         try {
             const parsedHeaders = parseExtraHeaders(extraHeaders)
+            // Request while the click's user gesture is still active (required by Firefox);
+            // saving does not depend on the answer.
+            void requestHostPermission(endpoint.trim()).then((granted) => {
+                if (!granted) {
+                    toast(t('Permission to access this endpoint was denied.'))
+                }
+            })
             onSave({
                 id: initialValue?.id,
                 name: name.trim(),

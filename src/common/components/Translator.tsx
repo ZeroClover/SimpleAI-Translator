@@ -11,7 +11,7 @@ import { TiArrowBack } from 'react-icons/ti'
 import { TbArrowsExchange } from 'react-icons/tb'
 import { MdHistory } from 'react-icons/md'
 import { detectLang, getLangConfig, sourceLanguages, targetLanguages, LangCode } from '../lang'
-import { getTranslationCacheKey, translate } from '../translate'
+import { getTranslationCacheKey, resolveTranslationModel, translate } from '../translate'
 import { Select, Value, Option } from 'baseui-sd/select'
 import { RxEraser, RxEnter, RxReload, RxStop } from 'react-icons/rx'
 import { clsx } from 'clsx'
@@ -19,7 +19,6 @@ import { Button } from 'baseui-sd/button'
 import { ErrorBoundary } from 'react-error-boundary'
 import { ErrorFallback } from '../components/ErrorFallback'
 import {
-    isOpenAIOfficialProvider,
     isDesktopApp,
     isTauri,
     isBrowserExtensionContentScript,
@@ -33,7 +32,6 @@ import {
 import { InnerSettings } from './Settings'
 import { containerID, popupCardInnerContainerId } from '../../browser-extension/content_script/consts'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import IpLocationNotification from '../components/IpLocationNotification'
 import { LRUCache } from 'lru-cache'
 import { ISettings, IThemedStyleProps, ModelSelection } from '../types'
 import { useTheme } from '../hooks/useTheme'
@@ -56,6 +54,8 @@ import { SpeakerIcon } from './SpeakerIcon'
 import color from 'color'
 import { useSettingsVisibility } from '../store/setting'
 import { sortModelIds } from '../engines/model-filter'
+
+const SUCCESS_FINISH_REASONS = new Set(['stop', 'eos', 'end_turn'])
 
 const cache = new LRUCache({
     max: 500,
@@ -103,9 +103,9 @@ function resolveModelSelection(settings: ISettings): ModelSelection | null {
     ) {
         return settings.defaultModel
     }
-    const provider =
-        settings.providers.find((item) => item.id === settings.defaultProviderId && item.model) ??
-        settings.providers.find((item) => item.model)
+    // Never switch to another provider: without a model on the provider in use, the
+    // translator asks the user to pick one in settings.
+    const provider = settings.providers.find((item) => item.id === settings.defaultProviderId && item.model)
     if (!provider) {
         return null
     }
@@ -902,6 +902,17 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 return
             }
             const isCurrentTranslation = () => translationID === translationIDRef.current
+            // Resolve once so the cache key, output controls, request, and history all use the same model.
+            const requestedProviderId = translateDeps.providerId ?? selectedModel?.providerId
+            const resolved = resolveTranslationModel(
+                settings,
+                requestedProviderId,
+                translateDeps.engineModel ?? selectedModel?.model
+            )
+            // An unknown provider id is passed through so translate() reports it instead of silently switching.
+            const providerId = resolved.providerConfig?.id ?? requestedProviderId
+            const model = resolved.model
+            let reportedError: string | undefined
             const persistHistory = async (resultText: string) => {
                 if (!resultText || !resultText.trim()) {
                     return
@@ -911,7 +922,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 }
                 const dedupeKey = `${translateDeps.text}__${resultText}__${translateDeps.sourceLang}__${
                     translateDeps.targetLang
-                }__${translateDeps.providerId ?? ''}__${translateDeps.engineModel ?? ''}`
+                }__${providerId ?? ''}__${model ?? ''}`
                 if (lastHistoryKeyRef.current === dedupeKey) {
                     return
                 }
@@ -921,8 +932,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             translatedText: resultText,
                         })
                     } else {
-                        const providerId = translateDeps.providerId ?? selectedModel?.providerId
-                        const model = translateDeps.engineModel ?? selectedModel?.model
                         if (!providerId || !model) {
                             return
                         }
@@ -960,41 +969,38 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     }
                     return
                 }
-                if (reason !== 'stop' && reason !== 'eos' && reason !== 'end_turn') {
+                if (!SUCCESS_FINISH_REASONS.has(reason)) {
                     if (reason === 'length' || reason === 'max_tokens') {
                         toast(t('Chars Limited'), {
                             duration: 5000,
                             icon: '😥',
                         })
-                    } else {
+                    } else if (reason === 'content_filter') {
+                        setActionStr('Error')
+                        setErrorMessage(t('The model provider blocked this request with its content filter.'))
+                    } else if (reportedError === undefined) {
                         setActionStr((actionStr_) => {
-                            let errMsg = `${actionStr_} failed, finish_reason: ${reason}`
-                            if (reason === 'content_filter') {
-                                errMsg = `很抱歉！由于您使用的 LLM 有敏感词限制，很不幸这个请求已经触发了敏感词，请您接受这个结果。`
-                            }
-                            setErrorMessage(errMsg)
+                            setErrorMessage(`${actionStr_} failed, finish_reason: ${reason}`)
                             return 'Error'
                         })
+                    } else {
+                        // Keep the readable message the engine already reported through onError.
+                        setActionStr('Error')
                     }
                 } else {
                     setActionStr(translateActionStrItem.afterStr)
                 }
             }
             beforeTranslate()
-            const outputControls = resolveProviderModelOutputControls(
-                settings,
-                translateDeps.providerId ?? selectedModel?.providerId,
-                translateDeps.engineModel ?? selectedModel?.model
-            )
+            const outputControls = resolveProviderModelOutputControls(settings, providerId, model)
             const cachedKey = getTranslationCacheKey({
-                providerId: translateDeps.providerId,
-                model: translateDeps.engineModel,
+                providerId,
+                model,
                 sourceLang,
                 targetLang,
                 text,
                 thinkingEnabled: outputControls.thinkingEnabled,
-                openaiReasoningEffort: outputControls.openaiReasoningEffort,
-                anthropicThinkingEffort: outputControls.anthropicThinkingEffort,
+                reasoningEffort: outputControls.reasoningEffort,
                 useStructuredOutput: outputControls.useStructuredOutput,
                 useStrictSchema: outputControls.useStrictSchema,
                 translationFlag,
@@ -1014,8 +1020,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     text,
                     detectFrom: sourceLang,
                     detectTo: targetLang,
-                    providerId: translateDeps.providerId ?? selectedModel?.providerId,
-                    model: translateDeps.engineModel ?? selectedModel?.model,
+                    providerId,
+                    model,
                     onStatusCode: () => {},
                     onMessage: async (message) => {
                         if (!isCurrentTranslation() || signal.aborted) {
@@ -1039,7 +1045,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             return
                         }
                         afterTranslate(reason)
-                        if (reason === 'aborted') {
+                        // Partial output (errors, truncation, filtering) stays on screen but is never cached or saved.
+                        if (!SUCCESS_FINISH_REASONS.has(reason)) {
                             return
                         }
                         setTranslatedText((translatedText) => {
@@ -1056,6 +1063,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         if (!isCurrentTranslation() || signal.aborted) {
                             return
                         }
+                        reportedError = error
                         setActionStr('Error')
                         setErrorMessage(error)
                     },
@@ -1485,11 +1493,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             settings.enableBackgroundBlur && styles.popupCardContentContainerBackgroundBlur
                         )}
                     >
-                        {isOpenAIOfficialProvider(selectedProvider) && (
-                            <div>
-                                <IpLocationNotification showSettings={showSettings} />
-                            </div>
-                        )}
                         {settings.providers.length === 0 && (
                             <div
                                 style={{

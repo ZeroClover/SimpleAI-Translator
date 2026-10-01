@@ -3,7 +3,7 @@ import { normalizeAPIEndpoint, OPENAI_RESPONSES_API_PATH } from '../../openai-ap
 import { fetchSSE } from '../../utils'
 import { formatStructuredOutput, IEngine, IMessageRequest, IModel, StructuredOutputRequest } from '../interfaces'
 import { ThinkingFilter } from '../thinking-filter'
-import { listModels as listOpenAIModels } from './openai-chat'
+import { getReasoningEffort, listModels as listOpenAIModels } from './openai-chat'
 
 const DEFAULT_ENDPOINT = 'https://api.openai.com/v1'
 type EngineProviderConfig = ProviderConfig & ThinkingControl
@@ -53,29 +53,13 @@ function getTextFormat(structuredOutput: StructuredOutputRequest | undefined) {
     }
 }
 
-function getReasoning(providerConfig: EngineProviderConfig) {
-    if (providerConfig.thinkingEnabled !== true) {
-        return undefined
-    }
-    return { effort: providerConfig.openaiReasoningEffort ?? 'medium' }
-}
-
-function getRefusal(resp: unknown): string | null {
+function getCompletedRefusal(resp: unknown): string | null {
     const data = resp as {
-        type?: string
-        delta?: unknown
-        refusal?: unknown
         response?: {
             output?: Array<{
                 content?: Array<{ type?: string; refusal?: unknown; text?: unknown }>
             }>
         }
-    }
-    if (data.type === 'response.refusal.delta' && typeof data.delta === 'string') {
-        return data.delta
-    }
-    if (typeof data.refusal === 'string') {
-        return data.refusal
     }
     for (const output of data.response?.output ?? []) {
         for (const content of output.content ?? []) {
@@ -148,9 +132,18 @@ export class OpenAIResponsesEngine implements IEngine {
             }
         }
 
+        const finish = async (reason: string) => {
+            if (!(await emitStructuredContent())) {
+                return
+            }
+            await emitRemainingText()
+            finished = true
+            req.onFinished(reason)
+        }
+
         try {
             const textFormat = getTextFormat(req.structuredOutput)
-            const reasoning = getReasoning(this.providerConfig)
+            const reasoningEffort = getReasoningEffort(this.providerConfig)
             await fetchSSE(url, {
                 method: 'POST',
                 headers: getHeaders(this.providerConfig),
@@ -158,8 +151,10 @@ export class OpenAIResponsesEngine implements IEngine {
                     model: this.providerConfig.model,
                     input: req.commandPrompt,
                     instructions: req.rolePrompt || undefined,
-                    ...(reasoning ? { reasoning } : {}),
+                    ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
                     ...(textFormat ? { text: { format: textFormat } } : {}),
+                    // Translations are one-shot; do not keep them in OpenAI's response store.
+                    store: false,
                     stream: true,
                 }),
                 signal: req.signal,
@@ -167,9 +162,8 @@ export class OpenAIResponsesEngine implements IEngine {
                     if (finished) return
                     const resp = JSON.parse(message)
                     const type = resp?.type
-                    const refusal = getRefusal(resp)
-                    if (refusal) {
-                        refusalContent += refusal
+                    if (type === 'response.refusal.delta') {
+                        refusalContent += typeof resp.delta === 'string' ? resp.delta : ''
                         return
                     }
 
@@ -185,19 +179,22 @@ export class OpenAIResponsesEngine implements IEngine {
                         return
                     }
                     if (type === 'response.completed') {
-                        if (refusalContent) {
+                        const refusal = refusalContent || getCompletedRefusal(resp)
+                        if (refusal) {
                             hasError = true
                             finished = true
-                            req.onError(refusalContent)
+                            req.onError(refusal)
                             req.onFinished('error')
                             return
                         }
-                        if (!(await emitStructuredContent())) {
-                            return
-                        }
-                        await emitRemainingText()
-                        finished = true
-                        req.onFinished('stop')
+                        await finish('stop')
+                        return
+                    }
+                    if (
+                        type === 'response.incomplete' &&
+                        resp?.response?.incomplete_details?.reason === 'max_output_tokens'
+                    ) {
+                        await finish('max_tokens')
                         return
                     }
                     if (type === 'response.failed' || type === 'response.incomplete' || type === 'error') {
@@ -223,8 +220,14 @@ export class OpenAIResponsesEngine implements IEngine {
             req.onError(getErrorMessage(error))
         }
 
-        if (!finished && hasError) {
-            req.onFinished('error')
+        if (finished) {
+            return
         }
+        if (hasError) {
+            req.onFinished('error')
+            return
+        }
+        // Some compatible endpoints close the stream without a terminal event.
+        await finish('stop')
     }
 }

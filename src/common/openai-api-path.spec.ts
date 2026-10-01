@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
     ANTHROPIC_MESSAGES_API_PATH,
-    getRecommendedOpenAIAPIPath,
-    isResponsesCapableOpenAIModel,
     normalizeAPIEndpoint,
     OPENAI_AUDIO_SPEECH_API_PATH,
     OPENAI_CHAT_COMPLETIONS_API_PATH,
@@ -10,25 +8,33 @@ import {
 } from './openai-api-path'
 
 describe('openai-api-path', () => {
-    it('detects responses-capable models', () => {
-        expect(isResponsesCapableOpenAIModel('gpt-5-nano')).toBe(true)
-        expect(isResponsesCapableOpenAIModel('gpt-4o')).toBe(true)
-        expect(isResponsesCapableOpenAIModel('o3-mini')).toBe(true)
-        expect(isResponsesCapableOpenAIModel('gpt-4')).toBe(false)
-    })
-
-    it('returns recommended api path by model', () => {
-        expect(getRecommendedOpenAIAPIPath('gpt-5-nano')).toBe(OPENAI_RESPONSES_API_PATH)
-        expect(getRecommendedOpenAIAPIPath('gpt-4')).toBe(OPENAI_CHAT_COMPLETIONS_API_PATH)
-        expect(getRecommendedOpenAIAPIPath(undefined)).toBe(OPENAI_CHAT_COMPLETIONS_API_PATH)
-    })
-
     it('normalizes base endpoints', () => {
         expect(normalizeAPIEndpoint('https://api.openai.com', OPENAI_CHAT_COMPLETIONS_API_PATH)).toBe(
             'https://api.openai.com/v1/chat/completions'
         )
         expect(normalizeAPIEndpoint('https://api.example.com/v1', OPENAI_RESPONSES_API_PATH)).toBe(
             'https://api.example.com/v1/responses'
+        )
+    })
+
+    it('keeps versioned base paths that are not /v1', () => {
+        expect(
+            normalizeAPIEndpoint(
+                'https://generativelanguage.googleapis.com/v1beta/openai',
+                OPENAI_CHAT_COMPLETIONS_API_PATH
+            )
+        ).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions')
+        expect(
+            normalizeAPIEndpoint(
+                'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+                OPENAI_CHAT_COMPLETIONS_API_PATH
+            )
+        ).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions')
+        expect(normalizeAPIEndpoint('https://ark.example.com/api/v3', OPENAI_CHAT_COMPLETIONS_API_PATH)).toBe(
+            'https://ark.example.com/api/v3/chat/completions'
+        )
+        expect(normalizeAPIEndpoint('https://api.example.com/anthropic', ANTHROPIC_MESSAGES_API_PATH)).toBe(
+            'https://api.example.com/anthropic/v1/messages'
         )
     })
 

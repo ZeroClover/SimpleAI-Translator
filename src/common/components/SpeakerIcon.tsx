@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { LangCode } from '../lang'
-import { defaultTTSProvider, doSpeak } from '../tts'
+import { defaultTTSProvider, doSpeak, startExclusivePlayback } from '../tts'
 import { TTSProvider } from '../tts/types'
 import SpeakerMotion from './SpeakerMotion'
 import { RxSpeakerLoud } from 'react-icons/rx'
@@ -46,11 +46,14 @@ export function SpeakerIcon({
         setIsSpeaking(true)
         const controller = new AbortController()
         const { signal } = controller
-        stopRef.current = () => {
+        const stop = () => {
+            release()
             controller.abort()
             setIsSpeaking(false)
             setIsLoading(false)
         }
+        stopRef.current = stop
+        const release = startExclusivePlayback(stop)
         doSpeak({
             provider,
             lang,
@@ -59,6 +62,7 @@ export function SpeakerIcon({
             volume: volume,
             rate: rate,
             onFinish: () => {
+                release()
                 setIsSpeaking(false)
             },
             onStartSpeaking: () => {
@@ -67,6 +71,7 @@ export function SpeakerIcon({
             signal,
         }).catch((e) => {
             console.error('TTS error:', e)
+            release()
             setIsLoading(false)
             setIsSpeaking(false)
         })

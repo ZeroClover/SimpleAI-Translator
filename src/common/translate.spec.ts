@@ -3,7 +3,13 @@ import { getEngine } from './engines'
 import { IEngine } from './engines/interfaces'
 import { ProviderConfig } from './types'
 import { getSettings } from './utils'
-import { getStructuredOutputMode, getTranslationCacheKey, QuoteProcessor, TranslateQuery, translate } from './translate'
+import {
+    getStructuredOutputMode,
+    getTranslationCacheKey,
+    resolveTranslationModel,
+    TranslateQuery,
+    translate,
+} from './translate'
 
 vi.mock('./engines', () => ({ getEngine: vi.fn() }))
 vi.mock('./utils', async () => {
@@ -64,8 +70,7 @@ describe('translate', () => {
         expect(getEngine).toHaveBeenCalledWith({
             ...provider,
             thinkingEnabled: false,
-            openaiReasoningEffort: undefined,
-            anthropicThinkingEffort: undefined,
+            reasoningEffort: undefined,
         })
         expect(query.onMessage).toHaveBeenCalledWith({ content: '你好', role: 'assistant', isWordMode: false })
         expect(query.onFinish).toHaveBeenCalledWith('stop')
@@ -125,8 +130,43 @@ describe('translate', () => {
             ...provider,
             model: 'gpt-4o',
             thinkingEnabled: false,
-            openaiReasoningEffort: undefined,
-            anthropicThinkingEffort: undefined,
+            reasoningEffort: undefined,
+        })
+    })
+
+    it('uses the requested provider model when the default model belongs to another provider', async () => {
+        const otherProvider: ProviderConfig = { ...provider, id: 'provider-2', model: 'claude-sonnet-4-6' }
+        vi.mocked(getSettings).mockResolvedValue({
+            providers: [provider, otherProvider],
+            defaultProviderId: otherProvider.id,
+            defaultModel: { providerId: otherProvider.id, model: 'claude-opus-4-6' },
+        } as unknown as Awaited<ReturnType<typeof getSettings>>)
+        vi.mocked(getEngine).mockReturnValue(createMockEngine(vi.fn(async (req) => req.onFinished('stop'))))
+
+        await translate(createTranslateQuery({ providerId: provider.id }))
+
+        expect(getEngine).toHaveBeenCalledWith({
+            ...provider,
+            thinkingEnabled: false,
+            reasoningEffort: undefined,
+        })
+    })
+
+    it('uses the default model when it belongs to the requested provider', async () => {
+        vi.mocked(getSettings).mockResolvedValue({
+            providers: [provider],
+            defaultProviderId: provider.id,
+            defaultModel: { providerId: provider.id, model: 'gpt-4o' },
+        } as unknown as Awaited<ReturnType<typeof getSettings>>)
+        vi.mocked(getEngine).mockReturnValue(createMockEngine(vi.fn(async (req) => req.onFinished('stop'))))
+
+        await translate(createTranslateQuery({ providerId: provider.id }))
+
+        expect(getEngine).toHaveBeenCalledWith({
+            ...provider,
+            model: 'gpt-4o',
+            thinkingEnabled: false,
+            reasoningEffort: undefined,
         })
     })
 
@@ -143,7 +183,7 @@ describe('translate', () => {
                     providerId: provider.id,
                     model: provider.model,
                     thinkingEnabled: true,
-                    openaiReasoningEffort: 'high',
+                    reasoningEffort: 'high',
                 },
             ],
         } as unknown as Awaited<ReturnType<typeof getSettings>>)
@@ -158,8 +198,7 @@ describe('translate', () => {
         expect(getEngine).toHaveBeenCalledWith({
             ...provider,
             thinkingEnabled: true,
-            openaiReasoningEffort: 'high',
-            anthropicThinkingEffort: undefined,
+            reasoningEffort: 'high',
         })
     })
 
@@ -176,13 +215,13 @@ describe('translate', () => {
                     providerId: provider.id,
                     model: provider.model,
                     thinkingEnabled: true,
-                    openaiReasoningEffort: 'high',
+                    reasoningEffort: 'high',
                 },
                 {
                     providerId: provider.id,
                     model: 'gpt-4o',
                     thinkingEnabled: true,
-                    openaiReasoningEffort: 'low',
+                    reasoningEffort: 'low',
                 },
             ],
         } as Awaited<ReturnType<typeof getSettings>>)
@@ -198,8 +237,7 @@ describe('translate', () => {
             ...provider,
             model: 'gpt-4o',
             thinkingEnabled: true,
-            openaiReasoningEffort: 'low',
-            anthropicThinkingEffort: undefined,
+            reasoningEffort: 'low',
         })
     })
 
@@ -302,14 +340,14 @@ describe('translate', () => {
             getTranslationCacheKey({
                 ...base,
                 thinkingEnabled: true,
-                openaiReasoningEffort: 'low',
+                reasoningEffort: 'low',
                 useStructuredOutput: true,
             })
         ).not.toEqual(
             getTranslationCacheKey({
                 ...base,
                 thinkingEnabled: true,
-                openaiReasoningEffort: 'high',
+                reasoningEffort: 'high',
                 useStructuredOutput: true,
             })
         )
@@ -454,11 +492,15 @@ describe('translate prompt assembly', () => {
         expect(rolePrompt).toMatch(/hard line breaks/i)
     })
 
-    it('applies the plain-output clause to the word path when structured output is off', async () => {
-        const { rolePrompt } = await capturePrompts({ text: 'hello' })
+    it('applies the plain-output clause to the sentence path only', async () => {
+        const sentence = await capturePrompts({ text: 'hello there my friend' })
+        expect(sentence.rolePrompt).toMatch(/output only the translation, with no commentary or markdown fences/i)
 
-        expect(rolePrompt).toMatch(/output only the final translation/i)
-        expect(rolePrompt).toMatch(/markdown fences, labels, preamble, or apologies/i)
+        const word = await capturePrompts({ text: 'hello' })
+        expect(word.rolePrompt).not.toMatch(/output only the translation/i)
+
+        const phrase = await capturePrompts({ text: '你好吗' })
+        expect(phrase.rolePrompt).not.toMatch(/output only the translation/i)
     })
 
     it('keeps the Chinese output format templates unchanged', async () => {
@@ -474,6 +516,26 @@ describe('translate prompt assembly', () => {
         expect(shortPhrase.rolePrompt).toContain('例句：<例句>(例句翻译)')
     })
 
+    it('keeps the schema out of the prompt only when the API enforces it', async () => {
+        const controls = (useStrictSchema: boolean) => [
+            { providerId: provider.id, model: provider.model, useStructuredOutput: true, useStrictSchema },
+        ]
+        for (const [protocol, useStrictSchema, embedsSchema] of [
+            ['openai-chat', true, false],
+            ['openai-chat', false, true],
+            ['anthropic', false, false],
+        ] as const) {
+            vi.mocked(getSettings).mockResolvedValue({
+                providers: [{ ...provider, protocol }],
+                defaultProviderId: provider.id,
+                providerModelOutputControls: controls(useStrictSchema),
+            } as Awaited<ReturnType<typeof getSettings>>)
+            const { rolePrompt } = await capturePrompts()
+            expect(rolePrompt.includes('Structured output schema:')).toBe(embedsSchema)
+            expect(rolePrompt).toMatch(/Structured output/)
+        }
+    })
+
     it('places the nonce boundary clause last and the schema block before it', async () => {
         const plain = await capturePrompts()
         const plainParagraphs = plain.rolePrompt.split('\n\n')
@@ -484,168 +546,40 @@ describe('translate prompt assembly', () => {
         const structured = await capturePrompts()
         const paragraphs = structured.rolePrompt.split('\n\n')
         expect(paragraphs.at(-1)).toMatch(openMarker)
-        const schemaIndex = paragraphs.findIndex((part) => part.includes('Structured output schema'))
+        expect(structured.rolePrompt).not.toContain('"additionalProperties"')
+        const schemaIndex = paragraphs.findIndex((part) => part.startsWith('Structured output'))
         expect(schemaIndex).toBeGreaterThanOrEqual(0)
         expect(schemaIndex).toBeLessThan(paragraphs.length - 1)
     })
 })
 
-describe('QuoteProcessor', () => {
-    it('should return the string without quote', () => {
-        const quoteProcessor = new QuoteProcessor()
-        const deltas = [
-            ...quoteProcessor.quoteStart.split(''),
-            'T',
-            'h',
-            'i',
-            's',
-            ' ',
-            'i',
-            's',
-            ' ',
-            'a',
-            ' ',
-            't',
-            'e',
-            's',
-            't',
-            '.',
-            ...quoteProcessor.quoteEnd.split(''),
-        ]
+describe('resolveTranslationModel', () => {
+    const otherProvider: ProviderConfig = { ...provider, id: 'provider-2', model: 'claude-sonnet-4-6' }
+    const settings = {
+        providers: [provider, otherProvider],
+        defaultProviderId: provider.id,
+        defaultModel: { providerId: otherProvider.id, model: 'claude-opus-4-6' },
+    }
 
-        let targetText = ''
-        for (const delta of deltas) {
-            targetText += quoteProcessor.processText(delta)
-        }
-
-        expect(targetText).toEqual('This is a test.')
+    it('resolves the default model with its own provider when nothing is requested', () => {
+        expect(resolveTranslationModel(settings)).toEqual({ providerConfig: otherProvider, model: 'claude-opus-4-6' })
     })
 
-    it('should return the string without quote', () => {
-        const quoteProcessor = new QuoteProcessor()
-        const deltas = [
-            ...quoteProcessor.quoteStart.split(''),
-            'T',
-            'h',
-            'i',
-            's',
-            ' ',
-            'i',
-            's',
-            ' ',
-            'a',
-            ' ',
-            't',
-            'e',
-            's',
-            't',
-            '.',
-            '(',
-            ')' + quoteProcessor.quoteEnd.split('')[0],
-            ...quoteProcessor.quoteEnd.split('').slice(1),
-        ]
-
-        let targetText = ''
-        for (const delta of deltas) {
-            targetText += quoteProcessor.processText(delta)
-        }
-
-        expect(targetText).toEqual('This is a test.()')
+    it('ignores a default model that belongs to another provider', () => {
+        expect(resolveTranslationModel(settings, provider.id)).toEqual({
+            providerConfig: provider,
+            model: 'gpt-4o-mini',
+        })
     })
 
-    it('should return the string without quote', () => {
-        const quoteProcessor = new QuoteProcessor()
-        const text = 'This is a test.'
-        const targetText = quoteProcessor.processText(quoteProcessor.quoteStart + text + quoteProcessor.quoteEnd)
-        expect(targetText).toEqual(text)
+    it('keeps an explicitly requested model', () => {
+        expect(resolveTranslationModel(settings, provider.id, 'gpt-4o')).toEqual({
+            providerConfig: provider,
+            model: 'gpt-4o',
+        })
     })
 
-    it('should return the string without quote', () => {
-        const quoteProcessor = new QuoteProcessor()
-        const text = 'This is a test.'
-        const targetText = quoteProcessor.processText(
-            `${quoteProcessor.quoteStart}This${quoteProcessor.quoteStart} is ${quoteProcessor.quoteEnd}a${quoteProcessor.quoteStart} test.${quoteProcessor.quoteEnd}`
-        )
-        expect(targetText).toEqual(text)
-    })
-
-    it('should return the same string if no quote exists', () => {
-        const quoteProcessor = new QuoteProcessor()
-        const deltas = [
-            '<X',
-            '1',
-            '2',
-            'Y>',
-            'T',
-            'h',
-            'i',
-            's',
-            ' ',
-            'i',
-            's',
-            ' ',
-            'a',
-            ' ',
-            't',
-            'e',
-            's',
-            't',
-            '.',
-            '</',
-            'X',
-            '1',
-            '2',
-            'Y>',
-        ]
-        let targetText = ''
-        for (const delta of deltas) {
-            targetText += quoteProcessor.processText(delta)
-        }
-
-        expect(targetText).toEqual('<X12Y>This is a test.</X12Y>')
-    })
-
-    it('should return the same string if no quote exists', () => {
-        const quoteProcessor = new QuoteProcessor()
-        const text = '<X12Y>This is a test.</X12Y>'
-        const targetText = quoteProcessor.processText(text)
-        expect(targetText).toEqual(text)
-    })
-
-    it('should return the same string if no quote exists', () => {
-        const quoteProcessor = new QuoteProcessor()
-        const text = `This is${quoteProcessor.quoteStart.slice(0, quoteProcessor.quoteStart.length - 1)} a test.`
-        const targetText = quoteProcessor.processText(text)
-        expect(targetText).toEqual(text)
-    })
-
-    it('do not remove the sub part of quote', () => {
-        const quoteProcessor = new QuoteProcessor()
-        const text = `This is${quoteProcessor.quoteStart.slice(0, quoteProcessor.quoteStart.length - 1)} a test.`
-        const targetText = quoteProcessor.processText(quoteProcessor.quoteStart + text + quoteProcessor.quoteEnd)
-        expect(targetText).toEqual(text)
-    })
-
-    it('do not remove the sub part of quote', () => {
-        const quoteProcessor = new QuoteProcessor()
-        const text = `This is${quoteProcessor.quoteEnd.slice(0, quoteProcessor.quoteEnd.length - 1)} a test.`
-        const targetText = quoteProcessor.processText(quoteProcessor.quoteStart + text + quoteProcessor.quoteEnd)
-        expect(targetText).toEqual(text)
-    })
-
-    it('do not remove the sub part of quote', () => {
-        const quoteProcessor = new QuoteProcessor()
-        const text = `This is${quoteProcessor.quoteStart.slice(
-            0,
-            quoteProcessor.quoteStart.length - 1
-        )} a${quoteProcessor.quoteStart.slice(
-            0,
-            quoteProcessor.quoteStart.length - 2
-        )} te${quoteProcessor.quoteEnd.slice(0, quoteProcessor.quoteEnd.length - 1)}st${quoteProcessor.quoteEnd.slice(
-            0,
-            quoteProcessor.quoteEnd.length - 2
-        )}.`
-        const targetText = quoteProcessor.processText(quoteProcessor.quoteStart + text + quoteProcessor.quoteEnd)
-        expect(targetText).toEqual(text)
+    it('returns no provider when the provider does not exist', () => {
+        expect(resolveTranslationModel(settings, 'missing')).toEqual({})
     })
 })

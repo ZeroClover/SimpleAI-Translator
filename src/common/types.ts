@@ -49,13 +49,12 @@ export type LanguageDetectionEngine = 'google' | 'baidu' | 'bing' | 'local'
 export type ProxyProtocol = 'HTTP' | 'HTTPS'
 
 export type ProviderProtocol = 'openai-chat' | 'openai-responses' | 'anthropic'
-export type OpenAIReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
-export type AnthropicThinkingEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+// The levels every current reasoning model accepts (GPT-5.5+, Claude 4.7+/5.x, Gemini 3.x).
+export type ReasoningEffort = 'low' | 'medium' | 'high'
 
 export interface ThinkingControl {
     thinkingEnabled?: boolean
-    openaiReasoningEffort?: OpenAIReasoningEffort
-    anthropicThinkingEffort?: AnthropicThinkingEffort
+    reasoningEffort?: ReasoningEffort
 }
 
 export interface ProviderModelOutputControls extends ThinkingControl {

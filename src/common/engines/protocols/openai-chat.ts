@@ -1,4 +1,4 @@
-import { ProviderConfig, ThinkingControl } from '../../types'
+import { ProviderConfig, ReasoningEffort, ThinkingControl } from '../../types'
 import { getUniversalFetch } from '../../universal-fetch'
 import { fetchSSE } from '../../utils'
 import { normalizeAPIEndpoint, OPENAI_CHAT_COMPLETIONS_API_PATH } from '../../openai-api-path'
@@ -64,11 +64,37 @@ function getResponseFormat(structuredOutput: StructuredOutputRequest | undefined
     }
 }
 
-function getReasoningEffort(providerConfig: EngineProviderConfig) {
-    if (providerConfig.thinkingEnabled !== true) {
+// Lowest reasoning effort a model family accepts. GPT-5.5+ and Gemini 3 reason at
+// their default level when the field is omitted, so "thinking off" has to send
+// this explicitly. Families not listed here keep the field omitted.
+function getLowestReasoningEffort(model: string): 'none' | 'minimal' | 'low' | undefined {
+    // Strip gateway prefixes such as `openai/`, `google/`, or `models/`.
+    const id = model.toLowerCase().replace(/^.*\//, '')
+    if (/^gpt-5(?:-mini|-nano)?(?:-\d{4}-\d{2}-\d{2})?$/.test(id)) {
+        return 'minimal'
+    }
+    if (/^gpt-[56]/.test(id) && /-(?:pro|codex|chat)(?:$|-)/.test(id)) {
         return undefined
     }
-    return providerConfig.openaiReasoningEffort ?? 'medium'
+    if (/^gpt-6(?:-astra|\.[1-9])/.test(id)) {
+        return 'low'
+    }
+    if (/^gpt-(?:5\.\d+|6)(?:$|-)/.test(id)) {
+        return 'none'
+    }
+    if (/^gemini-3/.test(id) && !id.includes('flash-lite')) {
+        return 'low'
+    }
+    return undefined
+}
+
+export function getReasoningEffort(
+    providerConfig: EngineProviderConfig
+): ReasoningEffort | 'none' | 'minimal' | undefined {
+    if (providerConfig.thinkingEnabled !== true) {
+        return getLowestReasoningEffort(providerConfig.model)
+    }
+    return providerConfig.reasoningEffort ?? 'medium'
 }
 
 export async function listModels(providerConfig: ProviderConfig): Promise<string[]> {
@@ -111,6 +137,9 @@ export class OpenAIChatEngine implements IEngine {
         let hasError = false
         let structuredContent = ''
         let structuredContentEmitted = false
+        // Refusals stream as `delta.refusal` fragments; report the whole text once the stream ends.
+        let refused = false
+        let refusal = ''
         const thinkingFilter = new ThinkingFilter()
 
         const emitStructuredContent = async (): Promise<boolean> => {
@@ -154,6 +183,22 @@ export class OpenAIChatEngine implements IEngine {
             }
         }
 
+        const finish = async (reason: string) => {
+            if (refused) {
+                hasError = true
+                finished = true
+                req.onError(refusal || 'The model refused to answer.')
+                req.onFinished('error')
+                return
+            }
+            if (!(await emitStructuredContent())) {
+                return
+            }
+            await emitRemainingText()
+            finished = true
+            req.onFinished(reason)
+        }
+
         try {
             const responseFormat = getResponseFormat(req.structuredOutput)
             const reasoningEffort = getReasoningEffort(this.providerConfig)
@@ -171,12 +216,7 @@ export class OpenAIChatEngine implements IEngine {
                 onMessage: async (message) => {
                     if (finished) return
                     if (message.trim() === '[DONE]') {
-                        if (!(await emitStructuredContent())) {
-                            return
-                        }
-                        await emitRemainingText()
-                        finished = true
-                        req.onFinished('stop')
+                        await finish('stop')
                         return
                     }
 
@@ -186,31 +226,25 @@ export class OpenAIChatEngine implements IEngine {
                         return
                     }
                     const choice = choices[0]
-                    const refusal = choice?.message?.refusal ?? choice?.delta?.refusal
-                    if (refusal) {
-                        hasError = true
-                        finished = true
-                        req.onError(typeof refusal === 'string' ? refusal : 'The model refused to answer.')
-                        req.onFinished('error')
-                        return
+                    const refusalPart = choice?.message?.refusal ?? choice?.delta?.refusal
+                    if (refusalPart) {
+                        refused = true
+                        if (typeof refusalPart === 'string') {
+                            refusal += refusalPart
+                        }
+                    }
+                    // Some providers send the last content delta and finish_reason in one chunk.
+                    const content = choice?.delta?.content
+                    if (content && !refused) {
+                        if (req.structuredOutput) {
+                            structuredContent += thinkingFilter.push(content)
+                        } else {
+                            await emitText(content, choice?.delta?.role ?? 'assistant')
+                        }
                     }
                     const finishReason = choice?.finish_reason
                     if (finishReason) {
-                        if (!(await emitStructuredContent())) {
-                            return
-                        }
-                        await emitRemainingText()
-                        finished = true
-                        req.onFinished(finishReason)
-                        return
-                    }
-                    const content = choice?.delta?.content
-                    if (content) {
-                        if (req.structuredOutput) {
-                            structuredContent += thinkingFilter.push(content)
-                            return
-                        }
-                        await emitText(content, choice?.delta?.role ?? 'assistant')
+                        await finish(finishReason)
                     }
                 },
                 onError: (error) => {
@@ -229,8 +263,14 @@ export class OpenAIChatEngine implements IEngine {
             req.onError(getErrorMessage(error))
         }
 
-        if (!finished && hasError) {
-            req.onFinished('error')
+        if (finished) {
+            return
         }
+        if (hasError) {
+            req.onFinished('error')
+            return
+        }
+        // Some compatible endpoints close the stream without [DONE] or finish_reason.
+        await finish('stop')
     }
 }

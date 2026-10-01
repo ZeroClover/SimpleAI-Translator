@@ -3,9 +3,16 @@ import toast from 'react-hot-toast/headless'
 import { ProviderConfig } from '../types'
 import { getUniversalFetch } from '../universal-fetch'
 import { getSettings, setSettings } from '../utils'
-import { openAITTSSpeedFromRate, speak, splitOpenAITTSInput } from './openai-tts'
+import {
+    getOpenAITTSMaxInputLength,
+    getOpenAITTSVoices,
+    openAITTSSpeedFromRate,
+    speak,
+    splitOpenAITTSInput,
+} from './openai-tts'
 
 vi.mock('react-hot-toast/headless', () => ({ default: vi.fn() }))
+vi.mock('../i18n', () => ({ default: { t: (key: string) => key } }))
 vi.mock('../universal-fetch', () => ({ getUniversalFetch: vi.fn() }))
 vi.mock('../utils', async () => {
     const actual = await vi.importActual<typeof import('../utils')>('../utils')
@@ -126,9 +133,9 @@ describe('OpenAI TTS', () => {
                 lang: 'en',
                 signal: new AbortController().signal,
             })
-        ).rejects.toThrow('OpenAI TTS 鉴权失败')
+        ).rejects.toThrow('OpenAI TTS authentication failed.')
 
-        expect(toast).toHaveBeenCalledWith('OpenAI TTS 鉴权失败，请在设置中检查关联的 Provider 配置')
+        expect(toast).toHaveBeenCalledWith('OpenAI TTS authentication failed. Check the linked Provider in settings.')
     })
 
     it('reports unsupported speech endpoints', async () => {
@@ -140,9 +147,11 @@ describe('OpenAI TTS', () => {
                 lang: 'en',
                 signal: new AbortController().signal,
             })
-        ).rejects.toThrow('OpenAI TTS Endpoint 未实现')
+        ).rejects.toThrow('does not implement /audio/speech')
 
-        expect(toast).toHaveBeenCalledWith('OpenAI TTS Endpoint 未实现 /audio/speech，请检查关联的 Provider 配置')
+        expect(toast).toHaveBeenCalledWith(
+            'The OpenAI TTS endpoint does not implement /audio/speech. Check the linked Provider in settings.'
+        )
     })
 
     it('falls back to edge when the referenced provider is missing', async () => {
@@ -157,8 +166,9 @@ describe('OpenAI TTS', () => {
                 lang: 'en',
                 signal: new AbortController().signal,
             })
-        ).rejects.toThrow('已回退到 Edge TTS')
+        ).rejects.toThrow('Switched to Edge TTS')
 
+        expect(toast).toHaveBeenCalledWith('The Provider linked to OpenAI TTS was deleted. Switched to Edge TTS.')
         expect(setSettings).toHaveBeenCalledWith({
             tts: expect.objectContaining({
                 provider: 'edge',
@@ -167,8 +177,31 @@ describe('OpenAI TTS', () => {
         expect(getUniversalFetch).not.toHaveBeenCalled()
     })
 
-    it('splits long input into sequential requests', async () => {
+    it('splits gpt-4o-mini-tts input to stay under its token limit', async () => {
         const fetcher = mockFetchResponse()
+        const text = '你'.repeat(4000)
+
+        await speak({
+            text,
+            lang: 'zh-Hans',
+            signal: new AbortController().signal,
+        })
+
+        expect(fetcher).toHaveBeenCalledTimes(3)
+        for (const call of fetcher.mock.calls) {
+            const body = JSON.parse((call[1] as RequestInit).body as string)
+            expect(body.input.length).toBeLessThanOrEqual(1500)
+        }
+    })
+
+    it('splits tts-1 input at 4096 characters', async () => {
+        const fetcher = mockFetchResponse()
+        mockSettings({
+            tts: {
+                provider: 'openai',
+                openai: { providerId: provider.id, model: 'tts-1', voice: 'alloy' },
+            },
+        })
         const text = 'a'.repeat(9000)
 
         await speak({
@@ -179,11 +212,141 @@ describe('OpenAI TTS', () => {
 
         expect(fetcher).toHaveBeenCalledTimes(3)
         for (const call of fetcher.mock.calls) {
-            const init = call[1] as RequestInit
-            const body = JSON.parse(init.body as string)
+            const body = JSON.parse((call[1] as RequestInit).body as string)
             expect(body.input.length).toBeLessThanOrEqual(4096)
         }
-        expect(splitOpenAITTSInput(text)).toHaveLength(3)
+    })
+
+    it('keeps sentence boundaries when splitting', () => {
+        const sentence = 'a'.repeat(900) + '. '
+        const chunks = splitOpenAITTSInput(sentence.repeat(3), getOpenAITTSMaxInputLength('gpt-4o-mini-tts'))
+
+        expect(chunks).toHaveLength(3)
+        expect(chunks.join('')).toBe(sentence.repeat(3))
+        expect(chunks[1].startsWith(' a')).toBe(true)
+    })
+
+    it('uses per-model input limits', () => {
+        expect(getOpenAITTSMaxInputLength('gpt-4o-mini-tts')).toBe(1500)
+        expect(getOpenAITTSMaxInputLength('gpt-4o-mini-tts-2025-12-15')).toBe(1500)
+        expect(getOpenAITTSMaxInputLength('tts-1')).toBe(4096)
+        expect(getOpenAITTSMaxInputLength('tts-1-hd')).toBe(4096)
+    })
+
+    it('offers only classic voices for tts-1 models', () => {
+        const classic = ['alloy', 'ash', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer']
+        expect(getOpenAITTSVoices('tts-1')).toEqual(classic)
+        expect(getOpenAITTSVoices('TTS-1-HD')).toEqual(classic)
+        expect(getOpenAITTSVoices('gpt-4o-mini-tts')).toEqual([...classic, 'ballad', 'verse', 'marin', 'cedar'])
+        expect(getOpenAITTSVoices('custom-tts')).toContain('marin')
+    })
+
+    it('defaults to the alloy voice when none is saved', async () => {
+        const fetcher = mockFetchResponse()
+        mockSettings({
+            tts: {
+                provider: 'openai',
+                openai: { providerId: provider.id, model: 'tts-1' },
+            },
+        })
+
+        await speak({
+            text: 'Hello',
+            lang: 'en',
+            signal: new AbortController().signal,
+        })
+
+        const body = JSON.parse((fetcher.mock.calls[0][1] as RequestInit).body as string)
+        expect(body.voice).toBe('alloy')
+    })
+
+    it.each([
+        [
+            'no provider is linked',
+            { providers: [provider], tts: { provider: 'openai', openai: { providerId: '', model: 'tts-1' } } },
+            'No Provider is linked to OpenAI TTS. Switched to Edge TTS.',
+        ],
+        [
+            'the linked provider uses anthropic',
+            {
+                providers: [{ ...provider, protocol: 'anthropic' }],
+                tts: { provider: 'openai', openai: { providerId: provider.id, model: 'tts-1' } },
+            },
+            'The Provider linked to OpenAI TTS uses the Anthropic protocol, which does not support speech. Switched to Edge TTS.',
+        ],
+        [
+            'the model is missing',
+            { tts: { provider: 'openai', openai: { providerId: provider.id, model: '' } } },
+            'No OpenAI TTS model is selected. Switched to Edge TTS.',
+        ],
+    ])('explains the fallback when %s', async (_case, overrides, message) => {
+        mockSettings(overrides)
+
+        await expect(
+            speak({
+                text: 'Hello',
+                lang: 'en',
+                signal: new AbortController().signal,
+            })
+        ).rejects.toThrow(message)
+
+        expect(toast).toHaveBeenCalledWith(message)
+        expect(setSettings).toHaveBeenCalledWith({
+            tts: expect.objectContaining({ provider: 'edge' }),
+        })
+        expect(getUniversalFetch).not.toHaveBeenCalled()
+    })
+
+    it('stays silent when the user stops while the request is in flight', async () => {
+        const controller = new AbortController()
+        vi.mocked(getUniversalFetch).mockReturnValue(
+            vi.fn(
+                (_url: string, init?: RequestInit) =>
+                    new Promise<Response>((_resolve, reject) => {
+                        init?.signal?.addEventListener('abort', () =>
+                            reject(new DOMException('The operation was aborted.', 'AbortError'))
+                        )
+                        controller.abort()
+                    })
+            )
+        )
+
+        await expect(
+            speak({
+                text: 'Hello',
+                lang: 'en',
+                signal: controller.signal,
+            })
+        ).resolves.toBeUndefined()
+
+        expect(toast).not.toHaveBeenCalled()
+        expect(FakeAudio.instances).toHaveLength(0)
+    })
+
+    it('reports request timeouts', async () => {
+        vi.useFakeTimers()
+        vi.mocked(getUniversalFetch).mockReturnValue(
+            vi.fn(
+                (_url: string, init?: RequestInit) =>
+                    new Promise<Response>((_resolve, reject) => {
+                        init?.signal?.addEventListener('abort', () =>
+                            reject(new DOMException('The operation was aborted.', 'AbortError'))
+                        )
+                    })
+            )
+        )
+
+        const result = speak({
+            text: 'Hello',
+            lang: 'en',
+            signal: new AbortController().signal,
+        })
+        const assertion = expect(result).rejects.toThrow('OpenAI TTS request timed out. Please try again later.')
+        await vi.advanceTimersByTimeAsync(15000)
+        await assertion
+        vi.useRealTimers()
+
+        expect(toast).toHaveBeenCalledWith('OpenAI TTS request timed out. Please try again later.')
     })
 
     it('does not send instructions to tts-1 models', async () => {

@@ -1,4 +1,4 @@
-import { AnthropicThinkingEffort, ProviderConfig, ThinkingControl } from '../../types'
+import { ProviderConfig, ReasoningEffort, ThinkingControl } from '../../types'
 import { getUniversalFetch } from '../../universal-fetch'
 import { ANTHROPIC_MESSAGES_API_PATH, normalizeAPIEndpoint } from '../../openai-api-path'
 import { fetchSSE } from '../../utils'
@@ -9,9 +9,12 @@ import { ThinkingFilter } from '../thinking-filter'
 
 const DEFAULT_ENDPOINT = 'https://api.anthropic.com'
 const MODELS_PATH = '/v1/models'
-const DEFAULT_MAX_TOKENS = 4096
-const THINKING_MAX_TOKENS = 64000
-const MANUAL_MAX_TOKENS = 128000
+// Maximum page size accepted by the Models API.
+const MODELS_PAGE_LIMIT = 1000
+// Covers every model on the no-thinking and manual-thinking paths: Opus 4 caps
+// output at 32K, everything newer at 64K or more.
+const DEFAULT_MAX_TOKENS = 32000
+const ADAPTIVE_MAX_TOKENS = 64000
 type EngineProviderConfig = ProviderConfig & ThinkingControl
 
 function getHeaders(providerConfig: ProviderConfig): Record<string, string> {
@@ -41,6 +44,22 @@ function isAbort(req: IMessageRequest, error: unknown): boolean {
     return req.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')
 }
 
+// Anthropic structured outputs reject array-size constraints; item counts are
+// enforced client-side by formatStructuredOutput instead.
+function stripArrayConstraints(schema: unknown): unknown {
+    if (Array.isArray(schema)) {
+        return schema.map(stripArrayConstraints)
+    }
+    if (typeof schema !== 'object' || schema === null) {
+        return schema
+    }
+    return Object.fromEntries(
+        Object.entries(schema)
+            .filter(([key]) => key !== 'minItems' && key !== 'maxItems')
+            .map(([key, value]) => [key, stripArrayConstraints(value)])
+    )
+}
+
 function getOutputConfig(structuredOutput: StructuredOutputRequest | undefined) {
     if (!structuredOutput) {
         return undefined
@@ -48,84 +67,118 @@ function getOutputConfig(structuredOutput: StructuredOutputRequest | undefined) 
     return {
         format: {
             type: 'json_schema',
-            schema: structuredOutput.schema,
+            schema: stripArrayConstraints(structuredOutput.schema),
         },
     }
 }
 
-function isAdaptiveThinkingModel(model: string): boolean {
-    const id = model.toLowerCase()
-    return (
-        id.startsWith('claude-opus-4-7') ||
-        id.startsWith('claude-opus-4-6') ||
-        id.startsWith('claude-sonnet-4-6') ||
-        id.startsWith('claude-mythos-preview')
-    )
+// Model patterns match anywhere in the ID so gateway forms such as
+// `anthropic/claude-sonnet-4.5`, `us.anthropic.claude-...`, and `claude-...@date` resolve too.
+// budget_tokens is accepted only by Haiku 4.5, Sonnet/Opus 4.5, and Sonnet/Opus 4;
+// newer models use adaptive thinking and reject budget_tokens with a 400.
+const MANUAL_THINKING_MODEL = /claude-(?:haiku-4-5|sonnet-4-5|opus-4-5|(?:sonnet|opus)-4(?:-0|-\d{8}|@|$))/
+// These models think even when the thinking parameter is omitted, so "off" means
+// lowest effort rather than no thinking.
+const ALWAYS_THINKING_MODEL = /claude-(?:opus|sonnet|fable|mythos)-5/
+// thinking.display arrived with Opus 4.7; the 4.6 models adapt without it.
+const NO_DISPLAY_ADAPTIVE_MODEL = /claude-(?:opus|sonnet)-4-6/
+
+function normalizeModelId(model: string): string {
+    return model.toLowerCase().replace(/\./g, '-')
 }
 
-function getAdaptiveEffort(model: string, effort: AnthropicThinkingEffort) {
-    if (effort === 'xhigh' && !model.toLowerCase().startsWith('claude-opus-4-7')) {
-        return 'high'
-    }
-    return effort
-}
-
-function getManualBudget(effort: AnthropicThinkingEffort, maxTokens: number): number {
-    const budgetByEffort: Record<Exclude<AnthropicThinkingEffort, 'max'>, number> = {
-        low: 1024,
-        medium: 4096,
-        high: 16384,
-        xhigh: 32768,
-    }
-    const targetBudget = effort === 'max' ? THINKING_MAX_TOKENS : budgetByEffort[effort]
-    return Math.max(1024, Math.min(targetBudget, maxTokens - 1))
+// Each budget leaves most of DEFAULT_MAX_TOKENS for the translation itself.
+const MANUAL_BUDGET_BY_EFFORT: Record<ReasoningEffort, number> = {
+    low: 1024,
+    medium: 4096,
+    high: 16000,
 }
 
 function getThinkingRequest(providerConfig: EngineProviderConfig) {
+    const model = normalizeModelId(providerConfig.model)
     if (providerConfig.thinkingEnabled !== true) {
+        if (ALWAYS_THINKING_MODEL.test(model)) {
+            return {
+                maxTokens: ADAPTIVE_MAX_TOKENS,
+                outputEffort: 'low',
+            }
+        }
         return {
             maxTokens: DEFAULT_MAX_TOKENS,
         }
     }
 
-    const effort = providerConfig.anthropicThinkingEffort ?? 'high'
-    if (isAdaptiveThinkingModel(providerConfig.model)) {
+    const effort = providerConfig.reasoningEffort ?? 'medium'
+    if (!MANUAL_THINKING_MODEL.test(model)) {
         return {
-            maxTokens: THINKING_MAX_TOKENS,
-            thinking: { type: 'adaptive', display: 'omitted' },
-            outputEffort: getAdaptiveEffort(providerConfig.model, effort),
+            maxTokens: ADAPTIVE_MAX_TOKENS,
+            thinking: NO_DISPLAY_ADAPTIVE_MODEL.test(model)
+                ? { type: 'adaptive' }
+                : { type: 'adaptive', display: 'omitted' },
+            outputEffort: effort,
         }
     }
 
-    const maxTokens = effort === 'max' ? MANUAL_MAX_TOKENS : THINKING_MAX_TOKENS
     return {
-        maxTokens,
+        maxTokens: DEFAULT_MAX_TOKENS,
         thinking: {
             type: 'enabled',
-            budget_tokens: getManualBudget(effort, maxTokens),
-            display: 'omitted',
+            budget_tokens: MANUAL_BUDGET_BY_EFFORT[effort],
         },
     }
+}
+
+function getRefusalMessage(resp: unknown): string {
+    const data = resp as {
+        delta?: { stop_details?: { explanation?: unknown; category?: unknown } | null }
+        message?: { stop_details?: { explanation?: unknown; category?: unknown } | null }
+    }
+    const details = data.delta?.stop_details ?? data.message?.stop_details
+    if (typeof details?.explanation === 'string' && details.explanation) {
+        return `The model refused to answer: ${details.explanation}`
+    }
+    if (typeof details?.category === 'string' && details.category) {
+        return `The model refused to answer (${details.category}).`
+    }
+    return 'The model refused to answer.'
 }
 
 export async function listModels(providerConfig: ProviderConfig): Promise<string[]> {
     try {
         const fetcher = getUniversalFetch()
-        const resp = await fetcher(normalizeAPIEndpoint(providerConfig.endpoint, MODELS_PATH, DEFAULT_ENDPOINT), {
-            method: 'GET',
-            headers: getHeaders(providerConfig),
-            signal: AbortSignal.timeout(15000),
-        })
-        if (!resp.ok) {
-            return []
+        // One deadline for the whole listing, across all pages.
+        const signal = AbortSignal.timeout(15000)
+        const ids: string[] = []
+        let afterId: string | undefined
+        for (;;) {
+            const url = new URL(normalizeAPIEndpoint(providerConfig.endpoint, MODELS_PATH, DEFAULT_ENDPOINT))
+            url.searchParams.set('limit', String(MODELS_PAGE_LIMIT))
+            if (afterId) {
+                url.searchParams.set('after_id', afterId)
+            }
+            const resp = await fetcher(url.toString(), {
+                method: 'GET',
+                headers: getHeaders(providerConfig),
+                signal,
+            })
+            if (!resp.ok) {
+                return []
+            }
+            const data = await resp.json()
+            if (!Array.isArray(data?.data)) {
+                return []
+            }
+            ids.push(
+                ...data.data
+                    .map((model: { id?: unknown }) => model.id)
+                    .filter((id: unknown): id is string => typeof id === 'string')
+            )
+            const lastId = data.last_id
+            if (data.has_more !== true || typeof lastId !== 'string' || !lastId || lastId === afterId) {
+                return ids
+            }
+            afterId = lastId
         }
-        const data = await resp.json()
-        if (!Array.isArray(data?.data)) {
-            return []
-        }
-        return data.data
-            .map((model: { id?: unknown }) => model.id)
-            .filter((id: unknown): id is string => typeof id === 'string')
     } catch {
         return []
     }
@@ -188,6 +241,15 @@ export class AnthropicEngine implements IEngine {
             }
         }
 
+        const finish = async () => {
+            if (!(await emitStructuredContent())) {
+                return
+            }
+            await emitRemainingText()
+            finished = true
+            req.onFinished(lastStopReason === 'max_tokens' ? 'max_tokens' : 'stop')
+        }
+
         try {
             const outputConfig = getOutputConfig(req.structuredOutput)
             const thinkingRequest = getThinkingRequest(this.providerConfig)
@@ -222,7 +284,7 @@ export class AnthropicEngine implements IEngine {
                     if (stopReason === 'refusal') {
                         hasError = true
                         finished = true
-                        req.onError('The model refused to answer.')
+                        req.onError(getRefusalMessage(resp))
                         req.onFinished('error')
                         return
                     }
@@ -251,12 +313,7 @@ export class AnthropicEngine implements IEngine {
                         return
                     }
                     if (type === 'message_stop') {
-                        if (!(await emitStructuredContent())) {
-                            return
-                        }
-                        await emitRemainingText()
-                        finished = true
-                        req.onFinished(lastStopReason === 'max_tokens' ? 'max_tokens' : 'stop')
+                        await finish()
                         return
                     }
                     if (type === 'error') {
@@ -282,8 +339,14 @@ export class AnthropicEngine implements IEngine {
             req.onError(getErrorMessage(error))
         }
 
-        if (!finished && hasError) {
-            req.onFinished('error')
+        if (finished) {
+            return
         }
+        if (hasError) {
+            req.onFinished('error')
+            return
+        }
+        // Some compatible endpoints close the stream without message_stop.
+        await finish()
     }
 }

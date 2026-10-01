@@ -127,7 +127,7 @@ describe('settings schema normalization', () => {
             apiKey: 'sk-test',
             model: 'gpt-4o-mini',
             thinkingEnabled: true,
-            openaiReasoningEffort: 'high' as const,
+            reasoningEffort: 'high' as const,
         }
         const settings = normalizeSettings({
             providers: [provider],
@@ -143,7 +143,7 @@ describe('settings schema normalization', () => {
             modelOptions: [],
         })
         expect(settings.providers[0]).not.toHaveProperty('thinkingEnabled')
-        expect(settings.providers[0]).not.toHaveProperty('openaiReasoningEffort')
+        expect(settings.providers[0]).not.toHaveProperty('reasoningEffort')
     })
 
     it('drops legacy model thinking fields on defaultModel', () => {
@@ -172,6 +172,52 @@ describe('settings schema normalization', () => {
         expect(settings.providerModelOutputControls).toEqual([])
     })
 
+    it('keeps the provider in use without a model instead of falling back to another provider', () => {
+        const withModel = {
+            id: 'provider-1',
+            name: 'Primary',
+            protocol: 'openai-chat' as const,
+            apiKey: 'sk-test',
+            model: 'gpt-4o-mini',
+        }
+        const withoutModel = {
+            id: 'provider-2',
+            name: 'Secondary',
+            protocol: 'anthropic' as const,
+            apiKey: 'sk-ant',
+            model: '',
+        }
+        const raw = {
+            providers: [withModel, withoutModel],
+            defaultProviderId: withoutModel.id,
+            defaultModel: null,
+        }
+
+        expect(normalizeSettings(raw).defaultModel).toBeNull()
+        expect(sanitizeSettingsForStorage(raw)).toMatchObject({
+            defaultProviderId: withoutModel.id,
+            defaultModel: null,
+        })
+    })
+
+    it('falls back to the model of the provider in use when defaultModel is invalid', () => {
+        const first = {
+            id: 'provider-1',
+            name: 'Primary',
+            protocol: 'openai-chat' as const,
+            apiKey: 'sk-test',
+            model: 'gpt-4o-mini',
+        }
+        const second = { ...first, id: 'provider-2', name: 'Secondary', model: 'gpt-5' }
+        const settings = normalizeSettings({
+            providers: [first, second],
+            defaultProviderId: second.id,
+            defaultModel: { providerId: 'deleted-provider', model: 'gpt-4o' },
+        })
+
+        expect(settings.defaultModel).toEqual({ providerId: second.id, model: second.model })
+    })
+
     it('normalizes provider and model scoped output controls', () => {
         const provider = {
             id: 'provider-1',
@@ -187,7 +233,7 @@ describe('settings schema normalization', () => {
                     providerId: provider.id,
                     model: provider.model,
                     thinkingEnabled: true,
-                    openaiReasoningEffort: 'low',
+                    reasoningEffort: 'low',
                     useStructuredOutput: true,
                     useStrictSchema: false,
                 },
@@ -205,12 +251,13 @@ describe('settings schema normalization', () => {
                     providerId: provider.id,
                     model: provider.model,
                     thinkingEnabled: false,
-                    openaiReasoningEffort: 'invalid',
+                    reasoningEffort: 'xhigh',
                     useStructuredOutput: true,
                 },
                 {
                     providerId: provider.id,
                     model: 'custom-model',
+                    reasoningEffort: 'high',
                     anthropicThinkingEffort: 'max',
                 },
             ],
@@ -226,7 +273,7 @@ describe('settings schema normalization', () => {
             {
                 providerId: provider.id,
                 model: 'custom-model',
-                anthropicThinkingEffort: 'max',
+                reasoningEffort: 'high',
             },
         ])
     })
@@ -246,7 +293,7 @@ describe('settings schema normalization', () => {
                     providerId: provider.id,
                     model: provider.model,
                     thinkingEnabled: true,
-                    anthropicThinkingEffort: 'xhigh',
+                    reasoningEffort: 'high',
                     useStructuredOutput: true,
                 },
             ],
@@ -254,15 +301,13 @@ describe('settings schema normalization', () => {
 
         expect(resolveProviderModelOutputControls(settings, provider.id, 'missing-model')).toEqual({
             thinkingEnabled: false,
-            openaiReasoningEffort: undefined,
-            anthropicThinkingEffort: undefined,
+            reasoningEffort: undefined,
             useStructuredOutput: false,
             useStrictSchema: true,
         })
         expect(resolveProviderModelOutputControls(settings, provider.id, provider.model)).toEqual({
             thinkingEnabled: true,
-            openaiReasoningEffort: undefined,
-            anthropicThinkingEffort: 'xhigh',
+            reasoningEffort: 'high',
             useStructuredOutput: true,
             useStrictSchema: true,
         })
@@ -283,14 +328,14 @@ describe('settings schema normalization', () => {
                     providerId: provider.id,
                     model: 'model-a',
                     thinkingEnabled: true,
-                    openaiReasoningEffort: 'high',
+                    reasoningEffort: 'high',
                     useStructuredOutput: true,
                 },
                 {
                     providerId: provider.id,
                     model: 'model-b',
                     thinkingEnabled: false,
-                    openaiReasoningEffort: 'low',
+                    reasoningEffort: 'low',
                     useStructuredOutput: false,
                 },
             ],
@@ -298,12 +343,12 @@ describe('settings schema normalization', () => {
 
         expect(resolveProviderModelOutputControls(settings, provider.id, 'model-a')).toMatchObject({
             thinkingEnabled: true,
-            openaiReasoningEffort: 'high',
+            reasoningEffort: 'high',
             useStructuredOutput: true,
         })
         expect(resolveProviderModelOutputControls(settings, provider.id, 'model-b')).toMatchObject({
             thinkingEnabled: false,
-            openaiReasoningEffort: 'low',
+            reasoningEffort: 'low',
             useStructuredOutput: false,
         })
     })

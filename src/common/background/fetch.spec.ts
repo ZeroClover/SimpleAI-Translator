@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { backgroundFetch, getHostPermissionOrigin } from './fetch'
+import { backgroundFetch, getHostPermissionOrigin, requestHostPermission } from './fetch'
 
 const browserMock = vi.hoisted(() => ({
     permissions: {
@@ -82,6 +82,42 @@ describe('backgroundFetch host permissions', () => {
                 options: { method: 'GET' },
             },
         })
+    })
+
+    it('requests host permission synchronously from a user action', async () => {
+        const request = vi.fn().mockResolvedValue(true)
+        vi.stubGlobal('browser', { permissions: { request } })
+        try {
+            const result = requestHostPermission('https://api.example.com/v1')
+            // The prompt must be requested before the caller's first await (Firefox user gesture).
+            expect(request).toHaveBeenCalledWith({ origins: ['https://api.example.com/*'] })
+            await expect(result).resolves.toBe(true)
+        } finally {
+            vi.unstubAllGlobals()
+        }
+    })
+
+    it('treats a rejected or denied host permission request as not granted', async () => {
+        const request = vi.fn().mockRejectedValueOnce(new Error('not a user gesture')).mockResolvedValueOnce(false)
+        vi.stubGlobal('browser', { permissions: { request } })
+        try {
+            await expect(requestHostPermission('https://api.example.com/v1')).resolves.toBe(false)
+            await expect(requestHostPermission('https://api.example.com/v1')).resolves.toBe(false)
+        } finally {
+            vi.unstubAllGlobals()
+        }
+    })
+
+    it('skips the host permission request outside extension pages or for empty endpoints', async () => {
+        const request = vi.fn()
+        vi.stubGlobal('browser', { permissions: { request } })
+        try {
+            await expect(requestHostPermission('')).resolves.toBe(true)
+        } finally {
+            vi.unstubAllGlobals()
+        }
+        await expect(requestHostPermission('https://api.example.com/v1')).resolves.toBe(true)
+        expect(request).not.toHaveBeenCalled()
     })
 
     it('rejects before opening the background fetch port when optional host permission is denied', async () => {

@@ -44,7 +44,6 @@ export function getManifest(browser: 'firefox' | 'chromium') {
         host_permissions: [
             'https://api.openai.com/*',
             'https://api.anthropic.com/*',
-            'https://chat.openai.com/*',
             '*://speech.platform.bing.com/*',
             'https://edge.microsoft.com/*',
             'https://api-edge.cognitive.microsofttranslator.com/*',

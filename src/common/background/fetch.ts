@@ -26,6 +26,28 @@ export function getHostPermissionOrigin(input: string): string | undefined {
     }
 }
 
+interface ExtensionPermissionsAPI {
+    request(permissions: { origins: string[] }): Promise<boolean>
+}
+
+/**
+ * Asks for the extension host permission covering `input` from a user action.
+ * Firefox only shows the prompt while the click's user gesture is active, so
+ * call this before any other await in the click handler. Resolves `true` when
+ * no prompt is needed (non-HTTP URL or not running in an extension page).
+ */
+export function requestHostPermission(input: string): Promise<boolean> {
+    const origin = getHostPermissionOrigin(input)
+    const scope = globalThis as unknown as Partial<
+        Record<'browser' | 'chrome', { permissions?: ExtensionPermissionsAPI }>
+    >
+    const permissions = scope.browser?.permissions ?? scope.chrome?.permissions
+    if (!origin || !permissions?.request) {
+        return Promise.resolve(true)
+    }
+    return permissions.request({ origins: [origin] }).catch(() => false)
+}
+
 async function ensureHostPermission(input: string) {
     const origin = getHostPermissionOrigin(input)
     if (!origin) {

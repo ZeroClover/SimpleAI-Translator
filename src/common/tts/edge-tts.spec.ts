@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import toast from 'react-hot-toast/headless'
 import { fetchEdgeVoices, speak } from './edge-tts'
+
+vi.mock('react-hot-toast/headless', () => ({ default: vi.fn() }))
 
 const isDesktopAppMock = vi.hoisted(() => vi.fn())
 const edgeTtsSynthesizeMock = vi.hoisted(() => vi.fn())
@@ -276,5 +279,60 @@ describe('Edge TTS desktop integration', () => {
 
         expect(onFinish).toHaveBeenCalledTimes(1)
         expect(speechSynthesisSpeak).not.toHaveBeenCalled()
+        expect(toast).toHaveBeenCalledWith('Edge TTS: auth: forbidden')
+    })
+})
+
+describe('Edge TTS browser errors', () => {
+    beforeEach(() => {
+        FakeAudioContext.instances = []
+        isDesktopAppMock.mockReturnValue(false)
+        mockAudioContext()
+    })
+
+    afterEach(() => {
+        vi.unstubAllGlobals()
+        vi.clearAllMocks()
+    })
+
+    it('shows a toast when browser synthesis fails', async () => {
+        browserEdgeTtsMock.mockImplementation(() => ({
+            synthesize: vi.fn(async () => {
+                throw new Error('WebSocket closed')
+            }),
+        }))
+        const onFinish = vi.fn()
+
+        await expect(
+            speak({
+                text: 'Hello',
+                lang: 'en',
+                signal: new AbortController().signal,
+                onFinish,
+            })
+        ).rejects.toThrow('WebSocket closed')
+
+        expect(toast).toHaveBeenCalledWith('Edge TTS: WebSocket closed')
+        expect(onFinish).toHaveBeenCalledTimes(1)
+    })
+
+    it('stays silent when synthesis fails after the user stopped playback', async () => {
+        const controller = new AbortController()
+        browserEdgeTtsMock.mockImplementation(() => ({
+            synthesize: vi.fn(async () => {
+                controller.abort()
+                throw new Error('WebSocket closed')
+            }),
+        }))
+
+        await expect(
+            speak({
+                text: 'Hello',
+                lang: 'en',
+                signal: controller.signal,
+            })
+        ).resolves.toBeUndefined()
+
+        expect(toast).not.toHaveBeenCalled()
     })
 })

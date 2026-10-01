@@ -1,13 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createParser } from 'eventsource-parser'
 import {
-    AnthropicThinkingEffort,
     IBrowser,
     ISettings,
     ModelSelection,
-    OpenAIReasoningEffort,
     ProviderModelOutputControls,
     ProviderConfig,
+    ReasoningEffort,
 } from './types'
 import { getUniversalFetch } from './universal-fetch'
 import { v4 as uuidv4 } from 'uuid'
@@ -21,7 +20,6 @@ export const defaultTranslationTargetLanguage = 'en'
 export const defaulti18n = 'en'
 
 type RawSettings = Partial<ISettings> & Record<string, unknown>
-const openAITTSDanglingProviderMessage = '原 OpenAI TTS 关联的 Provider 已被删除，已回退到 Edge TTS'
 
 const settingKeys = {
     automaticCheckForUpdates: 1,
@@ -192,10 +190,13 @@ function normalizeProviderList(providers: unknown): ProviderConfig[] {
     })
 }
 
-const openaiReasoningEfforts = new Set<OpenAIReasoningEffort>(['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
-const anthropicThinkingEfforts = new Set<AnthropicThinkingEffort>(['low', 'medium', 'high', 'xhigh', 'max'])
+const reasoningEfforts = new Set<ReasoningEffort>(['low', 'medium', 'high'])
 
-function normalizeDefaultModel(rawDefaultModel: unknown, providers: ProviderConfig[]): ModelSelection | null {
+function normalizeDefaultModel(
+    rawDefaultModel: unknown,
+    providers: ProviderConfig[],
+    defaultProviderId: string | null
+): ModelSelection | null {
     const defaultModel = rawDefaultModel as Partial<ModelSelection> | undefined
     if (
         defaultModel &&
@@ -209,7 +210,9 @@ function normalizeDefaultModel(rawDefaultModel: unknown, providers: ProviderConf
             model: defaultModel.model,
         }
     }
-    const fallbackProvider = providers.find((provider) => provider.model.trim()) ?? providers[0]
+    // Fall back only to the provider in use: without a model there, the UI asks the user to
+    // pick one instead of silently switching to another provider.
+    const fallbackProvider = providers.find((provider) => provider.id === defaultProviderId)
     if (!fallbackProvider || !fallbackProvider.model.trim()) {
         return null
     }
@@ -239,22 +242,14 @@ function normalizeProviderModelOutputControls(
         ) {
             continue
         }
-        const openaiReasoningEffort = openaiReasoningEfforts.has(
-            String(item.openaiReasoningEffort) as OpenAIReasoningEffort
-        )
-            ? item.openaiReasoningEffort
-            : undefined
-        const anthropicThinkingEffort = anthropicThinkingEfforts.has(
-            String(item.anthropicThinkingEffort) as AnthropicThinkingEffort
-        )
-            ? item.anthropicThinkingEffort
+        const reasoningEffort = reasoningEfforts.has(String(item.reasoningEffort) as ReasoningEffort)
+            ? item.reasoningEffort
             : undefined
         const normalized: ProviderModelOutputControls = {
             providerId: item.providerId,
             model: item.model,
             ...(typeof item.thinkingEnabled === 'boolean' ? { thinkingEnabled: item.thinkingEnabled } : {}),
-            ...(openaiReasoningEffort ? { openaiReasoningEffort } : {}),
-            ...(anthropicThinkingEffort ? { anthropicThinkingEffort } : {}),
+            ...(reasoningEffort ? { reasoningEffort } : {}),
             ...(typeof item.useStructuredOutput === 'boolean' ? { useStructuredOutput: item.useStructuredOutput } : {}),
             ...(typeof item.useStrictSchema === 'boolean' ? { useStrictSchema: item.useStrictSchema } : {}),
         }
@@ -265,8 +260,7 @@ function normalizeProviderModelOutputControls(
 
 export interface ResolvedProviderModelOutputControls {
     thinkingEnabled: boolean
-    openaiReasoningEffort?: OpenAIReasoningEffort
-    anthropicThinkingEffort?: AnthropicThinkingEffort
+    reasoningEffort?: ReasoningEffort
     useStructuredOutput: boolean
     useStrictSchema: boolean
 }
@@ -282,8 +276,7 @@ export function resolveProviderModelOutputControls(
     const useStructuredOutput = record?.useStructuredOutput === true
     return {
         thinkingEnabled: record?.thinkingEnabled === true,
-        openaiReasoningEffort: record?.openaiReasoningEffort,
-        anthropicThinkingEffort: record?.anthropicThinkingEffort,
+        reasoningEffort: record?.reasoningEffort,
         useStructuredOutput,
         useStrictSchema: useStructuredOutput ? record.useStrictSchema !== false : true,
     }
@@ -344,7 +337,7 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
                 : rawSettings.automaticCheckForUpdates,
         providers,
         defaultProviderId,
-        defaultModel: normalizeDefaultModel(rawSettings.defaultModel, providers),
+        defaultModel: normalizeDefaultModel(rawSettings.defaultModel, providers, defaultProviderId),
         providerModelOutputControls: normalizeProviderModelOutputControls(
             rawSettings.providerModelOutputControls,
             providers
@@ -420,7 +413,16 @@ export async function setSettings(settings: Partial<ISettings>) {
         ),
     ])
     if (settings.tts?.provider === 'openai' && normalized.tts?.provider === 'edge') {
-        toast(openAITTSDanglingProviderMessage)
+        // Loaded lazily so the background service worker never initializes i18n.
+        const { default: i18n } = await import('./i18n')
+        const linkedProvider = normalized.providers?.find((item) => item.id === settings.tts?.openai?.providerId)
+        toast(
+            i18n.t(
+                linkedProvider
+                    ? 'The Provider linked to OpenAI TTS uses the Anthropic protocol, which does not support speech. Switched to Edge TTS.'
+                    : 'The Provider linked to OpenAI TTS was deleted. Switched to Edge TTS.'
+            )
+        )
     }
 }
 
@@ -473,21 +475,6 @@ export const isDarkMode = async () => {
 }
 
 export const isFirefox = () => /firefox/i.test(navigator.userAgent)
-
-export function isOpenAIOfficialProvider(provider: ProviderConfig | undefined): boolean {
-    return Boolean(
-        provider &&
-            (provider.protocol === 'openai-chat' || provider.protocol === 'openai-responses') &&
-            !provider.endpoint?.trim()
-    )
-}
-
-export const isUsingOpenAIOfficial = async () => {
-    const settings = await getSettings()
-    const provider =
-        settings.providers.find((provider) => provider.id === settings.defaultProviderId) ?? settings.providers[0]
-    return isOpenAIOfficialProvider(provider)
-}
 
 // js to csv
 export async function exportToCsv<T extends Record<string, string | number>>(filename: string, rows: T[]) {

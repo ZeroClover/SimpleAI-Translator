@@ -118,7 +118,7 @@ export const LANG_CONFIGS: Record<LangCode, Config> = {
         isVariant: true,
         isSource: false,
         genCommandPrompt: (sourceLanguageConfig) =>
-            `Translate from ${sourceLanguageConfig.nameEn} to Korean banmal. Please use 이다 and 다 endings. Never use formal or honorific endings. Return translated text only.`,
+            `Translate from ${sourceLanguageConfig.nameEn} to Korean banmal, using 이다 and 다 endings rather than formal or honorific endings.`,
     },
 
     'fr': {

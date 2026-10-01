@@ -198,11 +198,17 @@ export async function bingDetectLang(text: string): Promise<LangCode> {
         if (resp.ok) {
             const result = await resp.json()
             if (result[0].language) {
-                return result[0].language
+                return bingLangCodeToLangCode(result[0].language)
             }
         }
     }
     return 'en'
+}
+
+// Bing returns BCP-47 codes: zh-Hans/zh-Hant/yue/lzh match LangCode directly, while region or
+// script variants such as pt-PT or mn-Cyrl map to their base language.
+function bingLangCodeToLangCode(code: string): LangCode {
+    return code in LANG_CONFIGS ? (code as LangCode) : intoLangCode(code.split('-')[0])
 }
 
 export async function baiduDetectLang(text: string): Promise<LangCode> {
@@ -345,17 +351,20 @@ export async function detectLang(text: string): Promise<LangCode> {
         detectedText = detectedText.slice(0, 1000)
     }
     const settings = await getSettings()
-    switch (settings.languageDetectionEngine) {
-        case 'baidu':
-            return await baiduDetectLang(detectedText)
-        case 'google':
-            return await googleDetectLang(detectedText)
-        case 'bing':
-            return await bingDetectLang(detectedText)
-        case 'local':
-            return await localDetectLang(detectedText)
-        default:
-            return await localDetectLang(detectedText)
+    try {
+        switch (settings.languageDetectionEngine) {
+            case 'baidu':
+                return await baiduDetectLang(detectedText)
+            case 'google':
+                return await googleDetectLang(detectedText)
+            case 'bing':
+                return await bingDetectLang(detectedText)
+            default:
+                return await localDetectLang(detectedText)
+        }
+    } catch (error) {
+        console.warn('Remote language detection failed, falling back to local detection:', error)
+        return await localDetectLang(detectedText)
     }
 }
 

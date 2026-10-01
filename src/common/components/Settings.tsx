@@ -17,15 +17,14 @@ import { Checkbox } from 'baseui-sd/checkbox'
 import { LangCode, supportedLanguages } from '../lang'
 import { createUseStyles } from 'react-jss'
 import {
-    AnthropicThinkingEffort,
     ISettings,
     IThemedStyleProps,
     LanguageDetectionEngine,
     ModelSelection,
-    OpenAIReasoningEffort,
     ProviderModelOutputControls,
     ProviderConfig,
     ProxyProtocol,
+    ReasoningEffort,
     ThemeType,
 } from '../types'
 import { useTheme } from '../hooks/useTheme'
@@ -38,6 +37,7 @@ import { RiDeleteBin5Line } from 'react-icons/ri'
 import { IoIosSave, IoMdAdd } from 'react-icons/io'
 import { OpenAITTSFormat, OpenAITTSSettings, TTSProvider } from '../tts/types'
 import { fetchEdgeVoices } from '../tts/edge-tts'
+import { getOpenAITTSVoices } from '../tts/openai-tts'
 import { useThemeType } from '../hooks/useThemeType'
 import { Slider } from 'baseui-sd/slider'
 import { GlobalSuspense } from './GlobalSuspense'
@@ -54,6 +54,7 @@ import { ProviderForm, ProviderFormValue } from './ProviderForm'
 import { v4 as uuidv4 } from 'uuid'
 import { filterChatModels, filterTTSModels, sortModelIds } from '../engines/model-filter'
 import { getEngine } from '../engines'
+import { requestHostPermission } from '../background/fetch'
 
 const langOptions: Value = supportedLanguages.reduce((acc, [id, label]) => {
     return [
@@ -256,22 +257,6 @@ const ttsProviderOptions: {
     { labelKey: 'OpenAI TTS', id: 'openai' },
 ]
 
-const openAITTSVoiceOptions = [
-    'alloy',
-    'ash',
-    'ballad',
-    'coral',
-    'echo',
-    'fable',
-    'onyx',
-    'nova',
-    'sage',
-    'shimmer',
-    'verse',
-    'marin',
-    'cedar',
-]
-
 const openAITTSFormatOptions: OpenAITTSFormat[] = ['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm']
 
 function getOpenAITTSVoiceId(voice: OpenAITTSSettings['voice'] | undefined): string {
@@ -335,11 +320,11 @@ function TTSVoicesSettings({ value, providers, onChange, onBlur }: ITTSVoicesSet
     )
     const openAIVoiceOptions = useMemo(
         () =>
-            Array.from(new Set([openAIVoice, ...openAITTSVoiceOptions].filter(Boolean))).map((voice) => ({
+            Array.from(new Set([openAIVoice, ...getOpenAITTSVoices(openAIModel)].filter(Boolean))).map((voice) => ({
                 id: voice,
                 label: voice,
             })),
-        [openAIVoice]
+        [openAIModel, openAIVoice]
     )
 
     const { data: edgeVoices, isLoading: isEdgeVoicesLoading } = useSWR(
@@ -1041,21 +1026,10 @@ interface LLMProvidersSettingsProps {
     ): void
 }
 
-const openaiReasoningEffortOptions: { id: OpenAIReasoningEffort; label: string }[] = [
-    { id: 'none', label: 'None' },
-    { id: 'minimal', label: 'Minimal' },
+const reasoningEffortOptions: { id: ReasoningEffort; label: string }[] = [
     { id: 'low', label: 'Low' },
     { id: 'medium', label: 'Medium' },
     { id: 'high', label: 'High' },
-    { id: 'xhigh', label: 'Extra High' },
-]
-
-const anthropicThinkingEffortOptions: { id: AnthropicThinkingEffort; label: string }[] = [
-    { id: 'low', label: 'Low' },
-    { id: 'medium', label: 'Medium' },
-    { id: 'high', label: 'High' },
-    { id: 'xhigh', label: 'Extra High' },
-    { id: 'max', label: 'Max' },
 ]
 
 function LLMProvidersSettings({
@@ -1113,10 +1087,7 @@ function LLMProvidersSettings({
             ),
         [activeProvider?.id, defaultModel?.model, providerModelOutputControls]
     )
-    const selectedOpenAIEffort = selectedOutputControls.openaiReasoningEffort ?? 'medium'
-    const selectedAnthropicEffort = selectedOutputControls.anthropicThinkingEffort ?? 'high'
-    const isOpenAIProtocol =
-        activeProvider?.protocol === 'openai-chat' || activeProvider?.protocol === 'openai-responses'
+    const selectedEffort = selectedOutputControls.reasoningEffort ?? 'medium'
     const updateOutputControls = useCallback(
         (controls: Partial<ProviderModelOutputControls>) => {
             if (!activeProvider || !defaultModel?.model) {
@@ -1130,13 +1101,8 @@ function LLMProvidersSettings({
                 ),
                 ...controls,
             }
-            if (controls.thinkingEnabled === true) {
-                if (isOpenAIProtocol && !nextRecord.openaiReasoningEffort) {
-                    nextRecord.openaiReasoningEffort = 'medium'
-                }
-                if (activeProvider.protocol === 'anthropic' && !nextRecord.anthropicThinkingEffort) {
-                    nextRecord.anthropicThinkingEffort = 'high'
-                }
+            if (controls.thinkingEnabled === true && !nextRecord.reasoningEffort) {
+                nextRecord.reasoningEffort = 'medium'
             }
             if (controls.useStructuredOutput === true && nextRecord.useStrictSchema === undefined) {
                 nextRecord.useStrictSchema = true
@@ -1149,15 +1115,7 @@ function LLMProvidersSettings({
             ]
             onChange(providers, defaultProviderId, defaultModel, nextOutputControls)
         },
-        [
-            activeProvider,
-            defaultModel,
-            defaultProviderId,
-            isOpenAIProtocol,
-            onChange,
-            providerModelOutputControls,
-            providers,
-        ]
+        [activeProvider, defaultModel, defaultProviderId, onChange, providerModelOutputControls, providers]
     )
     const dropdownOverrides = useMemo(
         () => ({
@@ -1231,26 +1189,26 @@ function LLMProvidersSettings({
 
     const activateProvider = useCallback(
         (provider: ProviderConfig) => {
-            const model = provider.modelOptions?.[0] ?? provider.model
+            const model = provider.model || provider.modelOptions?.[0]
             onChange(
                 providers,
                 provider.id,
-                model
-                    ? {
-                          providerId: provider.id,
-                          model,
-                      }
-                    : defaultModel,
+                model ? { providerId: provider.id, model } : null,
                 providerModelOutputControls
             )
         },
-        [defaultModel, onChange, providerModelOutputControls, providers]
+        [onChange, providerModelOutputControls, providers]
     )
 
     const refreshProviderModels = useCallback(
         async (provider: ProviderConfig) => {
             if (!provider.apiKey.trim()) {
                 toast(t('API Key is required.'))
+                return
+            }
+            // Must stay the first await so Firefox still sees the click's user gesture.
+            if (!(await requestHostPermission(provider.endpoint ?? ''))) {
+                toast(t('Permission to access this endpoint was denied.'))
                 return
             }
             setRefreshingProviderId(provider.id)
@@ -1260,6 +1218,10 @@ function LLMProvidersSettings({
                     model: provider.model || 'model',
                 }).listModels()
                 const ids = sortModelIds(filterChatModels(models.map((model) => model.id)))
+                if (ids.length === 0) {
+                    toast(t('Unable to fetch model list. Please enter the model name manually.'))
+                    return
+                }
                 const nextProviders = providers.map((item) => {
                     if (item.id !== provider.id) {
                         return item
@@ -1267,21 +1229,18 @@ function LLMProvidersSettings({
                     return {
                         ...item,
                         modelOptions: ids,
-                        model: item.model || ids[0] || '',
+                        model: item.model || ids[0],
                     }
                 })
-                const nextDefaultModel =
-                    defaultModel && defaultModel.providerId === provider.id
-                        ? ids.includes(defaultModel.model)
-                            ? defaultModel
-                            : ids[0]
-                            ? { providerId: provider.id, model: ids[0] }
-                            : defaultModel
-                        : defaultModel ?? (ids[0] ? { providerId: provider.id, model: ids[0] } : null)
-                onChange(nextProviders, defaultProviderId ?? provider.id, nextDefaultModel, providerModelOutputControls)
-                if (ids.length === 0) {
-                    toast(t('Unable to fetch model list. Please enter the model name manually.'))
-                }
+                const nextDefaultProviderId = defaultProviderId ?? provider.id
+                const nextDefaultModel = defaultModel
+                    ? defaultModel.providerId === provider.id && !ids.includes(defaultModel.model)
+                        ? { providerId: provider.id, model: ids[0] }
+                        : defaultModel
+                    : nextDefaultProviderId === provider.id
+                    ? { providerId: provider.id, model: ids[0] }
+                    : null
+                onChange(nextProviders, nextDefaultProviderId, nextDefaultModel, providerModelOutputControls)
             } catch (error) {
                 toast(
                     error instanceof Error ? t(error.message) : t('Unable to fetch model list. Please enter manually.')
@@ -1461,73 +1420,37 @@ function LLMProvidersSettings({
                     >
                         {t('Thinking Enabled')}
                     </Checkbox>
-                    {isOpenAIProtocol && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <div style={{ color: theme.colors.contentSecondary, fontSize: 12 }}>
-                                {t('OpenAI Reasoning Effort')}
-                            </div>
-                            <Select
-                                size='compact'
-                                clearable={false}
-                                searchable={false}
-                                options={openaiReasoningEffortOptions.map((option) => ({
-                                    ...option,
-                                    label: t(option.label),
-                                }))}
-                                value={[
-                                    {
-                                        id: selectedOpenAIEffort,
-                                        label: t(
-                                            openaiReasoningEffortOptions.find(
-                                                (option) => option.id === selectedOpenAIEffort
-                                            )?.label ?? 'Medium'
-                                        ),
-                                    },
-                                ]}
-                                onChange={({ option }) =>
-                                    option?.id &&
-                                    updateOutputControls({
-                                        openaiReasoningEffort: option.id as OpenAIReasoningEffort,
-                                    })
-                                }
-                            />
-                        </div>
-                    )}
-                    {activeProvider?.protocol === 'anthropic' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <div style={{ color: theme.colors.contentSecondary, fontSize: 12 }}>
-                                {t('Anthropic Thinking Effort')}
-                            </div>
-                            <Select
-                                size='compact'
-                                clearable={false}
-                                searchable={false}
-                                options={anthropicThinkingEffortOptions.map((option) => ({
-                                    ...option,
-                                    label: t(option.label),
-                                }))}
-                                value={[
-                                    {
-                                        id: selectedAnthropicEffort,
-                                        label: t(
-                                            anthropicThinkingEffortOptions.find(
-                                                (option) => option.id === selectedAnthropicEffort
-                                            )?.label ?? 'High'
-                                        ),
-                                    },
-                                ]}
-                                onChange={({ option }) =>
-                                    option?.id &&
-                                    updateOutputControls({
-                                        anthropicThinkingEffort: option.id as AnthropicThinkingEffort,
-                                    })
-                                }
-                            />
-                        </div>
-                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <div style={{ color: theme.colors.contentSecondary, fontSize: 12 }}>{t('Thinking Effort')}</div>
+                        <Select
+                            size='compact'
+                            clearable={false}
+                            searchable={false}
+                            disabled={!defaultModel}
+                            options={reasoningEffortOptions.map((option) => ({
+                                ...option,
+                                label: t(option.label),
+                            }))}
+                            value={[
+                                {
+                                    id: selectedEffort,
+                                    label: t(
+                                        reasoningEffortOptions.find((option) => option.id === selectedEffort)?.label ??
+                                            'Medium'
+                                    ),
+                                },
+                            ]}
+                            onChange={({ option }) =>
+                                option?.id &&
+                                updateOutputControls({
+                                    reasoningEffort: option.id as ReasoningEffort,
+                                })
+                            }
+                        />
+                    </div>
                     <div style={{ color: theme.colors.contentSecondary, fontSize: 12 }}>
                         {t(
-                            'Thinking support depends on the selected model and compatible endpoint. OpenAI reasoning models should use the OpenAI Responses protocol.'
+                            'When thinking is off, models that always reason run at their lowest effort. OpenAI reasoning models work best with the OpenAI Responses protocol.'
                         )}
                     </div>
                     <SettingsToggle
@@ -1925,7 +1848,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         SimpleAI Translator
                         {appVersion ? (
                             <a
-                                href='https://github.com/nextai-translator/nextai-translator/releases'
+                                href='https://github.com/ZeroClover/SimpleAI-Translator/releases'
                                 target='_blank'
                                 rel='noreferrer'
                                 style={linkStyle}
@@ -1991,8 +1914,8 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         target='_blank'
                         href={
                             values?.i18n?.toLowerCase().includes('zh')
-                                ? 'https://github.com/nextai-translator/nextai-translator/blob/main/README-CN.md#%E5%AE%89%E8%A3%85'
-                                : 'https://github.com/nextai-translator/nextai-translator#installation'
+                                ? 'https://github.com/ZeroClover/SimpleAI-Translator/blob/main/README-CN.md#%E5%AE%89%E8%A3%85'
+                                : 'https://github.com/ZeroClover/SimpleAI-Translator#installation'
                         }
                         rel='noreferrer'
                         style={{

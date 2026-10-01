@@ -2,6 +2,7 @@ import '../enable-dev-hmr'
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { Settings } from '../../common/components/Settings'
+import Toaster from '../../common/components/Toaster'
 import { Client as Styletron } from 'styletron-engine-atomic'
 import '../../common/i18n'
 import './index.css'
@@ -34,6 +35,8 @@ const Options = () => {
         <div className={styles.root}>
             <div className={styles.container}>
                 <Settings engine={engine} />
+                {/* TTS reports errors through react-hot-toast/headless, which the Settings Toaster does not render. */}
+                <Toaster />
             </div>
         </div>
     )

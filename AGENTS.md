@@ -38,6 +38,10 @@ Unit tests live next to the code as `foo.spec.ts` and run with Vitest. Mock remo
 ## Commit & Pull Request Guidelines
 Follow the lightweight conventional pattern seen in history (`fix:`, `feat:`, `chore:`) with concise, imperative summaries and optional scope (e.g., `fix: handle streaming fallback`). Reference related issues in parentheses `(#1234)` when helpful. PRs should describe the change, attach screenshots or GIFs for UI work, list verification commands, and call out platform coverage across Chrome, Firefox, and Tauri targets. Request review after lint/tests pass and diffs are free of secrets.
 
+## Release Notes
+- Before preparing a release, annotated version tag, or release notes, read `.codex/skills/release-notes/SKILL.md`.
+- Keep reviewed user-facing notes in `docs/releases/<version>.md`; do not generate them from commit subjects. The annotated tag, GitHub Release body, and updater `latest.json.notes` must use the same content.
+
 ## Security & Configuration Tips
 Never commit API keys or user artifacts; rely on runtime configuration via the in-app settings or local `.env` files ignored by git. When adding providers, document required environment keys under `docs/` and guard sensitive defaults behind toggles in `src/common`.
 

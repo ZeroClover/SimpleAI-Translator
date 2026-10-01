@@ -15,8 +15,19 @@ import { useTranslation } from 'react-i18next'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { UpdateResult, commands, events } from '../bindings'
 import type { UnlistenFn } from '@tauri-apps/api/event'
+import Markdown from 'react-markdown'
 
 const useStyles = createUseStyles({
+    releaseNotes: {
+        'fontSize': '16px',
+        'lineHeight': '1.8',
+        'overflowWrap': 'anywhere',
+        '& > :first-child': { marginTop: 0 },
+        '& > :last-child': { marginBottom: 0 },
+        '& ul, & ol': { paddingLeft: '24px' },
+        '& li + li': { marginTop: '8px' },
+        '& p': { margin: '0 0 12px' },
+    },
     icon: {
         'display': 'block',
         'width': '20px',
@@ -115,8 +126,6 @@ export function UpdaterWindow() {
                         borderTop: '90px solid transparent',
                         borderBottom: '90px solid transparent',
                         color: theme.colors.contentPrimary,
-                        display: 'flex',
-                        justifyContent: 'center',
                         padding: '0px 20px',
                     }}
                 >
@@ -124,6 +133,7 @@ export function UpdaterWindow() {
                         <div
                             style={{
                                 display: 'flex',
+                                minHeight: '100%',
                                 flexDirection: 'column',
                                 justifyContent: 'center',
                                 alignItems: 'center',
@@ -137,11 +147,7 @@ export function UpdaterWindow() {
                     {!isChecking && (
                         <div
                             style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '10px',
-                                justifyContent: 'center',
-                                alignItems: 'center',
+                                padding: '16px 0',
                             }}
                         >
                             <div
@@ -180,23 +186,9 @@ export function UpdaterWindow() {
                                 )}
                             </div>
                             {checkResult && checkResult.body && (
-                                <ul
-                                    style={{
-                                        fontSize: '16px',
-                                        lineHeight: '1.8',
-                                        listStyleType: 'square',
-                                        margin: '0px',
-                                        marginLeft: '40px',
-                                        padding: '0px',
-                                    }}
-                                >
-                                    {checkResult.body
-                                        .split('\n')
-                                        .filter((line) => !!line.trim())
-                                        .map((line, idx) => {
-                                            return <li key={idx}>{line}</li>
-                                        })}
-                                </ul>
+                                <div className={styles.releaseNotes}>
+                                    <Markdown skipHtml>{checkResult.body}</Markdown>
+                                </div>
                             )}
                         </div>
                     )}
@@ -211,6 +203,7 @@ export function UpdaterWindow() {
                         justifyContent: 'center',
                         alignItems: 'center',
                         width: '100%',
+                        boxSizing: 'border-box',
                         background: themeType === 'dark' ? 'rgba(31, 31, 31, 0.5)' : 'rgba(255, 255, 255, 0.5)',
                         borderTop: `1px solid ${theme.colors.borderTransparent}`,
                         backdropFilter: 'blur(10px)',

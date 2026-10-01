@@ -1,20 +1,19 @@
 # settings-surface Specification
 
 ## Purpose
-TBD - created by archiving change simpleai-translator-rebrand. Update Purpose after archive.
+定义设置面板的组成与 `ISettings` 字段范围，以及对已移除能力(全局快捷键、赞助入口、Dock 隐藏与失焦隐藏、选词触发)的不再出现保证、i18n locale 文件结构和按 Provider + Model 配置的结构化输出开关。
+
 ## Requirements
-### Requirement: 设置面板保留现有未删功能
 
-设置面板(`Settings.tsx`)SHALL 删除本变更明确列出的设置项,但 MUST NOT 因本变更额外删除原始提示词未要求删除的设置能力。
+### Requirement: 设置面板组成
 
-以下现有设置能力 MAY 继续保留,也 MAY 按现有 UI 结构组织在 General / Proxy / Text-to-Speech 等 tab 中:
-- 语言、主题、字体大小、窗口背景模糊、固定位置
-- 默认目标语言、语言检测引擎
-- LLM Provider 多配置列表与新增/编辑表单
-- TTS backend / voice / volume / rate,以及 OpenAI TTS 子区
-- 代理配置、开机启动、自动检查更新
+设置面板(`src/common/components/Settings.tsx`)SHALL 按以下标签组织现有设置能力:
 
-设置面板 MUST NOT 出现以下被本变更移除的区域或表单项:
+- General:界面语言(i18n)、LLM Providers 区块(Provider 列表、模型选择、思考与结构化输出控件)、母语(Native language)、翻译目标语言(Translation target language)、语言检测引擎、主题、字体大小;桌面端额外显示窗口背景模糊(Window background blur)、固定位置(Fixed Position)、自动检查更新;Tauri 端额外显示开机启动(Run at startup)
+- Proxy:仅 Tauri 端显示，包含启用开关、协议、服务器、端口、用户名、密码、No proxy
+- TTS:TTS backend / voice / volume / rate，以及 OpenAI TTS 子区(关联 Provider、TTS 模型及刷新、Voice、Audio format)
+
+设置面板 MUST NOT 出现以下已移除的区域或表单项:
 - 任何"快捷键 / Hotkey / Shortcut / 全局热键"区域或表单项
 - 任何"Buy me a coffee / 赞助 / 捐赠 / WeChat Pay / Alipay"按钮、图片或弹窗
 - `alwaysShowIcons`(选中文字时显示图标 / Always show icons)开关
@@ -24,17 +23,19 @@ TBD - created by archiving change simpleai-translator-rebrand. Update Purpose af
 - `hideTheIconInTheDock`(隐藏 Dock 栏中的图标 / Hide the icon in the Dock bar / Hide the icon in the taskbar)开关
 - `autoHideWindowWhenOutOfFocus`(失去焦点时自动隐藏窗口)开关
 - `disableCollectingStatistics`(禁用统计 / Disable collecting statistics)开关
+- 全局的 Structured Output / Strict JSON Schema 开关(这两项只按 Provider + Model 配置)
 
-#### Scenario: 设置面板渲染保留项
+#### Scenario: 设置面板渲染现有项
 
 - **WHEN** 用户首次打开设置面板(空 settings)
-- **THEN** UI SHALL 继续渲染 Provider、TTS、语言/主题/字体、代理(桌面端)、启动/更新等未被本变更点名删除的设置能力
+- **THEN** UI SHALL 渲染 General 与 TTS 标签，桌面 Tauri 端额外渲染 Proxy 标签
+- **AND** General 标签 SHALL 渲染 LLM Providers 区块、语言、主题、字体大小等上述设置项
 - **AND** UI SHALL NOT 渲染任何上述被列为移除的表单项或按钮
 
 #### Scenario: 设置面板源码不含被删 FormItem
 
 - **WHEN** 在 `src/common/components/Settings.tsx` 中搜索如下 `name=` 字符串:
-  `'hotkey'` / `'displayWindowHotkey'` / `'alwaysShowIcons'` / `'autoTranslate'` / `'selectInputElementsText'` / `'hideTheIconInTheDock'` / `'autoHideWindowWhenOutOfFocus'` / `'disableCollectingStatistics'`
+  `'hotkey'` / `'displayWindowHotkey'` / `'alwaysShowIcons'` / `'autoTranslate'` / `'selectInputElementsText'` / `'hideTheIconInTheDock'` / `'autoHideWindowWhenOutOfFocus'` / `'disableCollectingStatistics'` / `'useStructuredOutput'` / `'useStrictSchema'`
 - **THEN** SHALL NOT 命中
 
 #### Scenario: 设置面板源码不含被删组件
@@ -54,58 +55,58 @@ TBD - created by archiving change simpleai-translator-rebrand. Update Purpose af
 - `hideTheIconInTheDock`
 - `autoHideWindowWhenOutOfFocus`
 - `disableCollectingStatistics`
+- `useStructuredOutput`
+- `useStrictSchema`
 
-`src/common/utils.ts` 中默认值与规范化函数 SHALL NOT 为这些字段提供 default、不在迁移路径中保留它们。
+`src/common/utils.ts` 的设置 key 列表(`settingKeys`)、默认值与 `normalizeSettings` SHALL NOT 包含或产出这些顶层字段;由于 `getSettings` 只读取已知 key、`setSettings` 只写已知 key,这些旧顶层字段 SHALL 既不被读取也不被写回。`useStructuredOutput` 与 `useStrictSchema` SHALL 只作为 ProviderModelOutputControls 的字段存在。
 
 #### Scenario: types.ts 字段缺失
 
 - **WHEN** 在 `src/common/types.ts` 检查 `ISettings` 接口
-- **THEN** 上述字段名 SHALL NOT 出现
+- **THEN** 上述字段名 SHALL NOT 作为 `ISettings` 的属性出现
+- **AND** `useStructuredOutput` / `useStrictSchema` SHALL 仅出现在 `ProviderModelOutputControls` 接口中
 
-#### Scenario: utils.ts 默认值缺失
+#### Scenario: utils.ts 不处理被删字段
 
-- **WHEN** 在 `src/common/utils.ts` 中搜索上述字段名
-- **THEN** SHALL NOT 命中(允许 `openspec/` 与 git history 中保留历史)
+- **WHEN** 在 `src/common/utils.ts` 中按全词(独立标识符)搜索 `hotkey`、`displayWindowHotkey`、`alwaysShowIcons`、`autoTranslate`、`selectInputElementsText`、`readSelectedWordsFromInputElementsText`、`hideTheIconInTheDock`、`autoHideWindowWhenOutOfFocus`、`disableCollectingStatistics`
+- **THEN** SHALL NOT 命中
+- **AND** `useStructuredOutput` / `useStrictSchema` SHALL 只出现在 ProviderModelOutputControls 的归一化与解析逻辑中,SHALL NOT 出现在 `settingKeys` 中
 
 ### Requirement: 删除快捷键依赖与基础设施
 
 应用 SHALL NOT 注册任何全局键盘快捷键。具体:
 - `src-tauri/src/config.rs` 的 `Config` 结构 MUST NOT 包含 `hotkey` / `display_window_hotkey` 字段
-- `src-tauri/src/tray.rs` 的菜单项 MUST NOT 设置 accelerator(传 `None`)
-- Tauri 主进程 MUST NOT 调用任何全局快捷键注册 API(`tauri::GlobalShortcutManager` 等)
-- `src/tauri/windows/TranslatorWindow.tsx` MUST NOT 调用 `bindHotkey` / `bindDisplayWindowHotkey` 等等价函数
-- `src/tauri/utils.ts` MUST NOT 保留 `bindHotkey` / `bindDisplayWindowHotkey` 等全局快捷键 helper
-- 浏览器扩展 manifest MUST NOT 声明 `commands`,background MUST NOT 监听 `browser.commands.onCommand`,content script MUST NOT 使用 `hotkeys-js` 绑定用户配置快捷键
-- `react-hotkeys-hook`、`hotkeys-js`、`@tauri-apps/plugin-global-shortcut` 在确认无其它使用点后从 `package.json` 依赖中移除
-- `src-tauri/capabilities/migrated.json` MUST NOT 保留 `global-shortcut:*` permissions
+- Tauri 主进程 MUST NOT 调用任何全局快捷键注册 API,`src-tauri/Cargo.toml` MUST NOT 依赖 `tauri-plugin-global-shortcut`
+- `src-tauri/capabilities/` 下的 capability 文件 MUST NOT 声明 `global-shortcut:*` permissions
+- `src/tauri/windows/TranslatorWindow.tsx` 与 `src/tauri/utils.ts` MUST NOT 包含 `bindHotkey` / `bindDisplayWindowHotkey` 等全局快捷键 helper 或调用
+- 浏览器扩展 manifest MUST NOT 声明 `commands`,background MUST NOT 监听 `browser.commands.onCommand`,content script MUST NOT 使用 `hotkeys-js` 绑定快捷键
+- `package.json` MUST NOT 依赖 `react-hotkeys-hook`、`hotkeys-js`、`@tauri-apps/plugin-global-shortcut`
 
-`Translator.tsx` 内部针对回车 / Shift+Enter / Esc 等的局部 keydown 监听不属于"全局快捷键"范畴,SHALL 保留。
+菜单加速键不属于全局快捷键:托盘菜单 "Settings" 项 MAY 显示 `CmdOrCtrl+,`,macOS 应用菜单 MAY 提供 "Settings…" `Cmd+,`;托盘中以 `MenuItem::with_id` 创建的其它菜单项 SHALL NOT 设置加速键。`Translator.tsx` 内部针对 Enter / Shift+Enter 等的局部 keydown 监听 SHALL 保留。
 
-#### Scenario: Cargo.toml 与 config.rs
+#### Scenario: config.rs 与 Cargo.toml
 
 - **WHEN** 检查 `src-tauri/src/config.rs`
-- **THEN** 文件 SHALL NOT 包含 `hotkey:` 或 `display_window_hotkey:` 字段
-- **WHEN** 检查 `src-tauri/Cargo.toml`
-- **THEN** SHALL NOT 包含 `tauri-plugin-global-shortcut` 等全局快捷键插件依赖(若曾经存在)
+- **THEN** 文件 SHALL NOT 包含 `hotkey` 或 `display_window_hotkey` 字段
+- **WHEN** 检查 `src-tauri/Cargo.toml` 与 `src-tauri/capabilities/`
+- **THEN** SHALL NOT 包含 `global-shortcut` 相关依赖或 permission
 
-#### Scenario: Tauri 启动不注册全局快捷键
+#### Scenario: 托盘菜单加速键
 
-- **WHEN** 启动桌面端应用并在系统层观察 macOS Accessibility 权限请求
-- **THEN** 应用 SHALL NOT 触发与全局快捷键相关的辅助功能权限请求
+- **WHEN** 检查 `src-tauri/src/tray.rs` 中创建的菜单项
+- **THEN** 只有 "Settings" 项 SHALL 带 `CmdOrCtrl+,` 加速键,"Check for Updates..."、"Show"、"Pin" 等其它项 SHALL 传 `None`
 
 #### Scenario: 快捷键依赖引用
 
-- **WHEN** 在仓库中搜索 `from 'react-hotkeys-hook'` / `hotkeys-js` / `@tauri-apps/plugin-global-shortcut`
-- **THEN** SHALL 满足以下之一:
-  - 命中数为 0(已移除依赖),且 `package.json` 中无对应依赖
-  - 仅在非快捷键用途的局部组件中命中(则保留依赖,但 PR 中 MUST 说明保留原因)
+- **WHEN** 在 `src/`、`src-tauri/` 与 `package.json` 中搜索 `react-hotkeys-hook` / `hotkeys-js` / `@tauri-apps/plugin-global-shortcut` / `GlobalShortcut`
+- **THEN** 命中数 SHALL 为 0
 
 ### Requirement: 删除 Buy me a coffee / 赞助路径
 
 应用 MUST NOT 提供任何"赞助 / 捐赠 / Buy me a coffee / 请我喝杯咖啡"入口、按钮、Modal 或外链。具体:
-- `Settings.tsx` 中 `showBuyMeACoffee` 状态、按钮、Modal 全部删除
-- `src/common/assets/images/wechat.png` 与 `alipay.png`,若不再被任何组件引用,SHALL 从仓库中删除
-- 所有 i18n locale 中的相关 key(`Buy me a coffee` / 介绍语)SHALL 删除
+- `Settings.tsx` SHALL NOT 包含 `showBuyMeACoffee` 状态、赞助按钮或赞助 Modal
+- 仓库 SHALL NOT 包含 `wechat.png` / `alipay.png` 收款图片
+- i18n locale SHALL NOT 包含 `Buy me a coffee` 等赞助相关 key
 
 #### Scenario: 设置 About 区无赞助按钮
 
@@ -116,18 +117,18 @@ TBD - created by archiving change simpleai-translator-rebrand. Update Purpose af
 #### Scenario: 资产文件移除
 
 - **WHEN** 检查 `src/common/assets/images/`
-- **THEN** SHALL NOT 包含 `wechat.png` 或 `alipay.png`(除非这些文件还被其它非赞助场景引用,该例外需要在 PR 中显式说明)
+- **THEN** SHALL NOT 包含 `wechat.png` 或 `alipay.png`
 
 #### Scenario: i18n key 移除
 
-- **WHEN** 在所有 `src/common/i18n/locales/<lang>/translation.json` 中搜索 `Buy me a coffee`、`请我喝杯咖啡`、对应的"介绍语" key
+- **WHEN** 在所有 `src/common/i18n/locales/<lang>/translation.json` 中搜索 `Buy me a coffee`、`请我喝杯咖啡`、`coffee`
 - **THEN** SHALL NOT 命中
 
 ### Requirement: 删除 macOS Dock 与窗口焦点行为
 
-桌面端 macOS App 的 activation policy SHALL 始终为 `Regular`(在 Dock 与 Cmd+Tab 中可见)。`src-tauri/src/main.rs` 中 SHALL NOT 包含基于设置切换 `set_activation_policy(ActivationPolicy::Accessory)` 的代码路径。
+桌面端 macOS App 的 activation policy SHALL 始终为 `Regular`(在 Dock 与 Cmd+Tab 中可见)。`src-tauri/src/main.rs` SHALL 在启动时设置 `ActivationPolicy::Regular`,且 SHALL NOT 包含切换到 `ActivationPolicy::Accessory` 的代码路径。
 
-桌面端窗口在失去焦点时 SHALL NOT 自动隐藏。`src/tauri/windows/TranslatorWindow.tsx` 中针对 `blur` / `focus_out` / `WindowEvent::Focused(false)` 的副作用 SHALL 仅保留必要的非副作用观察(若任何),MUST NOT 因失焦而调用 `hide()` / `close()`。
+桌面端窗口在失去焦点时 SHALL NOT 自动隐藏。`src/tauri/windows/TranslatorWindow.tsx` 的失焦回调 SHALL 只记录当前活动窗口(`rememberActiveWindowCommand`),MUST NOT 因失焦而调用 `hide()` / `close()`。
 
 #### Scenario: macOS 始终在 Dock 显示
 
@@ -143,26 +144,26 @@ TBD - created by archiving change simpleai-translator-rebrand. Update Purpose af
 
 ### Requirement: 删除选词/划词触发链路
 
-桌面端的鼠标全局 hook(`bind_mouse_hook` 等)与浏览器扩展 content script 中的 input/textarea 选词监听 SHALL 不再因 `alwaysShowIcons` / `autoTranslate` / `selectInputElementsText` 等设置触发任何 UI 或翻译请求。具体:
-- 若 `bind_mouse_hook` 仅供 `alwaysShowIcons` 使用,SHALL 整段删除
-- 若浏览器扩展 content script 中存在仅服务 `autoTranslate` / `alwaysShowIcons` / `selectInputElementsText` 的 selection 监听分支,SHALL 删除该分支
-- 删除后,选中文字 SHALL NOT 自动发起翻译、弹出任何浮动图标或翻译触发按钮
+选中文字 SHALL NOT 自动发起翻译、弹出任何浮动图标或翻译触发按钮。具体:
+- 桌面端 SHALL NOT 包含鼠标全局 hook(`bind_mouse_hook` / `MouseHookEvent`)
+- 浏览器扩展 content script SHALL 只在收到右键菜单(`contextMenus`)发出的 `open-translator` 消息时打开翻译卡片,并以菜单提供的 `selectionText` 作为原文;`mouseup` / `touchend` 监听 SHALL 仅记录卡片定位坐标,`mousedown` / `touchstart` 监听 SHALL 仅在未固定(`pinned`)时关闭卡片
 
 #### Scenario: 选中文字无浮标
 
 - **WHEN** 用户在桌面端任意位置或浏览器扩展宿主页面选中一段文本
 - **THEN** SHALL NOT 出现 SimpleAI Translator 提供的浮动图标 / 弹气泡
+- **AND** SHALL NOT 自动发起翻译请求
 
 #### Scenario: 鼠标 hook 代码
 
-- **WHEN** 在 `src-tauri/src/main.rs` 中搜索 `bind_mouse_hook` / `MouseHookEvent`
-- **THEN** SHALL 满足以下之一:
-  - 命中数为 0(整段删除)
-  - 仅命中调试日志或非"弹图标"用途的代码,且不读取 `always_show_icons` 配置
+- **WHEN** 在 `src-tauri/src/` 中搜索 `bind_mouse_hook` / `MouseHookEvent` / `always_show_icons`
+- **THEN** 命中数 SHALL 为 0
 
 ### Requirement: i18n locale 文件结构对齐
 
-所有 `src/common/i18n/locales/<lang>/translation.json` 文件 SHALL 拥有完全相同的 key 集合(value 可不同),且 SHALL 删除以下被本变更移除的 key(完整列表来自 proposal 与代码探查):
+界面语言 SHALL 为以下 6 种 locale:`en`、`zh-Hans`、`zh-Hant`、`ja`、`th`、`tr`,每种对应 `src/common/i18n/locales/<lang>/translation.json`,设置页 i18n 选择框 SHALL 只提供这 6 项。`en` SHALL 作为 `fallbackLng`;所有 6 种 locale 的 key 集合 SHALL 完全相同,新增或删除 key 时 SHALL 同步修改全部 locale。该约束由 `src/common/i18n/locales.spec.ts` 测试守护。
+
+所有 locale SHALL NOT 包含以下已移除功能的 key:
 
 - `Hotkey`、`Display window Hotkey`、`Please press the hotkey you want to set.`、`Click above to set hotkeys.`、`Shortcuts`
 - `Buy me a coffee`、与"赞助"介绍相关的长句 key
@@ -172,11 +173,12 @@ TBD - created by archiving change simpleai-translator-rebrand. Update Purpose af
 - `Hide the icon in the Dock bar`、`Hide the icon in the taskbar`
 - `Auto hide window when out of focus`
 - `disable collecting statistics`、`Disable collecting statistics`
+- `Country Not Supported`、`Country Not Detected`
 
-#### Scenario: 各 locale key 数量一致
+#### Scenario: 所有 locale key 集合相同
 
-- **WHEN** 比较各 locale `translation.json` 的 key 集合(去除 value)
-- **THEN** 所有 locale 文件 SHALL 拥有完全相同的 key 集合
+- **WHEN** 比较各 locale `translation.json` 与 `en/translation.json` 的 key 集合
+- **THEN** 每个 locale 的 key 集合 SHALL 与 `en` 完全相同,既不缺失也不多出
 
 #### Scenario: 已删 key 不存在
 
@@ -184,23 +186,51 @@ TBD - created by archiving change simpleai-translator-rebrand. Update Purpose af
 - **THEN** SHALL NOT 命中
 
 ### Requirement: Structured Output & Strict Schema Setting Toggles
-The settings UI SHALL provide two boolean preferences:
-1. "Use Structured Output": The main toggle enabling JSON responses.
-2. "Strict JSON Schema": A sub-toggle (default true, only active when Structured Output is enabled) that forces the use of strict JSON Schema constraints.
+
+The settings UI SHALL provide two boolean preferences for the currently selected provider + model combination in the LLM Providers section of the General tab:
+1. "Use Structured Output": The main toggle enabling JSON responses for that provider + model.
+2. "Strict JSON Schema": A sub-toggle (default true, only active when Structured Output is enabled) that forces the use of strict JSON Schema constraints for that provider + model.
+
+These toggles SHALL be persisted to the matching ProviderModelOutputControls record. Both toggles SHALL be disabled when no model is selected. The UI SHALL NOT expose a global Structured Output or Strict JSON Schema toggle that applies to every provider and model.
 
 #### Scenario: Toggle Visibility & Dependency
-- **WHEN** a user opens the settings panel
-- **THEN** a switch for "Use Structured Output" SHALL be available
-- **AND** a sub-switch for "Strict JSON Schema" SHALL be visible
-- **AND** if "Use Structured Output" is false, "Strict JSON Schema" SHALL be disabled or hidden
 
-#### Scenario: Warning Tooltip
+- **WHEN** a user opens the settings panel and a provider + model is selected
+- **THEN** a switch for "Use Structured Output" SHALL be available for that provider + model
+- **AND** a sub-switch for "Strict JSON Schema" SHALL be visible for that provider + model
+- **AND** if "Use Structured Output" is false, "Strict JSON Schema" SHALL be disabled
+
+#### Scenario: Warning Caption
+
 - **WHEN** the "Strict JSON Schema" setting is rendered
-- **THEN** it SHALL display a warning or tooltip indicating that some older or third-party models only support JSON Object mode and may fail with Strict Schema enabled.
+- **THEN** it SHALL display the caption "Some older or third-party models only support JSON Object mode and may fail with Strict Schema enabled."
+
+#### Scenario: Switching models loads matching controls
+
+- **WHEN** 用户先为 Provider A + Model X 启用 Structured Output，然后切换到 Provider A + Model Y
+- **THEN** 设置面板 SHALL 显示 Model Y 自己保存的 Structured Output / Strict JSON Schema 状态
+- **AND** 如果 Model Y 没有保存记录，设置面板 SHALL 显示 Structured Output 关闭
 
 ### Requirement: ISettings 更新
-`src/common/types.ts` 中 `ISettings` 接口 SHALL 包含 `useStructuredOutput` 和 `useStrictSchema` 字段。
+
+`src/common/types.ts` 中 `ISettings` 接口 SHALL 包含以下 Provider 相关字段:`providers: ProviderConfig[]`、`defaultProviderId: string | null`、`defaultModel: ModelSelection | null`、`providerModelOutputControls?: ProviderModelOutputControls[]`。其余字段 SHALL 为 `automaticCheckForUpdates`、`enableBackgroundBlur`、`enableMica`(仅用于向 `enableBackgroundBlur` 提供缺省值)、`nativeLanguage`、`translationTargetLanguage`、`themeType`、`i18n`、`tts`、`restorePreviousPosition`、`runAtStartup`、`pinned`、`languageDetectionEngine`、`proxy`、`fontSize`。
+
+运行时行为 SHALL NOT 依赖全局 `useStructuredOutput` 或 `useStrictSchema` 字段决定翻译请求是否启用结构化输出。旧版本设置中的同名顶层字段 SHALL NOT 被读取,且 SHALL NOT 写回持久化设置。
 
 #### Scenario: types.ts 字段添加
+
 - **WHEN** 在 `src/common/types.ts` 检查 `ISettings` 接口
-- **THEN** `useStructuredOutput` (boolean) 和 `useStrictSchema` (boolean) 字段 SHALL 存在
+- **THEN** `providerModelOutputControls?: ProviderModelOutputControls[]`、`defaultModel: ModelSelection | null` 字段 SHALL 存在
+- **AND** `useStructuredOutput` 与 `useStrictSchema` 字段 SHALL NOT 存在
+
+#### Scenario: 归一化默认值
+
+- **WHEN** 系统读取空 settings
+- **THEN** `automaticCheckForUpdates` SHALL 为 `true`,`themeType` 为 `'followTheSystem'`,`i18n` 为 `'en'`,`languageDetectionEngine` 为 `'local'`,`fontSize` 为 `15`,`nativeLanguage` 为 `'zh-Hans'`,`translationTargetLanguage` 为 `'en'`,`tts.provider` 为 `'edge'`
+- **AND** `proxy` SHALL 默认关闭,协议 `HTTP`,服务器 `127.0.0.1`,端口 `1080`,`noProxy` 为 `localhost,127.0.0.1`
+
+#### Scenario: 全局结构化输出字段不再驱动请求
+
+- **WHEN** 旧设置中 `useStructuredOutput === true`，但当前 Provider + Model 没有启用 Structured Output 的 ProviderModelOutputControls 记录
+- **THEN** 翻译请求 SHALL NOT 启用结构化输出
+- **AND** 设置面板 SHALL NOT 把该旧全局字段显示为当前 Provider + Model 已启用

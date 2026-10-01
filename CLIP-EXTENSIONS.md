@@ -5,9 +5,14 @@ Desktop Application Global Clip Extensions
     <br> English | <a href="CLIP-EXTENSIONS-CN.md">中文</a>
 </p>
 
-Clip translation is the killer feature of this software. For browser plugins, the browser provides a simple API to get the selected text, but for desktop applications, there is no unified API for each operating system to get the selected text.
+Selection translation is a core feature of this software. Browser extensions can read the selected text through a simple browser API, but desktop operating systems have no unified API for reading the selected text.
 
-Usually the clipboard is used to get the selected text, but this can cause bugs such as clipboard clutter in some applications and a warning sound in macOS because the cmd+c shortcut is pressed without the text selected. Fortunately, there are many mature clip software for various operating systems and they have a good plug-in mechanism, so SimpleAI Translator has developed plug-ins for these clip software to allow users to use paddleboarding translation painlessly.
+Reading the selection through the clipboard can clutter the clipboard in some applications, and on macOS it triggers a warning sound when cmd+c is pressed with nothing selected. Mature text-selection tools with good plug-in mechanisms already exist for each operating system, so SimpleAI Translator provides plug-ins for them to make selection translation painless.
+
+The desktop app has no global shortcut or selection monitor of its own. The plug-ins send the selected text to the running app, which opens the translator window with that text:
+
+-   PopClip (macOS) sends the text to the local socket `/tmp/simpleai-translator.sock`. If the app is not running, the plug-in starts it and retries after two seconds.
+-   SnipDo (Windows) sends the text to `http://127.0.0.1:62007`. Start SimpleAI Translator before using it.
 
 # macOS
 
@@ -23,7 +28,7 @@ Usually the clipboard is used to get the selected text, but this can cause bugs 
         <img width="400" src="https://user-images.githubusercontent.com/1206493/240260692-8af6141a-3dba-4775-921d-505223addf9e.png" />
     </p>
 
-* 4. Open SimpleAI Translator in PopClip
+* 4. Enable SimpleAI Translator in PopClip
     
     <p align="center">
         <img width="400" src="https://user-images.githubusercontent.com/1206493/240258859-c4f2ec91-255f-414c-a4a4-aca25fceb0b5.png" />
@@ -35,7 +40,7 @@ Usually the clipboard is used to get the selected text, but this can cause bugs 
         <img width="600" src="https://user-images.githubusercontent.com/1206493/240355949-8f41d98d-f097-4ce4-a533-af60e1757ca1.gif" />
     </p>
 
-## Windows
+# Windows
 
 ## SnipDo
 

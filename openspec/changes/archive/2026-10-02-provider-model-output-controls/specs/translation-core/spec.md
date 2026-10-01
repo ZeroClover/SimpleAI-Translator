@@ -207,6 +207,17 @@
 -   **WHEN** 上游返回 event `message_stop`
 -   **THEN** 系统 SHALL 调用 `onFinish('stop')`
 
+#### Scenario: Anthropic 正常完成
+
+-   **WHEN** 上游返回 event `message_stop` 且此前未收到 `stop_reason === 'max_tokens'`
+-   **THEN** 系统 SHALL 调用 `onFinish('stop')`
+
+#### Scenario: Anthropic 因 max_tokens 截断
+
+-   **WHEN** 上游在 `message_delta` 中返回 `stop_reason: 'max_tokens'`,随后返回 `message_stop`
+-   **THEN** 系统 SHALL 调用 `onFinish('max_tokens')`
+-   **AND** SHALL NOT 以 `'stop'` 结束本次翻译
+
 ### Requirement: Request Builder Payload Injection
 
 翻译引擎的请求构建器 (Request Builders) SHALL 根据当前 Provider + Model 的 ProviderModelOutputControls 决定是否在请求体中注入结构化输出相关的参数。
@@ -227,7 +238,7 @@
 
 Thinking 与 Structured Output 设置会改变请求体、模型输出行为与最终渲染文本，系统 SHALL 避免复用不同 Provider + Model 输出控制配置下的旧缓存。
 
-#### Scenario: Cache Key Includes Output Control Settings
+#### Scenario: Cache Key Includes Structured Output Settings
 
 -   **WHEN** 用户对同一文本、语言、Provider 与模型切换该 Provider + Model 的 `thinkingEnabled`、`openaiReasoningEffort`、`anthropicThinkingEffort`、`useStructuredOutput` 或 `useStrictSchema`
 -   **THEN** 翻译缓存 key SHALL 包含解析后的这些设置以及当前结构化输出模式
@@ -238,3 +249,8 @@ Thinking 与 Structured Output 设置会改变请求体、模型输出行为与�
 -   **WHEN** 同一 Provider + Model 对同一文本先后使用 `thinkingEnabled: true, openaiReasoningEffort: 'low'` 与 `thinkingEnabled: true, openaiReasoningEffort: 'high'`
 -   **THEN** 翻译缓存 key SHALL 不同
 -   **AND** 系统 SHALL NOT 复用另一种 Thinking Effort 下生成的缓存结果
+
+## RENAMED Requirements
+
+- FROM: `### Requirement: 结构化输出缓存隔离`
+- TO: `### Requirement: 输出控制缓存隔离`

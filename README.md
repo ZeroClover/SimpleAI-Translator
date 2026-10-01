@@ -4,7 +4,7 @@
     <br> English | <a href="README-CN.md">中文</a>
 </p>
 
-SimpleAI Translator is a cross-platform translator for browser extensions and desktop. Version 1.0 refocuses the app on translation, language detection, translation history, and text-to-speech.
+SimpleAI Translator is a cross-platform translator for browser extensions and desktop. It focuses on translation, language detection, translation history, and text-to-speech.
 
 ## Features
 
@@ -19,15 +19,32 @@ SimpleAI Translator is a cross-platform translator for browser extensions and de
 
 ## LLM Providers
 
-SimpleAI Translator 1.0 supports provider configuration by protocol, not by vendor template. The supported protocols are:
+Providers are configured by protocol, not by vendor template. The supported protocols are:
 
 -   `openai-chat`: OpenAI Chat Completions compatible APIs.
 -   `openai-responses`: OpenAI Responses API compatible APIs.
 -   `anthropic`: Anthropic Messages API compatible APIs.
 
-You can add multiple providers for the same protocol, give each provider a name, set one provider as the default, and temporarily switch providers from the translation window. When the endpoint is blank, the app uses the official OpenAI or Anthropic endpoint for the selected protocol. For any compatible third-party service, enter its endpoint and model manually.
+You can add multiple providers for the same protocol, give each provider a name, and choose the default model from all configured providers. The model picker in the translation window switches the model too, and the choice is saved as the new default.
 
-The provider form can refresh available models from the provider API. Chat and translation model lists are filtered to hide embedding, realtime, audio, transcription, moderation, TTS, image, video, and search-specific models. The model field also accepts free-form text, so private model aliases and providers without a `/models` endpoint remain usable.
+When the endpoint is blank, the app uses the official endpoint for the selected protocol: `https://api.openai.com/v1` for `openai-chat` and `openai-responses`, and `https://api.anthropic.com` for `anthropic`. For any compatible third-party service, enter its base URL; a full request URL such as `.../chat/completions` is also accepted, and versioned base paths such as `/v1beta/openai` are kept as entered. The provider form's `Advanced` section accepts extra request headers as JSON.
+
+Example configurations:
+
+| Service       | Protocol                             | Endpoint                                                   | Example models                    |
+| ------------- | ------------------------------------ | ---------------------------------------------------------- | --------------------------------- |
+| OpenAI        | `openai-responses` or `openai-chat`  | blank                                                      | `gpt-5.6-sol`, `gpt-6-luna`       |
+| Anthropic     | `anthropic`                          | blank                                                      | `claude-sonnet-5-5`, `claude-opus-5-5` |
+| Google Gemini | `openai-chat`                        | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-3.8-flash`                |
+
+Gemini's OpenAI-compatible API has no `/responses` endpoint, so use `openai-chat` for it.
+
+The `Refresh` button next to each provider loads available models from the provider API. Chat and translation model lists are filtered to hide embedding, realtime, audio, transcription, moderation, TTS, image, video, and search-specific models. The model field also accepts free-form text, so private model aliases and providers without a `/models` endpoint remain usable.
+
+The settings below the default model are stored per provider and model:
+
+-   `Thinking Enabled` and `Thinking Effort` (`Low`, `Medium`, or `High`; default `Medium`). When thinking is off, models that always reason run at their lowest effort. OpenAI reasoning models work best with the `openai-responses` protocol.
+-   `Use Structured Output` requests a JSON result through the provider's structured output API. `Strict JSON Schema` is on by default; on the OpenAI protocols, turning it off falls back to JSON Object mode for older or third-party models that do not support strict schemas.
 
 ## Text-to-Speech
 
@@ -51,39 +68,34 @@ https://github.com/nextai-translator/nextai-translator/tree/v-pre-slim
 
 ## Installation
 
+Download installers and packages from the [Latest Release](https://github.com/ZeroClover/SimpleAI-Translator/releases/latest) page.
+
 ### Windows
 
-1. Download the `.exe` installer from the [Latest Release](https://github.com/ZeroClover/SimpleAI-Translator/releases/latest) page.
+1. Download the `.exe` installer (x64).
 2. Double-click the installer.
-3. If Windows shows a warning, choose `More Info` -> `Run Anyway`.
+3. If Windows SmartScreen shows a warning, choose `More Info` -> `Run Anyway`.
 
 ### macOS
 
-1. Download the `.dmg` for your CPU from the [Latest Release](https://github.com/ZeroClover/SimpleAI-Translator/releases/latest) page.
+1. Download the `.dmg` for your CPU: `aarch64` for Apple Silicon or `x64` for Intel.
 2. Open the `.dmg` and move `SimpleAI Translator` to `Applications`.
 
-If macOS reports that the app cannot be opened because the developer cannot be verified, open `Settings` -> `Privacy & Security`, choose `Still Open`, then confirm `Open`.
+Release builds are signed with a Developer ID certificate and notarized by Apple.
 
-If Apple Silicon macOS reports that the app is damaged, run:
+### Linux
 
-```sh
-sudo xattr -d com.apple.quarantine /Applications/SimpleAI\ Translator.app
-```
+Download the `.deb` package or the `.AppImage` (x86_64). `SHA256SUMS-linux.txt` lists their SHA-256 checksums.
 
 ### Browser Extension
 
-Install the extension from your browser store:
+Each release includes browser extension packages and a userscript:
 
-<p align="center">
-  <a target="_blank" href="https://chrome.google.com/webstore/detail/nextai-translator/ogjibjphoadhljaoicdnjnmgokohngcc">
-    <img src="https://img.shields.io/chrome-web-store/v/ogjibjphoadhljaoicdnjnmgokohngcc?label=Chrome%20Web%20Store&style=for-the-badge&color=blue&logo=google-chrome&logoColor=white" />
-  </a>
-  <a target="_blank" href="https://addons.mozilla.org/en-US/firefox/addon/nextai-translator/">
-    <img src="https://img.shields.io/amo/v/nextai-translator?label=Firefox%20Add-on&style=for-the-badge&color=orange&logo=firefox&logoColor=white" />
-  </a>
-</p>
+-   `SimpleAI-Translator-chromium-extension-<version>.zip`: unzip it, open `chrome://extensions`, enable `Developer mode`, then choose `Load unpacked` and select the unzipped folder.
+-   `SimpleAI-Translator-firefox-extension-<version>.xpi`: the package is not signed by Mozilla. Load it from `about:debugging` -> `This Firefox` -> `Load Temporary Add-on`, or install it permanently in Firefox Developer Edition or Nightly with `xpinstall.signatures.required` set to `false`.
+-   `SimpleAI-Translator-<version>.user.js`: install it with a userscript manager such as Tampermonkey or Violentmonkey.
 
-After installation, open settings, add an LLM Provider, set the default provider, and refresh the current page.
+After installation, open settings, add an LLM Provider, select a default model, and refresh the current page.
 
 ## Desktop Clip Extensions
 
@@ -100,11 +112,13 @@ pnpm install
 Common commands:
 
 -   `pnpm dev-chromium`: start the Chromium extension dev build.
+-   `pnpm dev-firefox`: build the Firefox extension in watch mode.
 -   `pnpm dev-tauri`: start the Tauri desktop app.
 -   `pnpm build-browser-extension`: build Chromium and Firefox extension bundles.
+-   `pnpm build-userscript`: build the userscript.
 -   `pnpm build-tauri`: build the desktop app.
 -   `pnpm lint`: run ESLint.
--   `pnpm exec vitest run`: run unit tests once.
+-   `pnpm test`: run unit tests once.
 -   `pnpm test:e2e`: run Playwright tests.
 
 ## License

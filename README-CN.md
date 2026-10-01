@@ -4,7 +4,7 @@
     <br> <a href="README.md">English</a> | 中文
 </p>
 
-SimpleAI Translator 是同时支持浏览器扩展和桌面端的翻译工具。1.0 版本重新聚焦于翻译、语言检测、翻译历史与文本朗读。
+SimpleAI Translator 是同时支持浏览器扩展和桌面端的翻译工具，专注于翻译、语言检测、翻译历史与文本朗读。
 
 ## 功能
 
@@ -19,15 +19,32 @@ SimpleAI Translator 是同时支持浏览器扩展和桌面端的翻译工具。
 
 ## LLM Provider
 
-SimpleAI Translator 1.0 按协议配置 Provider，不再按厂商模板配置。当前支持三种协议：
+Provider 按协议配置，不按厂商模板配置。当前支持三种协议：
 
 -   `openai-chat`：兼容 OpenAI Chat Completions API。
 -   `openai-responses`：兼容 OpenAI Responses API。
 -   `anthropic`：兼容 Anthropic Messages API。
 
-你可以为同一种协议添加多份 Provider，分别命名、设置默认 Provider，并在翻译窗口中临时切换。Endpoint 留空时，应用会使用对应协议的 OpenAI 或 Anthropic 官方 Endpoint。要接入兼容协议的第三方服务，请手动填写 Endpoint 与模型名。
+你可以为同一种协议添加多份 Provider 并分别命名，再从所有已配置 Provider 的模型中选择默认模型。翻译窗口中的模型选择器也可以切换模型，所选模型会保存为新的默认模型。
 
-Provider 表单支持从 API 刷新模型列表。对话/翻译模型列表会过滤嵌入、实时语音、音频、转录、审核、TTS、图像、视频与搜索专用模型。模型字段仍支持手动输入，因此私有模型别名和不提供 `/models` 端点的服务仍可使用。
+Endpoint 留空时，应用使用对应协议的官方 Endpoint：`openai-chat` 与 `openai-responses` 为 `https://api.openai.com/v1`，`anthropic` 为 `https://api.anthropic.com`。要接入兼容协议的第三方服务，请填写其 Base URL；也可以填写 `.../chat/completions` 这类完整请求地址，`/v1beta/openai` 这类带版本号的路径会按原样保留。Provider 表单的 `高级` 区域可以用 JSON 填写额外请求头。
+
+配置示例：
+
+| 服务          | 协议                                 | Endpoint                                                   | 示例模型                          |
+| ------------- | ------------------------------------ | ---------------------------------------------------------- | --------------------------------- |
+| OpenAI        | `openai-responses` 或 `openai-chat`  | 留空                                                       | `gpt-5.6-sol`、`gpt-6-luna`       |
+| Anthropic     | `anthropic`                          | 留空                                                       | `claude-sonnet-5-5`、`claude-opus-5-5` |
+| Google Gemini | `openai-chat`                        | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-3.8-flash`                |
+
+Gemini 的 OpenAI 兼容 API 没有 `/responses` 端点，因此请使用 `openai-chat`。
+
+每个 Provider 旁的 `刷新` 按钮会从 Provider API 拉取可用模型。对话/翻译模型列表会过滤嵌入、实时语音、音频、转录、审核、TTS、图像、视频与搜索专用模型。模型字段仍支持手动输入，因此私有模型别名和不提供 `/models` 端点的服务仍可使用。
+
+默认模型下方的设置按 Provider 与模型分别保存：
+
+-   `启用思考` 与 `思考强度`（`低`、`中`、`高`，默认 `中`）。关闭思考时，始终推理的模型会以最低强度运行。OpenAI 推理模型建议使用 `openai-responses` 协议。
+-   `使用结构化输出` 通过 Provider 的结构化输出 API 请求 JSON 结果。`严格 JSON Schema` 默认开启；在 OpenAI 协议下关闭后会回退到 JSON Object 模式，适用于不支持严格 Schema 的旧模型或第三方模型。
 
 ## 文本朗读
 
@@ -51,39 +68,34 @@ https://github.com/nextai-translator/nextai-translator/tree/v-pre-slim
 
 ## 安装
 
+在 [Latest Release](https://github.com/ZeroClover/SimpleAI-Translator/releases/latest) 页面下载安装包。
+
 ### Windows
 
-1. 在 [Latest Release](https://github.com/ZeroClover/SimpleAI-Translator/releases/latest) 页面下载 `.exe` 安装包。
+1. 下载 `.exe` 安装包（x64）。
 2. 双击安装包进行安装。
-3. 如果系统提示不安全，点击 `更多信息` -> `仍要运行`。
+3. 如果 Windows SmartScreen 提示不安全，点击 `更多信息` -> `仍要运行`。
 
 ### macOS
 
-1. 在 [Latest Release](https://github.com/ZeroClover/SimpleAI-Translator/releases/latest) 页面下载对应芯片的 `.dmg` 安装包。
+1. 下载对应芯片的 `.dmg`：Apple Silicon 选 `aarch64`，Intel 选 `x64`。
 2. 打开 `.dmg`，将 `SimpleAI Translator` 拖入 `Applications`。
 
-如果 macOS 提示开发者无法验证，请打开 `设置` -> `隐私与安全性`，点击 `仍要打开`，再确认 `打开`。
+正式版本已使用 Developer ID 证书签名，并通过 Apple 公证。
 
-如果 Apple Silicon 版本提示文件损坏，请运行：
+### Linux
 
-```sh
-sudo xattr -d com.apple.quarantine /Applications/SimpleAI\ Translator.app
-```
+下载 `.deb` 安装包或 `.AppImage`（x86_64）。`SHA256SUMS-linux.txt` 列出了它们的 SHA-256 校验值。
 
 ### 浏览器扩展
 
-从浏览器扩展商店安装：
+每个版本都附带浏览器扩展包与用户脚本：
 
-<p align="center">
-  <a target="_blank" href="https://chrome.google.com/webstore/detail/nextai-translator/ogjibjphoadhljaoicdnjnmgokohngcc">
-    <img src="https://img.shields.io/chrome-web-store/v/ogjibjphoadhljaoicdnjnmgokohngcc?label=Chrome%20Web%20Store&style=for-the-badge&color=blue&logo=google-chrome&logoColor=white" />
-  </a>
-  <a target="_blank" href="https://addons.mozilla.org/en-US/firefox/addon/nextai-translator/">
-    <img src="https://img.shields.io/amo/v/nextai-translator?label=Firefox%20Add-on&style=for-the-badge&color=orange&logo=firefox&logoColor=white" />
-  </a>
-</p>
+-   `SimpleAI-Translator-chromium-extension-<version>.zip`：解压后打开 `chrome://extensions`，开启 `开发者模式`，点击 `加载已解压的扩展程序` 并选择解压后的目录。
+-   `SimpleAI-Translator-firefox-extension-<version>.xpi`：该安装包未经 Mozilla 签名。可在 `about:debugging` -> `此 Firefox` -> `临时载入附加组件` 中加载，或在 Firefox Developer Edition / Nightly 中将 `xpinstall.signatures.required` 设为 `false` 后永久安装。
+-   `SimpleAI-Translator-<version>.user.js`：使用 Tampermonkey、Violentmonkey 等用户脚本管理器安装。
 
-安装后打开设置，添加 LLM Provider，设为默认 Provider，然后刷新当前网页。
+安装后打开设置，添加 LLM Provider，选择默认模型，然后刷新当前网页。
 
 ## 桌面端划词扩展
 
@@ -100,11 +112,13 @@ pnpm install
 常用命令：
 
 -   `pnpm dev-chromium`：启动 Chromium 扩展开发构建。
+-   `pnpm dev-firefox`：以监听模式构建 Firefox 扩展。
 -   `pnpm dev-tauri`：启动 Tauri 桌面端。
 -   `pnpm build-browser-extension`：构建 Chromium 与 Firefox 扩展。
+-   `pnpm build-userscript`：构建用户脚本。
 -   `pnpm build-tauri`：构建桌面端。
 -   `pnpm lint`：运行 ESLint。
--   `pnpm exec vitest run`：单次运行单元测试。
+-   `pnpm test`：单次运行单元测试。
 -   `pnpm test:e2e`：运行 Playwright 测试。
 
 ## License

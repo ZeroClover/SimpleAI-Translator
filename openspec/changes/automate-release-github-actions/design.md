@@ -30,7 +30,7 @@ Reference baseline checked on 2026-05-21:
 | `oNaiPs/secrets-to-env-action` | `v1` | remove rather than upgrade |
 | `crate-ci/typos` | `v1.16.10` | `v1.46.2` |
 | `dtolnay/rust-toolchain` | `nightly` | keep the action if needed, but audit whether the toolchain can move to stable or a pinned date |
-| `vedantmgoyal2009/winget-releaser` | `v2` | `v2` |
+| `vedantmgoyal2009/winget-releaser` | `v2` | removed with the WinGet workflow |
 | `azure/artifact-signing-action` | new | `v2.0.0` if a post-build signing action is still needed |
 | `azure/login` | new | `v3.0.0` |
 
@@ -97,7 +97,7 @@ Required workflow configuration:
 
 - `AZURE_CLIENT_ID`
 - `AZURE_TENANT_ID`
-- `AZURE_SUBSCRIPTION_ID` as a non-secret variable when `azure/login` uses a subscription, or an explicitly verified `allow-no-subscriptions: true` path
+- `AZURE_SUBSCRIPTION_ID`
 - `AZURE_ARTIFACT_SIGNING_ENDPOINT`
 - `AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME`
 - `AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME`
@@ -110,9 +110,9 @@ Alternatives considered:
 - Store `AZURE_CLIENT_SECRET`: works with `DefaultAzureCredential`, but creates a long-lived credential in GitHub and should be fallback-only.
 - Use a PFX or HSM-backed non-Azure certificate: outside this change because the user explicitly requested Azure Artifact Signing.
 
-### Keep NSIS as the default Windows installer unless implementation proves MSI is required
+### Keep NSIS as the default Windows installer and remove WinGet publication
 
-The current Tauri targets include NSIS, not MSI. The conservative implementation path is to keep NSIS and update the WinGet installer matching pattern and release documentation to match the signed `.exe` installer. Adding MSI is allowed only if the implementation documents why WinGet or operator requirements need it.
+The current Tauri targets include NSIS, not MSI. Keep the signed NSIS `.exe` installer as the only Windows installer. The WinGet workflow is removed rather than realigned, so no WinGet token or package identifier is maintained; the release setup document lists WinGet publishing as a non-required credential. Adding MSI or WinGet publication requires a separate change.
 
 ### Keep updater key continuity explicit
 
@@ -124,17 +124,14 @@ The updater endpoint must point to the repository that publishes `latest.json`, 
 
 Import the Developer ID Application certificate into a temporary keychain during macOS jobs, set the Tauri signing identity, and provide notarization credentials for Tauri. The temporary keychain password can be generated inside the workflow and does not need to be a human-managed GitHub secret. The workflow should set the temporary keychain as the default or include it in the keychain search list before invoking `codesign`.
 
-The release setup documentation must cover both notarization credential families:
-
-- Apple ID email, app-specific password, and Team ID.
-- App Store Connect API issuer/key values if the implementation supports that path.
+Notarization uses an App Store Connect API key: the workflow decodes the `.p8` key to a temporary file and passes `APPLE_API_KEY`, `APPLE_API_ISSUER`, and `APPLE_API_KEY_PATH` to Tauri. The Apple ID app-specific password path is not implemented, so the release setup documentation covers only the API key path.
 
 The implementation should audit whether this app needs a custom entitlements file because `bundle.macOS.entitlements` is currently `null` while the app enables macOS private API. Add entitlements only if the audit shows they are required.
 
 Alternatives considered:
 
 - Use ad-hoc signing: insufficient for production distribution outside the App Store.
-- Require only App Store Connect API keys: good for teams, but the user explicitly asked to cover Apple ID notarization credentials.
+- Support the Apple ID app-specific password path as well: adds a second credential family to document and rotate without a current need.
 
 ### Use protected release environment for production signing secrets
 
@@ -142,7 +139,7 @@ Release signing and publication secrets should live in a protected GitHub Enviro
 
 ### Document release setup as an operator artifact
 
-Add a human-facing document such as `docs/release-github-actions-secrets.md`. It must group setup by GitHub, Tauri updater, Apple, Azure Artifact Signing, Windows installer/WinGet, and Linux integrity. For each user-managed value, the document should state:
+Add a human-facing document such as `docs/release-github-actions-secrets.md`. It must group setup by GitHub, Tauri updater, Apple, Azure Artifact Signing, Windows installer, and Linux integrity. For each user-managed value, the document should state:
 
 - Name used by the workflow or config.
 - GitHub scope, preferably release environment secret/variable.
@@ -151,7 +148,7 @@ Add a human-facing document such as `docs/release-github-actions-secrets.md`. It
 - How to create or obtain the underlying resource.
 - Rotation, revocation, or loss impact.
 
-The document must explicitly state that `GITHUB_TOKEN` is built in and should not be manually created. It should also call out items that are not required for this app, such as telemetry/crash-reporting credentials.
+The document must explicitly state that `GITHUB_TOKEN` is built in and should not be manually created. It should also call out items that are not required for this app, such as telemetry/crash-reporting and WinGet publishing credentials.
 
 ## Risks / Trade-offs
 
@@ -162,5 +159,5 @@ The document must explicitly state that `GITHUB_TOKEN` is built in and should no
 - [Windows assets are signed in the wrong order] -> Use Tauri `signCommand` so Authenticode signing occurs before updater signature/manifest finalization.
 - [Tauri updater key loss prevents future updates for installed clients] -> Document backup, public-key pairing, rotation impact, and recovery limits for `TAURI_SIGNING_PRIVATE_KEY`.
 - [Apple notarization can pass signing but fail stapling] -> Verify signing and notarization with bounded retries; do not create unbounded waiting logic.
-- [WinGet workflow looks for MSI while release produces NSIS] -> Keep NSIS and align WinGet to the signed `.exe` installer unless MSI is deliberately added.
+- [WinGet workflow looks for MSI while release produces NSIS] -> Remove the WinGet workflow; keep NSIS as the only Windows installer.
 - [Concurrent release runs mutate the same release] -> Add release workflow concurrency keyed by release tag.

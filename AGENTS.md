@@ -4,15 +4,25 @@
 - `src/browser-extension/` hosts extension surfaces (popup, options, background) and manifest tooling.
 - `src/tauri/` contains the React renderer for desktop windows, while `src/common/` keeps shared hooks, stores, and translator logic consumed by both targets.
 - `src-tauri/` is the Rust/Tauri backend for native commands, updates, and packaging; platform assets live in `src-tauri/resources` and `src-tauri/icons`.
-- Supporting content sits in `public/` (static assets), `scripts/` (build helpers), `docs/` (provider guides), and `e2e/` (Playwright specs). Build outputs land in `dist/` and long-lived bundles in `release/`.
+- Supporting content sits in `public/` (static assets), `scripts/` (build helpers), `docs/` (release docs and notes), and `e2e/` (Playwright specs). Build outputs land in `dist/` and long-lived bundles in `release/`.
 
 ## Current Code Map
-- `src/common/translate.ts` is the single translation entry point; it resolves `settings.defaultProviderId` or a runtime `providerId`, then dispatches through `src/common/engines/index.ts`.
-- `src/common/engines/` is protocol-based. Keep runtime engines limited to `protocols/openai-chat.ts`, `protocols/openai-responses.ts`, `protocols/anthropic.ts`, plus `interfaces.ts`, `index.ts`, and `model-filter.ts`.
-- `src/common/components/Settings.tsx` and `src/common/components/ProviderForm.tsx` own LLM Provider management, model refresh, default Provider selection, and OpenAI TTS settings.
+- `src/common/translate.ts` is the single translation entry point. It resolves the provider and model (runtime `providerId`/`model`, then `settings.defaultModel`, then `settings.defaultProviderId`), looks up that Provider + Model's output controls (thinking, `reasoningEffort`, structured output), assembles the prompt, and dispatches through `src/common/engines/index.ts`.
+- `src/common/engines/` is protocol-based. Keep runtime engines limited to `protocols/openai-chat.ts`, `protocols/openai-responses.ts`, `protocols/anthropic.ts`, plus `interfaces.ts`, `index.ts`, `model-filter.ts`, and `thinking-filter.ts` (strips inline thinking blocks from streamed output).
+- `src/common/components/Settings.tsx` and `src/common/components/ProviderForm.tsx` own LLM Provider management, model refresh, default model selection, per Provider + Model output controls, and OpenAI TTS settings.
+- `src/common/openai-api-path.ts` normalizes user-supplied endpoints into protocol URLs.
 - `src/common/tts/` owns TTS backends. OpenAI TTS is implemented in `openai-tts.ts` and reuses an existing OpenAI-compatible Provider instead of storing a separate API key.
 - `src/browser-extension/manifest.ts` and `src/common/universal-fetch.ts` cover extension permissions and fetch behavior, including optional host permissions for custom endpoints.
 - `src-tauri/` keeps native shell behavior such as windows, tray, updates, and packaging; removed global shortcuts, OCR, and writing commands should not be reintroduced.
+
+## Behavior Specs
+`openspec/specs/<capability>/spec.md` is the source of truth for product behavior. Before changing a behavior, read the spec that owns it; update that spec in the same change.
+- `translation-core`: translation flow, per-protocol request and stream handling (thinking/effort mapping per model family, lowest effort sent when thinking is off, `max_tokens`, refusals, stream termination), prompt assembly, and prompt-injection isolation.
+- `llm-provider-config`: ProviderConfig, endpoint normalization, model discovery, and Provider + Model output controls (`thinkingEnabled`, `reasoningEffort`, structured output) with their settings UI.
+- `structured-output`: JSON schema payloads per protocol, where the schema goes in the prompt, and validation failures.
+- `settings-surface`: which settings fields and panels exist.
+- `text-to-speech`: Edge, system, and OpenAI TTS.
+- `language-detection`, `app-identity`, `no-telemetry`: source-language detection, product naming and bundle identity, and the no-analytics guarantees.
 
 ## Removed Modules
 - OCR and screenshot translation have been removed, including Tesseract integration, screenshot windows, OCR hotkeys, and OCR native binaries.
@@ -24,13 +34,14 @@
 
 ## Build, Test, and Development Commands
 Install dependencies with `pnpm install` (package manager is pinned in `package.json`).
-- `pnpm dev-chromium` starts the extension in Vite with HMR; `pnpm dev-tauri` boots the desktop shell with Tauri devtools.
-- `pnpm build-browser-extension`, `pnpm build-tauri`, and `pnpm build-userscript` produce distributable bundles; use `pnpm clean` to reset `dist/` before packaging.
+- `pnpm dev-chromium` / `pnpm dev-firefox` start the extension in Vite with HMR; `pnpm dev-tauri` boots the desktop shell with Tauri devtools.
+- `pnpm build-browser-extension`, `pnpm build-tauri` (or `pnpm build-tauri-no-updater`), and `pnpm build-userscript` produce distributable bundles; use `pnpm clean` to reset `dist/` before packaging.
 - `pnpm test` runs Vitest suites and `pnpm test:e2e` executes Playwright specs in `e2e/`.
-- `pnpm lint`, `pnpm lint:fix`, and `pnpm format` keep ESLint and Prettier satisfied across TS/JS/CSS/MD files.
+- `pnpm lint` / `pnpm lint:fix` run ESLint on `src/**/*.{ts,tsx}`; `pnpm format` runs Prettier on `src/`.
+- `pnpm check:no-telemetry` and `pnpm check:no-old-identity` are the grep guards behind the `no-telemetry` and `app-identity` specs.
 
 ## Coding Style & Naming Conventions
-TypeScript + React 18 (with Styletron) is the primary stack. Keep 4-space indentation, single quotes, and trailing commas—Prettier enforces this, so format before pushing. Components stay in `PascalCase`, hooks/utilities in `camelCase`, and constants in `SCREAMING_SNAKE_CASE`. Reuse helpers from `src/common` instead of duplicating logic, and keep staged files lint-clean to satisfy the pre-commit hook.
+TypeScript + React 18 is the primary stack, with Base Web (`baseui-sd`) on Styletron plus `react-jss` for component styles. Keep 4-space indentation, single quotes, and trailing commas—Prettier enforces this, so format before pushing. Components stay in `PascalCase`, hooks/utilities in `camelCase`, and constants in `SCREAMING_SNAKE_CASE`. Reuse helpers from `src/common` instead of duplicating logic, and keep staged files lint-clean: the `simple-git-hooks` pre-commit hook runs `lint-staged` (ESLint + Prettier).
 
 ## Testing Guidelines
 Unit tests live next to the code as `foo.spec.ts` and run with Vitest. Mock remote APIs and keep snapshots deterministic, especially around translation results. Update Playwright specs in `e2e/*.spec.ts` when UI flows change, and verify `pnpm test` plus `pnpm test:e2e` before requesting review.
@@ -43,13 +54,9 @@ Follow the lightweight conventional pattern seen in history (`fix:`, `feat:`, `c
 - Keep reviewed user-facing notes in `docs/releases/<version>.md`; do not generate them from commit subjects. The annotated tag, GitHub Release body, and updater `latest.json.notes` must use the same content.
 
 ## Security & Configuration Tips
-Never commit API keys or user artifacts; rely on runtime configuration via the in-app settings or local `.env` files ignored by git. When adding providers, document required environment keys under `docs/` and guard sensitive defaults behind toggles in `src/common`.
+Never commit API keys or user artifacts. API keys are entered by the user in the in-app Provider settings and stored with the app settings; the app ships no built-in keys and reads none from environment variables.
 
-## Overthinking and excessive thoroughness
-
-When you're deciding how to approach a problem, choose an approach and commit to it. Avoid revisiting decisions unless you encounter new information that directly contradicts your reasoning. If you're weighing two approaches, pick one and see it through. You can always course-correct later if the chosen approach fails.
-
-After receiving tool results, carefully reflect on their quality and determine optimal next steps before proceeding. Use your thinking to plan and iterate based on this new information, and then take the best next action.
+## Scope and simplicity
 
 Avoid over-engineering. Only make changes that are directly requested or clearly necessary. Keep solutions simple and focused:
 
@@ -73,6 +80,4 @@ Focus on understanding the problem requirements and implementing the correct alg
 
 If the task is unreasonable or infeasible, or if any of the tests are incorrect, please inform me rather than working around them. The solution should be robust, maintainable, and extendable.
 
-<investigate_before_answering>
-Never speculate about code you have not opened. If the user references a specific file, you MUST read the file before answering. Make sure to investigate and read relevant files BEFORE answering questions about the codebase. Never make any claims about code before investigating unless you are certain of the correct answer - give grounded and hallucination-free answers.
-</investigate_before_answering>
+Read the files a question refers to before answering, and base claims about the code on what you read.

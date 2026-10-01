@@ -12,6 +12,7 @@ The current GitHub Actions release pipeline builds desktop artifacts but uses st
 - Ensure the updater endpoint, GitHub Release target, Tauri updater public key, and private signing key are treated as one release-update contract.
 - Add human-facing release setup documentation listing all required GitHub Actions secrets and variables, how to create or obtain them, and which workflow consumes each one.
 - Preserve existing browser extension and userscript release outputs, but do not introduce browser store ownership or publishing identity changes.
+- Remove the WinGet publication workflow instead of maintaining it; WinGet publishing credentials are not part of the release setup.
 
 ## Capabilities
 
@@ -23,7 +24,7 @@ The current GitHub Actions release pipeline builds desktop artifacts but uses st
 
 ## Impact
 
-- Affected workflows: `.github/workflows/release.yaml`, `.github/workflows/test-build.yaml`, `.github/workflows/lint.yaml`, `.github/workflows/unit-test.yaml`, `.github/workflows/playwright.yml`, and `.github/workflows/winget.yml`.
+- Affected workflows: `.github/workflows/release.yaml`, `.github/workflows/test-build.yaml`, `.github/workflows/lint.yaml`, `.github/workflows/unit-test.yaml`, and `.github/workflows/playwright.yml`; `.github/workflows/winget.yml` is removed.
 - Affected release configuration: `src-tauri/tauri.conf.json`, package scripts, and release helper scripts only where needed to support production signing and artifact publication.
-- New documentation: a release setup document for GitHub Actions secrets, variables, Azure Artifact Signing resources, Apple Developer ID certificate/notarization credentials, Tauri updater signing keys, and WinGet publishing credentials.
-- External systems: GitHub Actions, GitHub Releases, Azure Artifact Signing, Microsoft Entra workload identity/OIDC, Apple Developer/App Store Connect, and WinGet publishing.
+- New documentation: a release setup document for GitHub Actions secrets, variables, Azure Artifact Signing resources, Apple Developer ID certificate/notarization credentials, and Tauri updater signing keys.
+- External systems: GitHub Actions, GitHub Releases, Azure Artifact Signing, Microsoft Entra workload identity/OIDC, and Apple Developer/App Store Connect.

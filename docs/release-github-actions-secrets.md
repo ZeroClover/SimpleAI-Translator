@@ -9,7 +9,8 @@ This document records the release automation baseline checked on 2026-05-21 and 
 -   Tauri updater public key: embedded in `src-tauri/tauri.conf.json` under `plugins.updater.pubkey`.
 -   Release environment: `production-release`.
 -   Windows installer format: signed NSIS `.exe` remains the default. MSI is not produced by default release builds.
--   Linux integrity file: `SHA256SUMS-linux.txt`, covering uploaded `.deb`, `.AppImage`, and `.AppImage.tar.gz` assets.
+-   Linux integrity file: `SHA256SUMS-linux.txt`, covering uploaded `.deb` and `.AppImage` assets.
+-   Release notes: the annotated tag message becomes the GitHub Release body, and the release assembly job copies that body into `latest.json.notes`. Reviewed notes live in `docs/releases/<version>.md`; see `.codex/skills/release-notes/SKILL.md`.
 
 The updater private key in `TAURI_SIGNING_PRIVATE_KEY` must match the embedded updater public key. Rotating the public key without a migration release can prevent already installed clients from accepting future updates.
 
@@ -36,7 +37,7 @@ Removed instead of upgraded: `actions/upload-release-asset`, `actions/github-scr
 
 Create a GitHub Environment named `production-release` on `ZeroClover/SimpleAI-Translator`.
 
-Store all release signing credentials as environment secrets on `production-release`. Jobs that create, sign, or publish release artifacts declare `environment: production-release` so they can read those secrets and issue the Azure OIDC token with subject `repo:ZeroClover/SimpleAI-Translator:environment:production-release`.
+Store all release signing credentials as environment secrets on `production-release`. Restrict the environment's deployment branches and tags to the `v*` release tags, and add required reviewers if releases should wait for manual approval. Jobs that create, sign, or publish release artifacts declare `environment: production-release` so they can read those secrets and issue the Azure OIDC token with subject `repo:ZeroClover/SimpleAI-Translator:environment:production-release`.
 
 `GITHUB_TOKEN` is built in. Do not create a manual secret named `GITHUB_TOKEN`.
 
@@ -93,7 +94,7 @@ Register the `Microsoft.CodeSigning` resource provider, create an Artifact Signi
 
 Create a user-assigned managed identity, assign it the `Artifact Signing Certificate Profile Signer` role on the certificate profile or the narrowest parent scope that can sign, and add a federated identity credential on that managed identity with audience `api://AzureADTokenExchange` and subject `repo:ZeroClover/SimpleAI-Translator:environment:production-release`. Store the managed identity client ID in `AZURE_CLIENT_ID`.
 
-The Windows release job installs `Microsoft.ArtifactSigning.Client` from NuGet, prepares Artifact Signing metadata for SignTool, compiles the desktop app, then runs `azure/login@v3.0.0` immediately before bundling and signing. After login it prefetches an access token for `https://codesigning.azure.net` so SignTool can reuse the Azure CLI token cache instead of trying to exchange an expired GitHub OIDC JWT during the long compile and bundle steps. Managed identity access tokens are typically valid for about 24 hours; the GitHub OIDC JWT used during login is only valid for about 5 minutes.
+The Windows release job installs `Microsoft.ArtifactSigning.Client` from NuGet, prepares Artifact Signing metadata for SignTool, and installs the Tauri CLI. It then runs `azure/login@v3.0.0` and prefetches an access token for `https://codesigning.azure.net` immediately before the single Tauri build step that compiles, bundles, and signs the app. SignTool reuses the cached Azure CLI token during bundling instead of exchanging the short-lived GitHub OIDC token, which may already have expired after the long compile.
 
 The workflow rewrites `bundle.windows.signCommand` before bundling to call `signtool.exe` directly with absolute forward-slash paths to `Azure.CodeSigning.Dlib.dll` and the metadata JSON. Tauri executes `signCommand` as a raw process, so the release job does not shell out to PowerShell. Both the dlib and SignTool must be the x64 builds: the NuGet package also ships an x86 `Azure.CodeSigning.Dlib.dll`, and an x86 SignTool cannot load the 64-bit dlib, so the job explicitly picks the `bin/x64` dlib and the newest x64 SignTool from the Windows SDK. Local development can still use `src-tauri/scripts/windows-azure-sign.ps1` from the default `tauri.conf.json`. Artifact Signing metadata is written as UTF-8 without a BOM and excludes non-Azure CLI `DefaultAzureCredential` sources so SignTool authenticates through the `azure/login` session only.
 

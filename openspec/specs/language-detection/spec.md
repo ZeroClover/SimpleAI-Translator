@@ -1,76 +1,103 @@
 # language-detection Specification
 
 ## Purpose
-TBD - created by archiving change slim-to-translation-core. Update Purpose after archive.
+定义翻译界面如何识别源文本语言(本地启发式或 Google / Baidu / Bing 远端检测)并据此确定源语言与目标语言,以及用户手动选择源/目标语言时的行为。
 ## Requirements
 ### Requirement: 输入语言检测引擎集合
 
-系统 SHALL 提供一个语言检测子系统,通过 `settings.languageDetectionEngine: LanguageDetectionEngine` 暴露给用户选择,联合类型恰好为 `'local' | 'google' | 'baidu' | 'bing'`。系统 MUST NOT 引入其它检测引擎,SHALL 在缺省时使用 `'local'`。
+系统 SHALL 提供一个语言检测子系统,通过 `settings.languageDetectionEngine: LanguageDetectionEngine` 暴露给用户选择,联合类型恰好为 `'local' | 'google' | 'baidu' | 'bing'`。系统 MUST NOT 引入其它检测引擎;设置缺省或为空时 SHALL 使用 `'local'`。检测前系统 SHALL 把文本截断到前 1000 个字符;`'local'` 引擎 SHALL 只分析前 200 个字符,基于字符集权重在 `en`、`zh-Hans`/`zh-Hant`(按繁简判断)、`ko`、`vi`、`th`、`hmn`、`ja`、`ru`、`es`、`fr`、`de` 中给出结果,无法判断时返回 `'en'`。
 
 #### Scenario: 默认本地检测
 
 - **WHEN** 用户首次安装、未修改语言检测设置
-- **THEN** `settings.languageDetectionEngine` SHALL 默认为 `'local'`
+- **THEN** `settings.languageDetectionEngine` SHALL 为 `'local'`
+- **AND** 检测 SHALL 在本地完成,不发起网络请求
 
 #### Scenario: 切换到远端引擎
 
 - **WHEN** 用户在设置中切换为 `'google'`
-- **THEN** 后续检测 SHALL 通过 Google 检测路径执行
+- **THEN** 后续检测 SHALL 通过 `translate.google.com` 的检测请求执行
 
-### Requirement: 自动检测在翻译流程中触发
+#### Scenario: 本地检测繁体中文
 
-系统 SHALL 在主翻译界面中,在用户停止输入(防抖)或显式触发翻译时,对当前文本调用语言检测,并把结果写回 `detectFrom` 状态。系统 SHALL 仅在用户未手动锁定源语言时执行自动检测。
+- **WHEN** `languageDetectionEngine === 'local'`,输入为繁体中文文本
+- **THEN** 检测结果 SHALL 为 `'zh-Hant'`
 
-#### Scenario: 用户未锁定源语言
+### Requirement: 检测在提交翻译时触发
 
-- **WHEN** 源语言下拉处于"自动"状态,用户输入 `Hola, ¿cómo estás?`
-- **THEN** 系统 SHALL 在防抖窗口结束后调用语言检测
-- **AND** `detectFrom` SHALL 被设为 `'es'`(西班牙语)
-- **AND** 该状态 SHALL 在主界面以"已识别为西班牙语"提示
+系统 SHALL 在用户显式提交翻译(在输入框按 Enter 或点击提交按钮)时,以及外部传入待翻译文本(浏览器扩展内容脚本传入的文本、桌面端翻译窗口收到的 `change-text` 事件文本)时,对该文本调用一次语言检测,并把结果设为当前源语言。系统 SHALL NOT 在用户输入过程中做防抖自动检测。每次提交 SHALL 重新检测,检测结果 SHALL 覆盖此前的源语言(包括用户手动选择的源语言)。
 
-#### Scenario: 用户已手动锁定源语言
+#### Scenario: 提交时检测源语言
 
-- **WHEN** 用户已显式选择源语言为 `'en'`,然后输入西班牙语文本
-- **THEN** 系统 SHALL NOT 自动覆盖用户选择
-- **AND** `detectFrom` SHALL 保持 `'en'`
+- **WHEN** 用户输入 `Ça va très bien.` 并按 Enter,`languageDetectionEngine === 'local'`
+- **THEN** 系统 SHALL 调用语言检测
+- **AND** 源语言下拉 SHALL 显示检测结果 `'fr'`
+- **AND** 系统 SHALL 以该源语言发起翻译
 
-### Requirement: 检测失败的降级
+#### Scenario: 手动选择源语言
 
-系统 SHALL 在远端引擎请求失败、超时、限流时,降级到 `'local'` 引擎再尝试一次;若仍失败,SHALL 把 `detectFrom` 置为 "auto" 并允许翻译流程继续。
+- **WHEN** 用户在源语言下拉中手动选择 `'en'`
+- **THEN** 系统 SHALL 以 `'en'` 作为源语言对当前输入重新翻译,不调用语言检测
+- **AND** 用户之后再次提交时,系统 SHALL 重新检测并以检测结果覆盖源语言
 
-#### Scenario: Google 检测失败降级到 local
+### Requirement: 远端检测失败的处理
 
-- **WHEN** `languageDetectionEngine === 'google'`,请求超时
-- **THEN** 系统 SHALL 用 local 引擎再检测一次
-- **AND** 若 local 给出非空结果,SHALL 使用该结果
+远端引擎(`google` / `baidu` / `bing`)在 HTTP 响应非成功,或返回的语言无法映射为 `LangCode` 时,SHALL 返回 `'en'` 作为检测结果,并继续翻译流程。`google` 与 `baidu` 的结果 SHALL 经各自映射表转换为 `LangCode`;`bing` 返回的 BCP-47 语言代码本身为 `LangCode`(如 `zh-Hans`、`zh-Hant`、`yue`、`pt`)时 SHALL 原样使用,带地区或书写系统后缀的变体(如 `pt-PT`、`mn-Cyrl`)SHALL 映射为其基础语言(`pt`、`mn`),其它代码 SHALL 映射为 `'en'`。若远端检测请求本身抛出异常(如网络不可达),`detectLang` SHALL 改用 `'local'` 引擎对同一文本检测并返回其结果,该次提交 SHALL 以该结果继续发起翻译。
 
-#### Scenario: 全部失败仍可翻译
+#### Scenario: 远端返回非成功状态
 
-- **WHEN** 所有检测引擎均失败
-- **THEN** `detectFrom` SHALL 等价于"auto"
-- **AND** 翻译流程 SHALL NOT 因此中断,LLM prompt 中以"自动识别"方式表述源语言
+- **WHEN** `languageDetectionEngine === 'baidu'`,检测请求返回 HTTP 5xx
+- **THEN** 检测结果 SHALL 为 `'en'`
+- **AND** 翻译流程 SHALL 以 `'en'` 为源语言继续
+
+#### Scenario: Bing 返回语言变体
+
+- **WHEN** `languageDetectionEngine === 'bing'`,上游返回 `pt-PT`
+- **THEN** 检测结果 SHALL 为 `'pt'`
+
+#### Scenario: Bing 返回中文
+
+- **WHEN** `languageDetectionEngine === 'bing'`,上游返回 `zh-Hant`
+- **THEN** 检测结果 SHALL 为 `'zh-Hant'`
+
+#### Scenario: 检测请求抛出异常
+
+- **WHEN** `languageDetectionEngine === 'google'`,检测请求因网络不可达而抛出异常,输入为 `今天天气很好`
+- **THEN** 系统 SHALL 改用 local 引擎检测,结果为 `'zh-Hans'`
+- **AND** 该次提交 SHALL 以 `'zh-Hans'` 为源语言发起翻译
 
 ### Requirement: 目标语言选择
 
-系统 SHALL 允许用户在主界面与设置中选择目标语言;设置中的 `defaultTargetLanguage` 决定首次打开时的默认目标语言。系统 SHALL 在用户切换目标语言后立即对当前输入重新触发翻译(若已有结果且开启 `autoTranslate`)。
+系统 SHALL 用 `settings.nativeLanguage`(默认 `'zh-Hans'`)与 `settings.translationTargetLanguage`(默认 `'en'`;当母语与 `'en'` 同语言时默认 `'zh-Hans'`)自动决定目标语言:源语言与母语属于同一语言(`en-*` 视同 `en`,`ko-banmal` 视同 `ko`)时 SHALL 以 `translationTargetLanguage` 为目标,否则 SHALL 以 `nativeLanguage` 为目标。用户在主界面手动选择的目标语言 SHALL 在后续检测出的源语言与选择时的源语言相同时保持不变,源语言变化时 SHALL 恢复自动决定。用户切换目标语言后,系统 SHALL 立即对当前输入重新翻译。
 
-#### Scenario: 默认目标语言生效
+#### Scenario: 非母语输入翻译为母语
 
-- **WHEN** 用户首次打开应用,`settings.defaultTargetLanguage === 'zh-Hans'`
-- **THEN** 主界面目标语言下拉 SHALL 显示"简体中文"作为初始选中
+- **WHEN** `settings.nativeLanguage === 'zh-Hans'`,用户提交英文文本
+- **THEN** 目标语言 SHALL 为 `'zh-Hans'`
+
+#### Scenario: 母语输入翻译为翻译目标语言
+
+- **WHEN** `settings.nativeLanguage === 'zh-Hans'`、`settings.translationTargetLanguage === 'en'`,用户提交简体中文文本
+- **THEN** 目标语言 SHALL 为 `'en'`
 
 #### Scenario: 切换目标语言重新翻译
 
-- **WHEN** 已存在翻译结果,`settings.autoTranslate === true`,用户把目标语言从 `'zh-Hans'` 切到 `'ja'`
-- **THEN** 系统 SHALL 自动对当前源文本重新触发一次翻译
-- **AND** 旧结果 SHALL 被新结果替换
+- **WHEN** 输入框有文本,用户把目标语言从 `'zh-Hans'` 切到 `'ja'`
+- **THEN** 系统 SHALL 立即以 `'ja'` 为目标对当前输入重新翻译
+- **AND** 之后提交同一源语言的文本时,目标语言 SHALL 保持 `'ja'`
+
+#### Scenario: 交换源与目标语言
+
+- **WHEN** 已有译文,用户点击源/目标语言之间的交换按钮
+- **THEN** 系统 SHALL 交换源语言与目标语言
+- **AND** SHALL 以当前译文作为新的输入发起翻译
 
 ### Requirement: 检测结果与翻译目标的合理性约束
 
-系统 SHALL 在检测出的源语言与用户选定目标语言一致时,仍执行翻译(由 LLM 决定如何处理同语言输入,例如改写为更标准形式),但 MUST NOT 弹出错误对话框。
+系统 SHALL 在源语言与目标语言相同时仍执行翻译(由 LLM 决定如何处理同语言输入),MUST NOT 弹出错误对话框或阻塞用户操作。
 
 #### Scenario: 源等于目标
 
-- **WHEN** `detectFrom === 'en'` 且 `detectTo === 'en'`
+- **WHEN** 源语言为 `'en'` 且用户手动把目标语言选为 `'en'`
 - **THEN** 系统 SHALL 仍发起翻译
 - **AND** SHALL NOT 阻塞用户操作或弹出错误

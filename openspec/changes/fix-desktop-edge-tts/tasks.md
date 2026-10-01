@@ -24,7 +24,7 @@
 - [x] 3.3 Convert returned base64 MP3 segments to `ArrayBuffer`s and reuse the existing `AudioContext` playback lifecycle sequentially; call `onFinish` only after the final segment ends, while earlier segment `ended` events only start the next segment.
 - [x] 3.4 Remove the old 15-second whole-request timeout from the desktop native Edge path while keeping non-desktop timeout behavior intact.
 - [x] 3.5 Ensure aborted or superseded desktop Edge TTS requests do not start playback when their backend result arrives late or between returned segments.
-- [x] 3.6 Keep Edge TTS failures on the existing toast/error path without automatically switching to system TTS.
+- [x] 3.6 Keep Edge TTS failures on the existing error path (reject, `onFinish`, button reset) without automatically switching to system TTS.
 - [x] 3.7 Ensure the desktop bundle does not import the browser `edge-tts-universal` synthesis path after the split.
 
 ## 4. Verification

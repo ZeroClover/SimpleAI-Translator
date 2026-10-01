@@ -35,12 +35,12 @@
 
 ## 6. Document Human Setup Requirements
 
-- [x] 6.1 Create `docs/release-github-actions-secrets.md` with required GitHub Actions secrets and variables grouped by GitHub release environment, Tauri updater, Apple, Azure Artifact Signing, WinGet, and Linux integrity.
+- [x] 6.1 Create `docs/release-github-actions-secrets.md` with required GitHub Actions secrets and variables grouped by GitHub release environment, Tauri updater, Apple, Azure Artifact Signing, and Linux integrity.
 - [x] 6.2 Document how to generate, back up, verify, rotate, and recover from loss or compromise of the Tauri updater signing key pair, including the embedded public key relationship.
-- [x] 6.3 Document how to obtain/export the Apple Developer ID Application certificate, identify the signing identity, configure notarization credentials, and avoid confusing app-specific passwords with Apple ID login passwords.
+- [x] 6.3 Document how to obtain/export the Apple Developer ID Application certificate, identify the signing identity, and create the App Store Connect API key used for notarization.
 - [x] 6.4 Document how to create Azure Artifact Signing resources, complete identity validation, create a certificate profile, assign RBAC, configure GitHub OIDC federated credentials, and record supported-region/prerequisite limits.
-- [x] 6.5 Document how to create the WinGet publishing token, which account/scope it should use, which installer format it consumes, and whether the package identifier is retained or changed.
-- [x] 6.6 Mark `GITHUB_TOKEN` as built in and list explicitly non-required credentials such as telemetry or crash-reporting secrets.
+- [x] 6.5 Remove the WinGet publication workflow and list WinGet publishing credentials as non-required in the release setup document.
+- [x] 6.6 Mark `GITHUB_TOKEN` as built in and list explicitly non-required credentials such as telemetry, crash-reporting, or WinGet publishing secrets.
 
 ## 7. Validate
 

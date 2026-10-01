@@ -59,6 +59,11 @@ ModelSelection SHALL 只标识默认 Provider 与模型名。系统 SHALL NOT �
 -   **WHEN** 当前 ModelSelection 指向的 Provider + Model 没有 ProviderModelOutputControls 记录
 -   **THEN** 系统 SHALL 按关闭思考与关闭结构化输出处理
 
+#### Scenario: 关闭开关优先于模型级 effort 字段
+
+-   **WHEN** ProviderModelOutputControls 设置了 `thinkingEnabled: false` 与 `openaiReasoningEffort: 'high'`
+-   **THEN** OpenAI 请求 SHALL NOT 包含 `reasoning_effort` 或 `reasoning`
+
 ### Requirement: 模型思考控制表单
 
 系统 SHALL 在 Provider 表单之外、模型选择区域中提供当前 Provider + Model 的输出控制表单。该表单 SHALL 包含“启用思考(Thinking)”开关，并根据当前模型所引用 Provider 的 `protocol` 显示对应的 provider-specific effort 控件:

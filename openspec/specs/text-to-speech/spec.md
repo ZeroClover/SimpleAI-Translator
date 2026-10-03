@@ -3,6 +3,16 @@
 ## Purpose
 定义翻译界面与设置页中的文本朗读能力:Edge TTS、系统 `speechSynthesis` 与 OpenAI 兼容 `/audio/speech` 三种 backend 的选择、voice 与语速/音量参数、OpenAI TTS 对既有 Provider 凭据的复用,以及朗读失败、超时与停止的处理方式。
 ## Requirements
+
+### Requirement: Edge TTS 资源释放
+
+桌面与浏览器 Edge TTS 在合成、音频校验、解码或播放启动失败时 SHALL 关闭本次 AudioContext 并移除取消监听器。播放完成或主动取消亦 SHALL 清理资源，合成完成后 SHALL 清除超时计时器。失败 SHALL 沿用现有错误提示与按钮复位行为，不切换 backend。
+
+#### Scenario: 合成请求失败
+
+- **WHEN** 合成失败或返回无效音频
+- **THEN** 已创建的 AudioContext SHALL 关闭，后续朗读 SHALL 可正常开始
+
 ### Requirement: 朗读源文本与翻译结果
 
 系统 SHALL 在翻译界面对源文本与翻译结果各提供一个朗读按钮(`SpeakerIcon`),点击后通过 TTS 子系统朗读对应文本。每个朗读按钮 SHALL 持有独立的中止控制:在加载或播放期间再次点击同一按钮 SHALL 停止该次朗读;按钮所在组件卸载时 SHALL 停止该次朗读。系统 SHALL 在所有朗读按钮(含设置页试听按钮)之间保证同一时刻至多一个朗读:开始新的朗读前 SHALL 中止当前正在加载或播放的朗读,并使其按钮图标恢复初始形态。

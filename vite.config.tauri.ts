@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, normalizePath } from 'vite'
 import react from '@vitejs/plugin-react'
 import tsconfigPaths from 'vite-tsconfig-paths'
 import svgr from 'vite-plugin-svgr'
@@ -29,7 +29,10 @@ export default defineConfig({
         // produce sourcemaps for debug builds
         sourcemap: !!process.env.TAURI_DEBUG,
         rollupOptions: {
-            input: ['src/tauri/dummy.html', 'src/tauri/index.html'],
+            input: [
+                normalizePath(fileURLToPath(new URL('./src/tauri/dummy.html', import.meta.url))),
+                normalizePath(fileURLToPath(new URL('./src/tauri/index.html', import.meta.url))),
+            ],
             output: {
                 dir: 'dist/tauri',
             },

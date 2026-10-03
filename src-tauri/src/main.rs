@@ -105,6 +105,12 @@ fn launch_ipc_server(server: &Server) {
 }
 
 fn main() {
+    #[cfg(target_os = "windows")]
+    if let Err(error) = tauri::webview_version() {
+        crate::windows::show_webview_startup_error(&error.to_string());
+        std::process::exit(1);
+    }
+
     init_tokio_runtime();
     let silently = env::args().any(|arg| arg == "--silently");
 

@@ -5,6 +5,16 @@
 
 ## Requirements
 
+### Requirement: Windows WebView 启动失败提示
+
+Windows 上检测 WebView2 Runtime 失败或创建 WebView 窗口失败时，应用 SHALL 显示原生错误对话框，包含技术详情和 WebView2 安装或修复建议，然后退出。提示 SHALL 将运行时损坏描述为可能原因，而不是把所有窗口创建错误归因于它。
+
+#### Scenario: 无法创建界面
+
+- **WHEN** Windows WebView2 检测或窗口创建失败
+- **THEN** 用户 SHALL 能看到不依赖 WebView 的错误信息
+- **AND** 只有用户选择 OK 后才 SHALL 打开微软官方下载页面
+
 ### Requirement: Linux 托盘退出
 
 Linux 托盘 SHALL 提供可用的 Quit 菜单项，通过应用菜单事件退出进程。

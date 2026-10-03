@@ -52,10 +52,10 @@ describe('language detection', () => {
         await expect(bingDetectLang('text')).resolves.toBe(langCode)
     })
 
-    it('maps unsupported Bing languages to en', async () => {
+    it('reports unsupported Bing languages as unknown', async () => {
         mockBingDetection('sw')
 
-        await expect(bingDetectLang('text')).resolves.toBe('en')
+        await expect(bingDetectLang('text')).resolves.toBeUndefined()
     })
 
     it.each(['google', 'baidu', 'bing'])('falls back to local detection when %s detection throws', async (engine) => {
@@ -69,11 +69,11 @@ describe('language detection', () => {
         await expect(detectLang('今天天气很好')).resolves.toBe('zh-Hans')
     })
 
-    it('keeps en for a non-successful remote response', async () => {
-        mockEngine('baidu')
+    it.each(['google', 'baidu', 'bing'])('falls back locally for a non-successful %s response', async (engine) => {
+        mockEngine(engine)
         vi.mocked(getUniversalFetch).mockReturnValue(vi.fn(async () => new Response('', { status: 500 })))
 
-        await expect(detectLang('今天天气很好')).resolves.toBe('en')
+        await expect(detectLang('今天天气很好')).resolves.toBe('zh-Hans')
     })
 
     it('detects locally without network requests by default', async () => {
@@ -81,5 +81,20 @@ describe('language detection', () => {
 
         await expect(detectLang('Ça va très bien.')).resolves.toBe('fr')
         expect(getUniversalFetch).not.toHaveBeenCalled()
+    })
+
+    it.each([
+        ['google', [null, null, 'unknown']],
+        ['google', []],
+        ['baidu', { lan: 'unknown' }],
+        ['baidu', {}],
+        ['bing', [{ language: 'unknown' }]],
+        ['bing', []],
+    ])('uses local detection for an unknown or empty %s result', async (engine, body) => {
+        mockEngine(engine as string)
+        vi.mocked(getUniversalFetch).mockReturnValue(
+            vi.fn(async (url: string) => new Response(url.includes('/translate/auth') ? 'token' : JSON.stringify(body)))
+        )
+        await expect(detectLang('今天天气很好')).resolves.toBe('zh-Hans')
     })
 })

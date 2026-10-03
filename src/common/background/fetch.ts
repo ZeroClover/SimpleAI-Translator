@@ -132,6 +132,14 @@ export async function backgroundFetch(input: string, options: RequestInit) {
 
                     port.onDisconnect.addListener(() => {
                         signal?.removeEventListener('abort', handleAbort)
+                        if (!resolved) {
+                            resolved = true
+                            reject(
+                                signal?.aborted
+                                    ? new DOMException('Aborted', 'AbortError')
+                                    : new Error('The connection to the background was closed before any response')
+                            )
+                        }
                         try {
                             controller.close()
                         } catch (e) {
@@ -147,6 +155,6 @@ export async function backgroundFetch(input: string, options: RequestInit) {
                 port.postMessage({ type: 'abort' })
             }
             signal?.addEventListener('abort', handleAbort)
-        })()
+        })().catch(reject)
     })
 }

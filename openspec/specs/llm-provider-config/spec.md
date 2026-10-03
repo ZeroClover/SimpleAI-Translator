@@ -155,6 +155,13 @@ ModelSelection SHALL 只标识默认 Provider 与模型名。系统 SHALL NOT �
 
 ### Requirement: 默认 Endpoint 与自定义 Endpoint
 
+桌面 HTTP 权限 SHALL 允许用户配置的 HTTP/HTTPS Endpoint 使用非默认端口；模型发现及语音请求 SHALL 不因显式端口被权限层拒绝。
+
+#### Scenario: 本地服务的非默认端口
+
+- **WHEN** 用户配置 `http://127.0.0.1:11434/v1` 并刷新模型
+- **THEN** HTTP 权限 SHALL 允许请求抵达该服务
+
 系统 SHALL 在 `endpoint` 留空时,按 `protocol` 使用以下默认值:
 
 -   `openai-chat` → `https://api.openai.com/v1`

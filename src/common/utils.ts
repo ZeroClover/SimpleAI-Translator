@@ -587,81 +587,76 @@ export async function fetchSSE(input: string, options: FetchSSEOptions) {
 
     if (isTauri()) {
         const id = uuidv4()
-        const unlistens: Array<() => void> = []
-        const unlisten = () => {
-            unlistens.forEach((cb) => cb())
+        const signal = options.signal
+        const abortError = () => new DOMException('Aborted', 'AbortError')
+        if (signal?.aborted) {
+            throw abortError()
         }
-        return await new Promise<void>((resolve, reject) => {
-            let isAborted = false
-            options.signal?.addEventListener('abort', () => {
-                isAborted = true
-                unlisten?.()
-                reject()
-                emit('abort-fetch-stream', { id })
-            })
-            listen('fetch-stream-status-code', (event: Event<{ id: string; status: number }>) => {
-                if (isAborted) {
-                    return
-                }
-                if (event.payload.id === id) {
-                    onStatusCode?.(event.payload.status)
-                }
-            })
-                .then((cb) => unlistens.push(cb))
-                .catch((e) => reject(e))
-            listen(
-                'fetch-stream-chunk',
-                (event: Event<{ id: string; data: string; done: boolean; status: number }>) => {
-                    if (isAborted) {
-                        return
-                    }
-                    const payload = event.payload
-                    if (payload.id !== id) {
-                        return
-                    }
-                    if (payload.done) {
-                        return
-                    }
-                    if (payload.status !== 200) {
-                        try {
-                            const data = JSON.parse(payload.data)
-                            onError(data)
-                        } catch (e) {
-                            onError(payload.data)
-                        }
-                        return
-                    }
-                    if (isJSONStream) {
-                        partialJSONParser({ value: payload.data, done: payload.done })
-                        return
-                    }
-                    if (usePartialArrayJSONParser) {
-                        partialArrayJSONParser({ value: payload.data, done: payload.done })
-                    } else {
-                        sseParser.feed(payload.data)
-                    }
-                }
-            )
-                .then((cb) => {
-                    unlistens.push(cb)
-                })
-                .catch((e) => {
-                    reject(e)
-                })
-
-            commands
-                .fetchStream(id, input, JSON.stringify(fetchOptions))
-                .catch((e) => {
-                    reject(e)
-                })
-                .finally(() => {
-                    if (isAborted) {
-                        return
-                    }
-                    unlisten?.()
-                    resolve()
-                })
+        const unlistens: Array<() => void> = []
+        let cleanedUp = false
+        const track = (unlisten: () => void) => {
+            if (cleanedUp) {
+                unlisten()
+            } else {
+                unlistens.push(unlisten)
+            }
+        }
+        let rejectAbort: (error: DOMException) => void = () => {}
+        const aborted = new Promise<never>((_resolve, reject) => {
+            rejectAbort = reject
         })
+        const handleAbort = () => {
+            rejectAbort(abortError())
+            void emit('abort-fetch-stream', { id }).catch(() => {})
+        }
+        signal?.addEventListener('abort', handleAbort, { once: true })
+        const run = async () => {
+            await Promise.all([
+                listen('fetch-stream-status-code', (event: Event<{ id: string; status: number }>) => {
+                    if (!cleanedUp && !signal?.aborted && event.payload.id === id) {
+                        onStatusCode?.(event.payload.status)
+                    }
+                }).then(track),
+                listen(
+                    'fetch-stream-chunk',
+                    (event: Event<{ id: string; data: string; done: boolean; status: number }>) => {
+                        const payload = event.payload
+                        if (cleanedUp || signal?.aborted || payload.id !== id || payload.done) {
+                            return
+                        }
+                        if (payload.status !== 200) {
+                            try {
+                                onError(JSON.parse(payload.data))
+                            } catch {
+                                onError(payload.data)
+                            }
+                            return
+                        }
+                        if (isJSONStream) {
+                            void partialJSONParser({ value: payload.data, done: payload.done })
+                        } else if (usePartialArrayJSONParser) {
+                            void partialArrayJSONParser({ value: payload.data, done: payload.done })
+                        } else {
+                            sseParser.feed(payload.data)
+                        }
+                    }
+                ).then(track),
+            ])
+            if (!cleanedUp && !signal?.aborted) {
+                const result = await commands.fetchStream(id, input, JSON.stringify(fetchOptions))
+                if (result.status === 'error') {
+                    throw new Error(result.error)
+                }
+            }
+        }
+        try {
+            await Promise.race([run(), aborted])
+        } finally {
+            cleanedUp = true
+            signal?.removeEventListener('abort', handleAbort)
+            unlistens.splice(0).forEach((unlisten) => unlisten())
+        }
+        return
     }
 
     const resp = await fetcher(input, fetchOptions)

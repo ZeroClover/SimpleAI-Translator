@@ -105,6 +105,12 @@ fn launch_ipc_server(server: &Server) {
 }
 
 fn main() {
+    #[cfg(target_os = "windows")]
+    if let Err(error) = tauri::webview_version() {
+        crate::windows::show_webview_startup_error(&error.to_string());
+        std::process::exit(1);
+    }
+
     init_tokio_runtime();
     let silently = env::args().any(|arg| arg == "--silently");
 
@@ -236,7 +242,7 @@ fn main() {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 loop {
-                    std::thread::sleep(std::time::Duration::from_secs(60 * 10));
+                    tokio::time::sleep(std::time::Duration::from_secs(60 * 10)).await;
                     let builder = handle.updater_builder();
                     let updater = builder.build().unwrap();
 
@@ -301,11 +307,11 @@ fn main() {
                             body: update.body,
                         }));
                         tray::create_tray(&handle).unwrap();
-                        let config = get_config().unwrap();
+                        let config = get_config().unwrap_or_default();
                         if config.automatic_check_for_updates.is_none()
                             || config.automatic_check_for_updates.is_some_and(|x| x)
                         {
-                            std::thread::sleep(std::time::Duration::from_secs(3));
+                            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                             show_updater_window();
                         }
                     }

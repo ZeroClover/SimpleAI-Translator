@@ -140,6 +140,16 @@ describe('Edge TTS desktop integration', () => {
 
         audioContext.sources[1].dispatchEvent(new Event('ended'))
         expect(onFinish).toHaveBeenCalledTimes(1)
+        expect(audioContext.close).toHaveBeenCalledOnce()
+    })
+
+    it('closes the audio context when decoding fails', async () => {
+        const request = speak({ text: 'Hello', lang: 'en', signal: new AbortController().signal })
+        const audioContext = latestAudioContext()
+        audioContext.decodeAudioData.mockRejectedValueOnce(new Error('invalid audio'))
+        await expect(request).rejects.toThrow('invalid audio')
+        expect(audioContext.close).toHaveBeenCalledOnce()
+        expect(audioContext.createBufferSource).not.toHaveBeenCalled()
     })
 
     it('falls back to the language default voice when the saved voice is blank', async () => {
@@ -280,6 +290,7 @@ describe('Edge TTS desktop integration', () => {
         expect(onFinish).toHaveBeenCalledTimes(1)
         expect(speechSynthesisSpeak).not.toHaveBeenCalled()
         expect(toast).toHaveBeenCalledWith('Edge TTS: auth: forbidden')
+        expect(latestAudioContext().close).toHaveBeenCalledOnce()
     })
 })
 
@@ -313,6 +324,7 @@ describe('Edge TTS browser errors', () => {
         ).rejects.toThrow('WebSocket closed')
 
         expect(toast).toHaveBeenCalledWith('Edge TTS: WebSocket closed')
+        expect(latestAudioContext().close).toHaveBeenCalledOnce()
         expect(onFinish).toHaveBeenCalledTimes(1)
     })
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { Effect } from '@tauri-apps/api/window'
 import { useTheme } from '../../common/hooks/useTheme'
@@ -129,22 +129,26 @@ export function InnerWindow(props: IWindowProps) {
     const { settings } = useSettings()
 
     const [backgroundBlur, setBackgroundBlur] = useState(false)
+    const effectsQueue = useRef(Promise.resolve())
     useEffect(() => {
         const appWindow = WebviewWindow.getCurrent()
-        if (settings.enableBackgroundBlur) {
-            //  TODO: It currently seems that the light/dark mode of the mica cannot be manually adjusted.
-            // link: https://beta.tauri.app/references/v2/js/core/namespacewindow/#mica
-            if (isMacOS) {
-                appWindow.setEffects({ effects: [Effect.WindowBackground] })
-            } else if (isWindows) {
-                appWindow.setEffects({ effects: [Effect.Mica] })
-            }
-            setBackgroundBlur(true)
-        } else {
-            if (isMacOS || isWindows) {
-                appWindow.clearEffects()
-            }
-            setBackgroundBlur(false)
+        let disposed = false
+        effectsQueue.current = effectsQueue.current
+            .then(async () => {
+                if (disposed || (!isMacOS && !isWindows)) return
+                // Serialize clear/apply pairs so rapid theme changes cannot stack native views.
+                await appWindow.clearEffects()
+                if (disposed) return
+                if (settings.enableBackgroundBlur) {
+                    await appWindow.setEffects(
+                        isMacOS ? { effects: [Effect.WindowBackground], radius: 12 } : { effects: [Effect.Mica] }
+                    )
+                }
+                if (!disposed) setBackgroundBlur(!!settings.enableBackgroundBlur)
+            })
+            .catch(console.error)
+        return () => {
+            disposed = true
         }
     }, [settings.enableBackgroundBlur, settings.themeType])
 

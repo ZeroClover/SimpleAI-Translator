@@ -5,6 +5,57 @@
 
 ## Requirements
 
+### Requirement: Windows WebView 启动失败提示
+
+Windows 上检测 WebView2 Runtime 失败或创建 WebView 窗口失败时，应用 SHALL 显示原生错误对话框，包含技术详情和 WebView2 安装或修复建议，然后退出。提示 SHALL 将运行时损坏描述为可能原因，而不是把所有窗口创建错误归因于它。
+
+#### Scenario: 无法创建界面
+
+- **WHEN** Windows WebView2 检测或窗口创建失败
+- **THEN** 用户 SHALL 能看到不依赖 WebView 的错误信息
+- **AND** 只有用户选择 OK 后才 SHALL 打开微软官方下载页面
+
+### Requirement: Linux 托盘退出
+
+Linux 托盘 SHALL 提供可用的 Quit 菜单项，通过应用菜单事件退出进程。
+
+#### Scenario: 从托盘退出 Linux 应用
+
+- **WHEN** 用户选择托盘的 Quit
+- **THEN** 应用 SHALL 退出，而不是只关闭窗口或忽略操作
+
+### Requirement: 背景模糊不叠加
+
+桌面端应用背景模糊前 SHALL 清除旧原生效果；快速切换主题或开关时 SHALL 顺序完成清除与应用，避免叠加多个原生视图。macOS 模糊层 SHALL 使用圆角，与窗口外观保持一致。
+
+#### Scenario: 连续切换主题
+
+- **WHEN** 启用背景模糊后连续切换主题
+- **THEN** 最终窗口 SHALL 仅保留当前设置对应的效果，不残留旧模糊层
+
+### Requirement: 桌面设置文件完整性
+
+桌面设置的保存与键删除 SHALL 先写入同目录的唯一临时文件，再替换 `config.json`；失败时 SHALL 保留旧文件并清理临时文件。读取到损坏 JSON 或非对象 JSON 时 SHALL 将原文件保留为唯一的 `.corrupted` 备份并初始化空设置，不覆盖既有备份。原生字段类型错误 SHALL 使用原生默认值，不改写用户文件。配置读取错误 SHALL NOT 导致原生进程 panic。
+
+#### Scenario: 写入失败
+
+- **WHEN** 临时文件写入或替换失败
+- **THEN** 原设置 SHALL 保持有效，错误 SHALL 传回调用方
+
+#### Scenario: 损坏文件恢复
+
+- **WHEN** 启动时发现 `config.json` 被截断
+- **THEN** 系统 SHALL 保留损坏文件的全部字节，并以空设置继续启动
+
+### Requirement: 更新检查不阻塞桌面任务
+
+桌面端定期更新检查及更新提示前的等待 SHALL 使用异步计时器，不得阻塞 Tokio worker。等待期间，翻译、设置及其它桌面命令 SHALL 继续正常响应。
+
+#### Scenario: 等待下一次更新检查
+
+- **WHEN** 更新任务正在等待下一次检查
+- **THEN** 等待 SHALL 让出执行线程，不占用运行时 worker 睡眠
+
 ### Requirement: 设置面板组成
 
 设置面板(`src/common/components/Settings.tsx`)SHALL 按以下标签组织现有设置能力:

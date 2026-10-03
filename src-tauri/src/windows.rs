@@ -29,15 +29,15 @@ fn get_dummy_window() -> tauri::WebviewWindow {
         }
         None => {
             debug_println!("Create dummy window!");
-            tauri::WebviewWindowBuilder::new(
-                app_handle,
-                "dummy",
-                tauri::WebviewUrl::App("src/tauri/dummy.html".into()),
+            checked_build(
+                tauri::WebviewWindowBuilder::new(
+                    app_handle,
+                    "dummy",
+                    tauri::WebviewUrl::App("src/tauri/dummy.html".into()),
+                )
+                .title("Dummy")
+                .visible(false),
             )
-            .title("Dummy")
-            .visible(false)
-            .build()
-            .unwrap()
         }
     }
 }
@@ -192,17 +192,63 @@ pub fn post_process_window<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) 
     }
 }
 
+#[cfg(target_os = "windows")]
+pub fn show_webview_startup_error(detail: &str) {
+    use windows::core::PCWSTR;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        MessageBoxW, IDOK, MB_ICONERROR, MB_OKCANCEL, MB_SETFOREGROUND,
+    };
+
+    let text: Vec<u16> = format!(
+        "SimpleAI Translator could not create its interface. The Microsoft Edge WebView2 Runtime may be missing or damaged.\n\nClick OK to open Microsoft's WebView2 download page. Install or repair the runtime, then try again.\n\nTechnical detail: {detail}"
+    )
+    .encode_utf16()
+    .chain(std::iter::once(0))
+    .collect();
+    let caption: Vec<u16> = "SimpleAI Translator\0".encode_utf16().collect();
+    let pressed = unsafe {
+        MessageBoxW(
+            None,
+            PCWSTR(text.as_ptr()),
+            PCWSTR(caption.as_ptr()),
+            MB_OKCANCEL | MB_ICONERROR | MB_SETFOREGROUND,
+        )
+    };
+    if pressed == IDOK {
+        let _ = std::process::Command::new("rundll32")
+            .args([
+                "url.dll,FileProtocolHandler",
+                "https://developer.microsoft.com/microsoft-edge/webview2/",
+            ])
+            .spawn();
+    }
+}
+
+fn checked_build<R: tauri::Runtime, M: tauri::Manager<R>>(
+    builder: tauri::WebviewWindowBuilder<'_, R, M>,
+) -> tauri::WebviewWindow<R> {
+    builder.build().unwrap_or_else(|error| {
+        #[cfg(target_os = "windows")]
+        {
+            show_webview_startup_error(&error.to_string());
+            std::process::exit(1);
+        }
+        #[cfg(not(target_os = "windows"))]
+        panic!("failed to create webview window: {error}");
+    })
+}
+
 pub fn build_window<'a, R: tauri::Runtime, M: tauri::Manager<R>>(
     builder: tauri::WebviewWindowBuilder<'a, R, M>,
 ) -> tauri::WebviewWindow<R> {
     #[cfg(target_os = "macos")]
     {
-        let window = builder
-            .title_bar_style(tauri::TitleBarStyle::Overlay)
-            .hidden_title(true)
-            .transparent(true)
-            .build()
-            .unwrap();
+        let window = checked_build(
+            builder
+                .title_bar_style(tauri::TitleBarStyle::Overlay)
+                .hidden_title(true)
+                .transparent(true),
+        );
 
         post_process_window(&window);
 
@@ -211,7 +257,7 @@ pub fn build_window<'a, R: tauri::Runtime, M: tauri::Manager<R>>(
 
     #[cfg(not(target_os = "macos"))]
     {
-        let window = builder.transparent(true).decorations(true).build().unwrap();
+        let window = checked_build(builder.transparent(true).decorations(true));
 
         post_process_window(&window);
 

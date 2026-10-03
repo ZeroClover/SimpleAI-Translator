@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { writeTextFile, BaseDirectory } from '@tauri-apps/plugin-fs'
+import { writeTextFile, rename, remove, BaseDirectory } from '@tauri-apps/plugin-fs'
+import { v4 as uuidv4 } from 'uuid'
 import { Proxy, ProxyConfig, fetch } from '@tauri-apps/plugin-http'
 import * as utils from '../utils'
 import { IBrowser, ISettings } from '../types'
@@ -9,6 +10,19 @@ import { commands } from '@/tauri/bindings'
 async function getSettings(): Promise<Record<string, any>> {
     const settings = await commands.getConfigContent()
     return JSON.parse(settings)
+}
+
+async function writeSettings(settings: Record<string, any>): Promise<void> {
+    const temporaryPath = `config.${uuidv4()}.tmp`
+    try {
+        await writeTextFile(temporaryPath, JSON.stringify(settings), { baseDir: BaseDirectory.AppConfig })
+        await rename(temporaryPath, 'config.json', {
+            oldPathBaseDir: BaseDirectory.AppConfig,
+            newPathBaseDir: BaseDirectory.AppConfig,
+        })
+    } finally {
+        await remove(temporaryPath, { baseDir: BaseDirectory.AppConfig }).catch(() => {})
+    }
 }
 
 class BrowserStorageSync {
@@ -31,9 +45,7 @@ class BrowserStorageSync {
         }, {})
         const settings = await getSettings()
         const newSettings = { ...settings, ...newItems }
-        await writeTextFile('config.json', JSON.stringify(newSettings), {
-            baseDir: BaseDirectory.AppConfig,
-        })
+        await writeSettings(newSettings)
     }
 
     async remove(keys: string[]): Promise<void> {
@@ -41,9 +53,7 @@ class BrowserStorageSync {
         for (const key of keys) {
             delete settings[key]
         }
-        await writeTextFile('config.json', JSON.stringify(settings), {
-            baseDir: BaseDirectory.AppConfig,
-        })
+        await writeSettings(settings)
     }
 }
 

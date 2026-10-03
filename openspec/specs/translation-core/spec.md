@@ -43,6 +43,18 @@
 -   **WHEN** 用户在主输入框输入非空文本并按下回车
 -   **THEN** 系统 SHALL 检测源语言、确定目标语言,并调用 `translate({ text, ... })`(行为细节见"翻译输入与输出"需求)
 
+提交 SHALL 在 keydown 处理；输入法仍处于组合态（包括 keyCode 229）时的 Enter SHALL NOT 提交。提交依赖 SHALL 直接计算，不得等待 React 状态更新函数执行才兑现 Promise。无有效输入、恢复历史或提交失败时 SHALL 结束旧的加载状态。
+
+#### Scenario: 恢复相同历史后继续提交
+
+- **WHEN** 用户恢复当前已显示的历史记录，再输入新文本并提交
+- **THEN** 新文本 SHALL 正常翻译，不被历史恢复标记跳过
+
+#### Scenario: 重复提交沿用缓存规则
+
+- **WHEN** 用户再次提交完全相同的文本与配置
+- **THEN** 系统 SHALL 正常执行提交流程并显示成功缓存；只有显式重试才绕过缓存
+
 #### Scenario: 显式点击提交按钮触发
 
 -   **WHEN** 用户点击提交按钮
@@ -81,6 +93,8 @@
 -   **AND** 桌面端 SHALL NOT 注册任何全局快捷键
 
 ### Requirement: 翻译输入与输出
+
+界面 SHALL 将流式增量缓存在当前请求内，按最多每 100ms 一次刷新合并文本，避免每个 chunk 都触发整个结果区渲染。完整文本替换和请求结束 SHALL 立即刷新；成功缓存与历史 SHALL 包含尚未刷新的尾部文本。失败或停止时 SHALL 保留当前请求的部分文本，但不缓存；旧请求的计时器与回调 SHALL NOT 覆盖新请求。
 
 系统 SHALL 接受一段源文本与一组语言参数(源语言、目标语言),通过解析出的 LLM Provider 与模型发起请求,并以流式方式逐增量回写翻译结果。源文本 SHALL 被视为不可信数据,并按"源文本作为不可信数据与提示注入隔离"需求进行角色分层与 nonce 边界包裹;翻译指令 SHALL NOT 与源文本置于同一消息信任层。
 
@@ -229,6 +243,16 @@ Provider 解析顺序 SHALL 为 `query.providerId` → `settings.defaultModel.pr
 -   **AND** 部分译文 SHALL 仍保留在结果区
 
 ### Requirement: 翻译失败处理
+
+浏览器扩展请求若在首次响应前失去后台连接 SHALL 拒绝请求 Promise；主动取消 SHALL 使用 `AbortError`，其它断开 SHALL 提供可读错误。连接建立失败亦 SHALL 结束请求，不得永久等待。
+
+桌面流式请求 SHALL 在两个事件监听器注册完成后开始网络请求。成功、失败及取消时 SHALL 注销所有监听器（包括清理后才完成注册的监听器），并移除取消监听。已取消的请求 SHALL 以 `AbortError` 结束且不再启动网络请求。
+
+#### Scenario: 注册期间取消桌面请求
+
+- **WHEN** 用户在流式事件监听器尚未注册完成时取消请求
+- **THEN** 请求 SHALL 结束，迟到的监听器 SHALL 立即注销
+- **AND** SHALL NOT 发起对应网络请求
 
 系统 SHALL 捕获 LLM 调用过程中的网络错误、非 200 状态码、流内错误事件与流解析错误,通过 `onError` 上报可读错误消息并以 `onFinish('error')` 结束;系统 SHALL NOT 静默吞掉错误,SHALL NOT 自动重试,SHALL NOT 自动切换到其它 Provider。错误消息 SHALL 依次取上游响应体或错误事件中的 `error.message`、`message`(OpenAI Responses 先取 `response.error.message`,OpenAI Chat 最后取 `detail`),都取不到时为 `Unknown error`。
 

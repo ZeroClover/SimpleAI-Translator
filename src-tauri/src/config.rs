@@ -100,7 +100,7 @@ pub fn get_config_content_by_app(app: &AppHandle) -> Result<String, String> {
 }
 
 fn read_config_file(path: &std::path::Path) -> Result<String, String> {
-    let content = match std::fs::read_to_string(path) {
+    let content = match std::fs::read(path) {
         Ok(content) => content,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             std::fs::write(path, "{}").map_err(|e| e.to_string())?;
@@ -108,8 +108,10 @@ fn read_config_file(path: &std::path::Path) -> Result<String, String> {
         }
         Err(error) => return Err(error.to_string()),
     };
-    if serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&content).is_ok() {
-        return Ok(content);
+    if let Ok(content) = String::from_utf8(content) {
+        if serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&content).is_ok() {
+            return Ok(content);
+        }
     }
     let backup = path.with_file_name(format!("config.{}.corrupted", uuid::Uuid::new_v4()));
     std::fs::rename(path, backup).map_err(|e| e.to_string())?;
@@ -126,7 +128,14 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("simpleai-config-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("config.json");
-        for content in ["{\"providers\":", "null", "[]"] {
+        let corruptions: &[&[u8]] = &[
+            b"{\"providers\":",
+            b"null",
+            b"[]",
+            b"{\"provider\":\"\xff\"}",
+            b"{\"provider\":\"\xe4\xb8",
+        ];
+        for content in corruptions {
             std::fs::write(&path, content).unwrap();
             assert_eq!(read_config_file(&path).unwrap(), "{}");
             assert_eq!(std::fs::read_to_string(&path).unwrap(), "{}");
@@ -134,10 +143,13 @@ mod tests {
                 let path = entry.unwrap().path();
                 path.extension()
                     .is_some_and(|extension| extension == "corrupted")
-                    && std::fs::read_to_string(path).unwrap() == content
+                    && std::fs::read(path).unwrap() == *content
             }));
         }
-        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 4);
+        assert_eq!(
+            std::fs::read_dir(&dir).unwrap().count(),
+            corruptions.len() + 1
+        );
         std::fs::remove_dir_all(dir).unwrap();
     }
 

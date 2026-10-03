@@ -557,6 +557,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const [isHistoryOpen, setIsHistoryOpen] = useState(false)
 
     const [translationFlag, forceTranslate] = useReducer((x: number) => x + 1, 0)
+    const [submissionFlag, submitTranslation] = useReducer((x: number) => x + 1, 0)
     const translationIDRef = useRef(0)
     const skipNextTranslateRef = useRef(false)
     const historyEntryIdRef = useRef<number | null>(null)
@@ -690,6 +691,9 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         engineModel: undefined,
     })
 
+    const translateDepsRef = useRef(translateDeps)
+    translateDepsRef.current = translateDeps
+
     useEffect(() => {
         if (!isDesktopApp()) {
             return undefined
@@ -740,32 +744,24 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         async function (text: string): Promise<typeof translateDeps> {
             const newSourceLang = await detectLang(text)
             setSourceLang(newSourceLang)
-            return await new Promise((resolve) => {
-                setTargetLang((targetLang_) => {
-                    const result = resolveTargetLanguageForSource(
-                        newSourceLang,
-                        targetLang_,
-                        manualTargetLangSourceRef.current,
-                        settings.nativeLanguage,
-                        settings.translationTargetLanguage
-                    )
-                    const newTargetLang = result.targetLanguage as LangCode
-                    manualTargetLangSourceRef.current = result.manualTargetLanguageSource as LangCode | null
-                    setTranslateDeps((oldV) => {
-                        const newV: typeof translateDeps = {
-                            ...oldV,
-                            sourceLang: newSourceLang,
-                            targetLang: newTargetLang,
-                            text,
-                            providerId: selectedModel?.providerId,
-                            engineModel: selectedModel?.model,
-                        }
-                        resolve(newV)
-                        return oldV
-                    })
-                    return newTargetLang
-                })
-            })
+            const result = resolveTargetLanguageForSource(
+                newSourceLang,
+                targetLangRef.current,
+                manualTargetLangSourceRef.current,
+                settings.nativeLanguage,
+                settings.translationTargetLanguage
+            )
+            const newTargetLang = result.targetLanguage as LangCode
+            manualTargetLangSourceRef.current = result.manualTargetLanguageSource as LangCode | null
+            setTargetLang(newTargetLang)
+            return {
+                ...translateDepsRef.current,
+                sourceLang: newSourceLang,
+                targetLang: newTargetLang,
+                text,
+                providerId: selectedModel?.providerId,
+                engineModel: selectedModel?.model,
+            }
         },
         [selectedModel?.model, selectedModel?.providerId, settings.nativeLanguage, settings.translationTargetLanguage]
     )
@@ -817,6 +813,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 settings.translationTargetLanguage
             ) as LangCode
     )
+    const targetLangRef = useRef(targetLang)
+    targetLangRef.current = targetLang
     const manualTargetLangSourceRef = useRef<LangCode | null>(null)
 
     useEffect(() => {
@@ -888,17 +886,20 @@ function InnerTranslator(props: IInnerTranslatorProps) {
 
     const translateText = useDeepCompareCallback(
         async (signal: AbortSignal) => {
-            if (skipNextTranslateRef.current) {
-                skipNextTranslateRef.current = false
-                return
-            }
             translationIDRef.current += 1
             if (translationIDRef.current > 1024) {
                 translationIDRef.current = 0
             }
             const translationID = translationIDRef.current
+            if (skipNextTranslateRef.current) {
+                skipNextTranslateRef.current = false
+                stopLoading()
+                return
+            }
             const { text, sourceLang, targetLang } = translateDeps
             if (!text || !sourceLang || !targetLang) {
+                stopLoading()
+                setActionStr('')
                 return
             }
             const isCurrentTranslation = () => translationID === translationIDRef.current
@@ -1096,6 +1097,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             settings,
             translateDeps,
             translationFlag,
+            submissionFlag,
             startLoading,
             stopLoading,
             t,
@@ -1117,35 +1119,35 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         (item: HistoryItem) => {
             historyEntryIdRef.current = item.id ?? null
             lastHistoryKeyRef.current = null
-            manualTargetLangSourceRef.current = null
-            skipNextTranslateRef.current = true
+            manualTargetLangSourceRef.current = item.fromLang
+            translateControllerRef.current?.abort()
+            translationIDRef.current += 1
+            stopLoading()
             setSourceLang(item.fromLang)
             setTargetLang(item.toLang)
             setEditableText(item.sourceText)
             setTranslatedText(item.translatedText)
             setActionStr('')
             setErrorMessage('')
-            setTranslateDeps((prev) => {
-                const providerIdFromHistory = settings.providers.some((provider) => provider.id === item.providerId)
-                    ? item.providerId
-                    : undefined
-                if (providerIdFromHistory) {
-                    setSelectedModel({
-                        providerId: providerIdFromHistory,
-                        model: item.model,
-                    })
-                }
-                return {
-                    ...prev,
-                    text: item.sourceText,
-                    sourceLang: item.fromLang,
-                    targetLang: item.toLang,
-                    providerId: providerIdFromHistory ?? prev.providerId ?? selectedModel?.providerId ?? undefined,
-                    engineModel: item.model ?? prev.engineModel,
-                }
-            })
+            const prev = translateDepsRef.current
+            const providerIdFromHistory = settings.providers.some((provider) => provider.id === item.providerId)
+                ? item.providerId
+                : undefined
+            if (providerIdFromHistory) {
+                setSelectedModel({ providerId: providerIdFromHistory, model: item.model })
+            }
+            const next = {
+                ...prev,
+                text: item.sourceText,
+                sourceLang: item.fromLang,
+                targetLang: item.toLang,
+                providerId: providerIdFromHistory ?? prev.providerId ?? selectedModel?.providerId,
+                engineModel: item.model ?? prev.engineModel,
+            }
+            skipNextTranslateRef.current = JSON.stringify(prev) !== JSON.stringify(next)
+            setTranslateDeps(next)
         },
-        [selectedModel?.providerId, settings.providers]
+        [selectedModel?.providerId, settings.providers, stopLoading]
     )
 
     useEffect(() => {
@@ -1273,12 +1275,20 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 setErrorMessage(t('Please select a model in settings first.'))
                 return
             }
+            skipNextTranslateRef.current = false
             const text = editorRef.current?.value ?? ''
-            getTranslateDeps(text).then((v) => {
-                setTranslateDeps(v)
-            })
+            getTranslateDeps(text)
+                .then((v) => {
+                    setTranslateDeps(v)
+                    submitTranslation()
+                })
+                .catch((error) => {
+                    stopLoading()
+                    setActionStr('Error')
+                    setErrorMessage(String(error))
+                })
         },
-        [getTranslateDeps, selectedModel?.model, selectedProvider, t]
+        [getTranslateDeps, selectedModel?.model, selectedProvider, stopLoading, t]
     )
 
     const getFooterBackgroundColor = useCallback(() => {
@@ -1588,15 +1598,17 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                     onChange={(e) => setEditableText(e.target.value)}
                                     onKeyDown={(e) => {
                                         e.stopPropagation()
+                                        if (
+                                            e.key === 'Enter' &&
+                                            !e.shiftKey &&
+                                            !e.nativeEvent.isComposing &&
+                                            e.nativeEvent.keyCode !== 229
+                                        ) {
+                                            handleSubmit(e)
+                                        }
                                     }}
                                     onKeyUp={(e) => {
                                         e.stopPropagation()
-                                    }}
-                                    onKeyPress={(e) => {
-                                        e.stopPropagation()
-                                        if (e.key === 'Enter' && !e.shiftKey) {
-                                            handleSubmit(e)
-                                        }
                                     }}
                                 />
                                 <div

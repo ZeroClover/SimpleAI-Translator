@@ -5,6 +5,15 @@
 
 ## Requirements
 
+### Requirement: 更新检查不阻塞桌面任务
+
+桌面端定期更新检查及更新提示前的等待 SHALL 使用异步计时器，不得阻塞 Tokio worker。等待期间，翻译、设置及其它桌面命令 SHALL 继续正常响应。
+
+#### Scenario: 等待下一次更新检查
+
+- **WHEN** 更新任务正在等待下一次检查
+- **THEN** 等待 SHALL 让出执行线程，不占用运行时 worker 睡眠
+
 ### Requirement: 设置面板组成
 
 设置面板(`src/common/components/Settings.tsx`)SHALL 按以下标签组织现有设置能力:

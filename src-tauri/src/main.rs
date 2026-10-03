@@ -236,7 +236,7 @@ fn main() {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 loop {
-                    std::thread::sleep(std::time::Duration::from_secs(60 * 10));
+                    tokio::time::sleep(std::time::Duration::from_secs(60 * 10)).await;
                     let builder = handle.updater_builder();
                     let updater = builder.build().unwrap();
 
@@ -305,7 +305,7 @@ fn main() {
                         if config.automatic_check_for_updates.is_none()
                             || config.automatic_check_for_updates.is_some_and(|x| x)
                         {
-                            std::thread::sleep(std::time::Duration::from_secs(3));
+                            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                             show_updater_window();
                         }
                     }

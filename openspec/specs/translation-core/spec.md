@@ -230,6 +230,14 @@ Provider 解析顺序 SHALL 为 `query.providerId` → `settings.defaultModel.pr
 
 ### Requirement: 翻译失败处理
 
+桌面流式请求 SHALL 在两个事件监听器注册完成后开始网络请求。成功、失败及取消时 SHALL 注销所有监听器（包括清理后才完成注册的监听器），并移除取消监听。已取消的请求 SHALL 以 `AbortError` 结束且不再启动网络请求。
+
+#### Scenario: 注册期间取消桌面请求
+
+- **WHEN** 用户在流式事件监听器尚未注册完成时取消请求
+- **THEN** 请求 SHALL 结束，迟到的监听器 SHALL 立即注销
+- **AND** SHALL NOT 发起对应网络请求
+
 系统 SHALL 捕获 LLM 调用过程中的网络错误、非 200 状态码、流内错误事件与流解析错误,通过 `onError` 上报可读错误消息并以 `onFinish('error')` 结束;系统 SHALL NOT 静默吞掉错误,SHALL NOT 自动重试,SHALL NOT 自动切换到其它 Provider。错误消息 SHALL 依次取上游响应体或错误事件中的 `error.message`、`message`(OpenAI Responses 先取 `response.error.message`,OpenAI Chat 最后取 `detail`),都取不到时为 `Unknown error`。
 
 界面层 SHALL 按结束原因展示状态:`stop` / `end_turn` / `eos` 视为成功;`length` / `max_tokens` 以"字数超限"toast 提示并保留已输出的译文;`content_filter` 显示 i18n key "The model provider blocked this request with its content filter." 对应的内容过滤提示;界面提示文案 SHALL 全部通过 i18n key 输出;其它原因显示为失败。以失败结束且此前已通过 `onError` 上报错误消息时,界面 SHALL 继续显示该错误消息,SHALL NOT 用 `finish_reason` 之类的通用文本覆盖它;仅在没有收到 `onError` 时才显示包含结束原因的通用失败文本。

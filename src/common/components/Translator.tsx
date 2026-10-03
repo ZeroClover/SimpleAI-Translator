@@ -676,7 +676,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const [editableText, setEditableText] = useState('')
     const [tokenCount, setTokenCount] = useState(0)
     const [translatedText, setTranslatedText] = useState('')
-    const [translatedLines, setTranslatedLines] = useState<string[]>([])
+    const translatedLines = useMemo(() => translatedText.split('\n'), [translatedText])
     const [translateDeps, setTranslateDeps] = useState<{
         sourceLang?: LangCode
         targetLang?: LangCode
@@ -794,9 +794,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         500
     )
 
-    useEffect(() => {
-        setTranslatedLines(translatedText.split('\n'))
-    }, [translatedText])
     const [errorMessage, setErrorMessage] = useState('')
     const startLoading = useCallback(() => {
         setIsLoading(true)
@@ -1015,6 +1012,13 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 return
             }
             let isStopped = false
+            let resultText = ''
+            let flushTimer: ReturnType<typeof setTimeout> | undefined
+            const flushText = () => {
+                clearTimeout(flushTimer)
+                flushTimer = undefined
+                if (isCurrentTranslation()) setTranslatedText(resultText)
+            }
             try {
                 await translate({
                     signal,
@@ -1031,34 +1035,25 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         if (!message.content) {
                             return
                         }
-                        setTranslatedText((translatedText) => {
-                            if (!isCurrentTranslation()) {
-                                return translatedText
-                            }
-                            if (message.isFullText) {
-                                return message.content
-                            }
-                            return translatedText + message.content
-                        })
+                        resultText = message.isFullText ? message.content : resultText + message.content
+                        if (message.isFullText) {
+                            flushText()
+                        } else if (flushTimer === undefined) {
+                            flushTimer = setTimeout(flushText, 100)
+                        }
                     },
                     onFinish: (reason) => {
                         if (!isCurrentTranslation()) {
                             return
                         }
+                        flushText()
                         afterTranslate(reason)
                         // Partial output (errors, truncation, filtering) stays on screen but is never cached or saved.
                         if (!SUCCESS_FINISH_REASONS.has(reason)) {
                             return
                         }
-                        setTranslatedText((translatedText) => {
-                            if (!isCurrentTranslation()) {
-                                return translatedText
-                            }
-                            const result = translatedText
-                            cache.set(cachedKey, result)
-                            void persistHistory(result)
-                            return result
-                        })
+                        cache.set(cachedKey, resultText)
+                        void persistHistory(resultText)
                     },
                     onError: (error) => {
                         if (!isCurrentTranslation() || signal.aborted) {
@@ -1085,6 +1080,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 setActionStr('Error')
                 setErrorMessage((error as Error).toString())
             } finally {
+                flushText()
                 if (!isStopped && translationID === translationIDRef.current) {
                     stopLoading()
                     isStopped = true
@@ -1742,7 +1738,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                         )}
                                     </div>
                                 )}
-                                {errorMessage ? (
+                                {errorMessage && (
                                     <>
                                         <div className={styles.errorMessage}>
                                             <span>{errorMessage}</span>
@@ -1753,7 +1749,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                             </Tooltip>
                                         </div>
                                     </>
-                                ) : (
+                                )}
+                                {(!errorMessage || translatedText) && (
                                     <div
                                         style={{
                                             width: '100%',

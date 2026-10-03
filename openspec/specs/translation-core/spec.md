@@ -94,6 +94,8 @@
 
 ### Requirement: 翻译输入与输出
 
+界面 SHALL 将流式增量缓存在当前请求内，按最多每 100ms 一次刷新合并文本，避免每个 chunk 都触发整个结果区渲染。完整文本替换和请求结束 SHALL 立即刷新；成功缓存与历史 SHALL 包含尚未刷新的尾部文本。失败或停止时 SHALL 保留当前请求的部分文本，但不缓存；旧请求的计时器与回调 SHALL NOT 覆盖新请求。
+
 系统 SHALL 接受一段源文本与一组语言参数(源语言、目标语言),通过解析出的 LLM Provider 与模型发起请求,并以流式方式逐增量回写翻译结果。源文本 SHALL 被视为不可信数据,并按"源文本作为不可信数据与提示注入隔离"需求进行角色分层与 nonce 边界包裹;翻译指令 SHALL NOT 与源文本置于同一消息信任层。
 
 `translate(query)` 的 `query` SHALL 包含 `text`、`detectFrom`、`detectTo`、`signal`、`onMessage`、`onError`、`onFinish`,并可选包含 `providerId`、`model` 与 `onStatusCode`。`onFinish` 的 `reason` SHALL 为以下之一:协议给出的正常结束原因(`stop`,或 OpenAI Chat 的 `finish_reason` 原值)、`max_tokens`(截断)、`error`、`aborted`。

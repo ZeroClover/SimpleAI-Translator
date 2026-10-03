@@ -99,7 +99,7 @@ export function getLangName(langCode: string): string {
     return langName || langMap.get(langCode) || langCode
 }
 
-export async function googleDetectLang(text: string): Promise<LangCode> {
+export async function googleDetectLang(text: string): Promise<LangCode | undefined> {
     const langMap: Record<string, LangCode> = {
         'zh-CN': 'zh-Hans',
         'zh-TW': 'zh-Hant',
@@ -150,10 +150,10 @@ export async function googleDetectLang(text: string): Promise<LangCode> {
             return langMap[result[2] as string]
         }
     }
-    return 'en'
+    return undefined
 }
 
-export async function bingDetectLang(text: string): Promise<LangCode> {
+export async function bingDetectLang(text: string): Promise<LangCode | undefined> {
     const tokenURL = 'https://edge.microsoft.com/translate/auth'
 
     const fetcher = getUniversalFetch()
@@ -197,21 +197,22 @@ export async function bingDetectLang(text: string): Promise<LangCode> {
 
         if (resp.ok) {
             const result = await resp.json()
-            if (result[0].language) {
-                return bingLangCodeToLangCode(result[0].language)
+            if (result?.[0]?.language) {
+                return bingLangCodeToLangCode(result?.[0]?.language)
             }
         }
     }
-    return 'en'
+    return undefined
 }
 
 // Bing returns BCP-47 codes: zh-Hans/zh-Hant/yue/lzh match LangCode directly, while region or
 // script variants such as pt-PT or mn-Cyrl map to their base language.
-function bingLangCodeToLangCode(code: string): LangCode {
-    return code in LANG_CONFIGS ? (code as LangCode) : intoLangCode(code.split('-')[0])
+function bingLangCodeToLangCode(code: string): LangCode | undefined {
+    const base = code.split('-')[0]
+    return code in LANG_CONFIGS ? (code as LangCode) : base in LANG_CONFIGS ? (base as LangCode) : undefined
 }
 
-export async function baiduDetectLang(text: string): Promise<LangCode> {
+export async function baiduDetectLang(text: string): Promise<LangCode | undefined> {
     const langMap: Record<string, LangCode> = {
         zh: 'zh-Hans',
         cht: 'zh-Hant',
@@ -244,11 +245,11 @@ export async function baiduDetectLang(text: string): Promise<LangCode> {
     if (resp.ok) {
         const jsn = await resp.json()
         if (jsn && jsn.lan) {
-            return langMap[jsn.lan] || 'en'
+            return langMap[jsn.lan]
         }
     }
 
-    return 'en'
+    return undefined
 }
 
 export async function localDetectLang(text: string): Promise<LangCode> {
@@ -354,11 +355,11 @@ export async function detectLang(text: string): Promise<LangCode> {
     try {
         switch (settings.languageDetectionEngine) {
             case 'baidu':
-                return await baiduDetectLang(detectedText)
+                return (await baiduDetectLang(detectedText)) ?? (await localDetectLang(detectedText))
             case 'google':
-                return await googleDetectLang(detectedText)
+                return (await googleDetectLang(detectedText)) ?? (await localDetectLang(detectedText))
             case 'bing':
-                return await bingDetectLang(detectedText)
+                return (await bingDetectLang(detectedText)) ?? (await localDetectLang(detectedText))
             default:
                 return await localDetectLang(detectedText)
         }

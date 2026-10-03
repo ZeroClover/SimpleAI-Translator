@@ -42,13 +42,13 @@
 
 ### Requirement: 远端检测失败的处理
 
-远端引擎(`google` / `baidu` / `bing`)在 HTTP 响应非成功,或返回的语言无法映射为 `LangCode` 时,SHALL 返回 `'en'` 作为检测结果,并继续翻译流程。`google` 与 `baidu` 的结果 SHALL 经各自映射表转换为 `LangCode`;`bing` 返回的 BCP-47 语言代码本身为 `LangCode`(如 `zh-Hans`、`zh-Hant`、`yue`、`pt`)时 SHALL 原样使用,带地区或书写系统后缀的变体(如 `pt-PT`、`mn-Cyrl`)SHALL 映射为其基础语言(`pt`、`mn`),其它代码 SHALL 映射为 `'en'`。若远端检测请求本身抛出异常(如网络不可达),`detectLang` SHALL 改用 `'local'` 引擎对同一文本检测并返回其结果,该次提交 SHALL 以该结果继续发起翻译。
+远端引擎(`google` / `baidu` / `bing`)在 HTTP 响应非成功,或返回的语言无法映射为 `LangCode` 时,SHALL 改用本地检测结果,并继续翻译流程。`google` 与 `baidu` 的结果 SHALL 经各自映射表转换为 `LangCode`;`bing` 返回的 BCP-47 语言代码本身为 `LangCode`(如 `zh-Hans`、`zh-Hant`、`yue`、`pt`)时 SHALL 原样使用,带地区或书写系统后缀的变体(如 `pt-PT`、`mn-Cyrl`)SHALL 映射为其基础语言(`pt`、`mn`),其它代码 SHALL 视为未知并改用本地检测。若远端检测请求本身抛出异常(如网络不可达),`detectLang` SHALL 改用 `'local'` 引擎对同一文本检测并返回其结果,该次提交 SHALL 以该结果继续发起翻译。
 
 #### Scenario: 远端返回非成功状态
 
 - **WHEN** `languageDetectionEngine === 'baidu'`,检测请求返回 HTTP 5xx
-- **THEN** 检测结果 SHALL 为 `'en'`
-- **AND** 翻译流程 SHALL 以 `'en'` 为源语言继续
+- **THEN** 系统 SHALL 对同一文本执行本地检测
+- **AND** 翻译流程 SHALL 以本地检测结果为源语言继续
 
 #### Scenario: Bing 返回语言变体
 

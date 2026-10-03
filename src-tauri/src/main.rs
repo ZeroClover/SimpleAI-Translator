@@ -301,7 +301,7 @@ fn main() {
                             body: update.body,
                         }));
                         tray::create_tray(&handle).unwrap();
-                        let config = get_config().unwrap();
+                        let config = get_config().unwrap_or_default();
                         if config.automatic_check_for_updates.is_none()
                             || config.automatic_check_for_updates.is_some_and(|x| x)
                         {

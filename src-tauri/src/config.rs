@@ -33,7 +33,7 @@ pub struct ProxyConfig {
     pub no_proxy: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub restore_previous_position: Option<bool>,
@@ -65,7 +65,10 @@ pub fn _get_config_by_app(app: &AppHandle) -> Result<Config, Box<dyn std::error:
         return Ok(config_cache.clone());
     }
     let config_content = get_config_content_by_app(app)?;
-    let config: Config = serde_json::from_str(&config_content)?;
+    let config: Config = serde_json::from_str(&config_content).unwrap_or_else(|error| {
+        eprintln!("Invalid config fields, using native defaults: {error}");
+        Config::default()
+    });
     CONFIG_CACHE.lock().replace(config.clone());
     Ok(config)
 }
@@ -80,7 +83,10 @@ pub fn clear_config_cache() {
 #[specta::specta]
 pub fn get_config_content() -> String {
     if let Some(app) = APP_HANDLE.get() {
-        get_config_content_by_app(app).unwrap()
+        get_config_content_by_app(app).unwrap_or_else(|error| {
+            eprintln!("Failed to read config: {error}");
+            "{}".to_string()
+        })
     } else {
         "{}".to_string()
     }
@@ -88,17 +94,63 @@ pub fn get_config_content() -> String {
 
 pub fn get_config_content_by_app(app: &AppHandle) -> Result<String, String> {
     let app_config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    if !app_config_dir.exists() {
-        std::fs::create_dir_all(&app_config_dir).unwrap();
-    }
+    std::fs::create_dir_all(&app_config_dir).map_err(|e| e.to_string())?;
     let config_path = app_config_dir.join("config.json");
-    if config_path.exists() {
-        match std::fs::read_to_string(config_path) {
-            Ok(content) => Ok(content),
-            Err(_) => Err("Failed to read config file".to_string()),
+    read_config_file(&config_path)
+}
+
+fn read_config_file(path: &std::path::Path) -> Result<String, String> {
+    let content = match std::fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            std::fs::write(path, "{}").map_err(|e| e.to_string())?;
+            return Ok("{}".to_string());
         }
-    } else {
-        std::fs::write(config_path, "{}").unwrap();
-        Ok("{}".to_string())
+        Err(error) => return Err(error.to_string()),
+    };
+    if serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&content).is_ok() {
+        return Ok(content);
+    }
+    let backup = path.with_file_name(format!("config.{}.corrupted", uuid::Uuid::new_v4()));
+    std::fs::rename(path, backup).map_err(|e| e.to_string())?;
+    std::fs::write(path, "{}").map_err(|e| e.to_string())?;
+    Ok("{}".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preserve_invalid_config_before_recovery() {
+        let dir = std::env::temp_dir().join(format!("simpleai-config-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("config.json");
+        for content in ["{\"providers\":", "null", "[]"] {
+            std::fs::write(&path, content).unwrap();
+            assert_eq!(read_config_file(&path).unwrap(), "{}");
+            assert_eq!(std::fs::read_to_string(&path).unwrap(), "{}");
+            assert!(std::fs::read_dir(&dir).unwrap().any(|entry| {
+                let path = entry.unwrap().path();
+                path.extension()
+                    .is_some_and(|extension| extension == "corrupted")
+                    && std::fs::read_to_string(path).unwrap() == content
+            }));
+        }
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 4);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn keep_valid_config_and_initialize_missing_config() {
+        let dir = std::env::temp_dir().join(format!("simpleai-config-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("config.json");
+        assert_eq!(read_config_file(&path).unwrap(), "{}");
+        let content = "{\"fontSize\":20,\"providers\":[]}";
+        std::fs::write(&path, content).unwrap();
+        assert_eq!(read_config_file(&path).unwrap(), content);
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

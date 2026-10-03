@@ -5,6 +5,20 @@
 
 ## Requirements
 
+### Requirement: 桌面设置文件完整性
+
+桌面设置的保存与键删除 SHALL 先写入同目录的唯一临时文件，再替换 `config.json`；失败时 SHALL 保留旧文件并清理临时文件。读取到损坏 JSON 或非对象 JSON 时 SHALL 将原文件保留为唯一的 `.corrupted` 备份并初始化空设置，不覆盖既有备份。原生字段类型错误 SHALL 使用原生默认值，不改写用户文件。配置读取错误 SHALL NOT 导致原生进程 panic。
+
+#### Scenario: 写入失败
+
+- **WHEN** 临时文件写入或替换失败
+- **THEN** 原设置 SHALL 保持有效，错误 SHALL 传回调用方
+
+#### Scenario: 损坏文件恢复
+
+- **WHEN** 启动时发现 `config.json` 被截断
+- **THEN** 系统 SHALL 保留损坏文件的全部字节，并以空设置继续启动
+
 ### Requirement: 更新检查不阻塞桌面任务
 
 桌面端定期更新检查及更新提示前的等待 SHALL 使用异步计时器，不得阻塞 Tokio worker。等待期间，翻译、设置及其它桌面命令 SHALL 继续正常响应。

@@ -35,7 +35,7 @@ Linux 托盘 SHALL 提供可用的 Quit 菜单项，通过应用菜单事件退�
 
 ### Requirement: 桌面设置文件完整性
 
-桌面设置的保存与键删除 SHALL 先写入同目录的唯一临时文件，再替换 `config.json`；失败时 SHALL 保留旧文件并清理临时文件。读取到损坏 JSON 或非对象 JSON 时 SHALL 将原文件保留为唯一的 `.corrupted` 备份并初始化空设置，不覆盖既有备份。原生字段类型错误 SHALL 使用原生默认值，不改写用户文件。配置读取错误 SHALL NOT 导致原生进程 panic。
+桌面设置的保存与键删除 SHALL 先写入同目录的唯一临时文件，再替换 `config.json`；失败时 SHALL 保留旧文件并清理临时文件。读取到非法 UTF-8、损坏 JSON 或非对象 JSON 时 SHALL 将原文件的全部字节保留为唯一的 `.corrupted` 备份并初始化空设置，不覆盖既有备份。原生字段类型错误 SHALL 使用原生默认值，不改写用户文件。配置读取错误 SHALL NOT 导致原生进程 panic。
 
 #### Scenario: 写入失败
 
@@ -46,6 +46,12 @@ Linux 托盘 SHALL 提供可用的 Quit 菜单项，通过应用菜单事件退�
 
 - **WHEN** 启动时发现 `config.json` 被截断
 - **THEN** 系统 SHALL 保留损坏文件的全部字节，并以空设置继续启动
+
+#### Scenario: 非法 UTF-8 配置恢复
+
+- **WHEN** `config.json` 包含非法 UTF-8 字节或被截断的多字节字符
+- **THEN** 系统 SHALL 先逐字节完整保留原文件为 `.corrupted` 备份，再初始化空设置
+- **AND** 后续保存设置 SHALL NOT 覆盖该备份
 
 ### Requirement: 更新检查不阻塞桌面任务
 

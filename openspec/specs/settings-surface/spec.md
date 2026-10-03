@@ -5,6 +5,15 @@
 
 ## Requirements
 
+### Requirement: 背景模糊不叠加
+
+桌面端应用背景模糊前 SHALL 清除旧原生效果；快速切换主题或开关时 SHALL 顺序完成清除与应用，避免叠加多个原生视图。macOS 模糊层 SHALL 使用圆角，与窗口外观保持一致。
+
+#### Scenario: 连续切换主题
+
+- **WHEN** 启用背景模糊后连续切换主题
+- **THEN** 最终窗口 SHALL 仅保留当前设置对应的效果，不残留旧模糊层
+
 ### Requirement: 桌面设置文件完整性
 
 桌面设置的保存与键删除 SHALL 先写入同目录的唯一临时文件，再替换 `config.json`；失败时 SHALL 保留旧文件并清理临时文件。读取到损坏 JSON 或非对象 JSON 时 SHALL 将原文件保留为唯一的 `.corrupted` 备份并初始化空设置，不覆盖既有备份。原生字段类型错误 SHALL 使用原生默认值，不改写用户文件。配置读取错误 SHALL NOT 导致原生进程 panic。

@@ -230,6 +230,8 @@ Provider 解析顺序 SHALL 为 `query.providerId` → `settings.defaultModel.pr
 
 ### Requirement: 翻译失败处理
 
+浏览器扩展请求若在首次响应前失去后台连接 SHALL 拒绝请求 Promise；主动取消 SHALL 使用 `AbortError`，其它断开 SHALL 提供可读错误。连接建立失败亦 SHALL 结束请求，不得永久等待。
+
 桌面流式请求 SHALL 在两个事件监听器注册完成后开始网络请求。成功、失败及取消时 SHALL 注销所有监听器（包括清理后才完成注册的监听器），并移除取消监听。已取消的请求 SHALL 以 `AbortError` 结束且不再启动网络请求。
 
 #### Scenario: 注册期间取消桌面请求

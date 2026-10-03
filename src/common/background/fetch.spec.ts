@@ -14,7 +14,7 @@ const browserMock = vi.hoisted(() => ({
 
 vi.mock('webextension-polyfill', () => ({ default: browserMock }))
 
-function createFetchPort(body: string) {
+function createFetchPort(body: string | undefined, beforeDisconnect?: () => void) {
     let messageListener: ((message: unknown) => void) | undefined
     let disconnectListener: (() => void) | undefined
 
@@ -31,6 +31,11 @@ function createFetchPort(body: string) {
         },
         postMessage: vi.fn((message: unknown) => {
             queueMicrotask(() => {
+                if (body === undefined) {
+                    beforeDisconnect?.()
+                    disconnectListener?.()
+                    return
+                }
                 messageListener?.({
                     ok: true,
                     status: 200,
@@ -51,6 +56,29 @@ function createFetchPort(body: string) {
 describe('backgroundFetch host permissions', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+    })
+
+    it.each([false, true])('rejects a disconnect before response (aborted: %s)', async (aborted) => {
+        const controller = new AbortController()
+        const port = createFetchPort(undefined, () => {
+            if (aborted) controller.abort()
+        })
+        browserMock.permissions.contains.mockResolvedValueOnce(true)
+        browserMock.runtime.connect.mockReturnValueOnce(port)
+
+        await expect(backgroundFetch('https://example.test', { signal: controller.signal })).rejects.toMatchObject(
+            aborted
+                ? { name: 'AbortError' }
+                : { message: 'The connection to the background was closed before any response' }
+        )
+    })
+
+    it('rejects a failure opening the background connection', async () => {
+        browserMock.permissions.contains.mockResolvedValueOnce(true)
+        browserMock.runtime.connect.mockImplementationOnce(() => {
+            throw new Error('extension disconnected')
+        })
+        await expect(backgroundFetch('https://example.test', {})).rejects.toThrow('extension disconnected')
     })
 
     it('derives optional host permission origins from HTTP endpoints', () => {

@@ -5,6 +5,15 @@
 
 ## Requirements
 
+### Requirement: Linux 托盘退出
+
+Linux 托盘 SHALL 提供可用的 Quit 菜单项，通过应用菜单事件退出进程。
+
+#### Scenario: 从托盘退出 Linux 应用
+
+- **WHEN** 用户选择托盘的 Quit
+- **THEN** 应用 SHALL 退出，而不是只关闭窗口或忽略操作
+
 ### Requirement: 背景模糊不叠加
 
 桌面端应用背景模糊前 SHALL 清除旧原生效果；快速切换主题或开关时 SHALL 顺序完成清除与应用，避免叠加多个原生视图。macOS 模糊层 SHALL 使用圆角，与窗口外观保持一致。

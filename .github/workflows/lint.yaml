@@ -17,7 +17,7 @@ jobs:
         permissions:
             contents: read
         steps:
-            - uses: actions/checkout@v6.0.2
+            - uses: actions/checkout@v7.0.0
 
             - name: Check telemetry residue
               run: scripts/check-no-telemetry.sh
@@ -32,7 +32,7 @@ jobs:
             contents: read
         steps:
             - name: Checkout repository
-              uses: actions/checkout@v6.0.2
+              uses: actions/checkout@v7.0.0
 
             - name: Check spelling with custom config file
               uses: crate-ci/typos@v1.46.2
@@ -44,7 +44,7 @@ jobs:
         permissions:
             contents: read
         steps:
-            - uses: actions/checkout@v6.0.2
+            - uses: actions/checkout@v7.0.0
 
             - name: Install Rust stable
               run: |
@@ -68,7 +68,7 @@ jobs:
         permissions:
             contents: read
         steps:
-            - uses: actions/checkout@v6.0.2
+            - uses: actions/checkout@v7.0.0
 
             - name: Install Rust stable
               run: |
@@ -84,7 +84,7 @@ jobs:
             contents: read
 
         steps:
-            - uses: actions/checkout@v6.0.2
+            - uses: actions/checkout@v7.0.0
 
             - uses: pnpm/action-setup@v6.0.8
 

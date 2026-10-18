@@ -19,13 +19,17 @@ const CONFIG = {
     defaultProviderId: 'test',
 }
 
-// The desktop config file lives on the test side, so it survives page reloads. The settings
-// polyfill writes a temp file and renames it to config.json; the rename commits the write.
+// The desktop config file lives on the test side, so it survives page reloads. Like the native
+// update_config command, an update merges the set keys into the file and then deletes the removed ones.
 async function mockConfigFile(page: Page, config: Record<string, unknown>) {
     const file = { content: JSON.stringify(config) }
     await page.exposeFunction('readConfigFile', () => file.content)
-    await page.exposeFunction('writeConfigFile', (content: string) => {
-        file.content = content
+    await page.exposeFunction('updateConfigFile', (setJson: string, remove: string[]) => {
+        const next = { ...JSON.parse(file.content), ...JSON.parse(setJson) }
+        for (const key of remove) {
+            delete next[key]
+        }
+        file.content = JSON.stringify(next)
     })
     return {
         read: () => JSON.parse(file.content) as Record<string, unknown>,
@@ -37,14 +41,7 @@ async function mockConfigFile(page: Page, config: Record<string, unknown>) {
 
 const CONFIG_FILE_IPC = `
     if (cmd === 'get_config_content') return window.readConfigFile();
-    if (cmd === 'plugin:fs|write_text_file') {
-        window.pendingConfigFile = new TextDecoder().decode(args);
-        return null;
-    }
-    if (cmd === 'plugin:fs|rename') {
-        if (args.newPath === 'config.json') return window.writeConfigFile(window.pendingConfigFile);
-        return null;
-    }
+    if (cmd === 'update_config') return window.updateConfigFile(args.setJson, args.remove).then(() => null);
 `
 
 async function openTranslator(page: Page, { controlled = false, config = CONFIG as Record<string, unknown> } = {}) {

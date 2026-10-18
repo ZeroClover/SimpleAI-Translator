@@ -35,12 +35,17 @@ Linux 托盘 SHALL 提供可用的 Quit 菜单项，通过应用菜单事件退�
 
 ### Requirement: 桌面设置文件完整性
 
-桌面设置的保存与键删除 SHALL 先写入同目录的唯一临时文件，再替换 `config.json`；失败时 SHALL 保留旧文件并清理临时文件。读取到非法 UTF-8、损坏 JSON 或非对象 JSON 时 SHALL 将原文件的全部字节保留为唯一的 `.corrupted` 备份并初始化空设置，不覆盖既有备份。原生字段类型错误 SHALL 使用原生默认值，不改写用户文件。配置读取错误 SHALL NOT 导致原生进程 panic。
+桌面设置的保存与键删除 SHALL 由原生进程在同一把锁内完成：读取当前 `config.json`，合并写入的键、删除指定的键，先写入同目录的唯一临时文件，再替换 `config.json`；失败时 SHALL 保留旧文件并清理临时文件。各窗口的 WebView SHALL NOT 自行读改写整个 `config.json`。读取到非法 UTF-8、损坏 JSON 或非对象 JSON 时 SHALL 将原文件的全部字节保留为唯一的 `.corrupted` 备份并初始化空设置，不覆盖既有备份。原生字段类型错误 SHALL 使用原生默认值，不改写用户文件。配置读取错误 SHALL NOT 导致原生进程 panic。
 
 #### Scenario: 写入失败
 
 - **WHEN** 临时文件写入或替换失败
 - **THEN** 原设置 SHALL 保持有效，错误 SHALL 传回调用方
+
+#### Scenario: 多窗口同时保存
+
+- **WHEN** 翻译窗口与设置窗口几乎同时保存不同的键
+- **THEN** 两次保存的键 SHALL 都保留在 `config.json` 中，后完成的保存 SHALL NOT 恢复另一次保存之前的值
 
 #### Scenario: 损坏文件恢复
 

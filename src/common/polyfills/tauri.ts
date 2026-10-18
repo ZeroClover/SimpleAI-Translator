@@ -1,7 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { writeTextFile, rename, remove, BaseDirectory } from '@tauri-apps/plugin-fs'
-import { v4 as uuidv4 } from 'uuid'
 import { Proxy, ProxyConfig, fetch } from '@tauri-apps/plugin-http'
 import * as utils from '../utils'
 import { IBrowser, ISettings } from '../types'
@@ -12,16 +10,12 @@ async function getSettings(): Promise<Record<string, any>> {
     return JSON.parse(settings)
 }
 
-async function writeSettings(settings: Record<string, any>): Promise<void> {
-    const temporaryPath = `config.${uuidv4()}.tmp`
-    try {
-        await writeTextFile(temporaryPath, JSON.stringify(settings), { baseDir: BaseDirectory.AppConfig })
-        await rename(temporaryPath, 'config.json', {
-            oldPathBaseDir: BaseDirectory.AppConfig,
-            newPathBaseDir: BaseDirectory.AppConfig,
-        })
-    } finally {
-        await remove(temporaryPath, { baseDir: BaseDirectory.AppConfig }).catch(() => {})
+// The native side merges each update into config.json under one lock, so saves from different
+// windows never overwrite each other's keys.
+async function updateSettings(items: Record<string, any>, removedKeys: string[]): Promise<void> {
+    const result = await commands.updateConfig(JSON.stringify(items), removedKeys)
+    if (result.status === 'error') {
+        throw new Error(result.error)
     }
 }
 
@@ -36,24 +30,13 @@ class BrowserStorageSync {
         }, {})
     }
 
+    // JSON serialization drops undefined values, so they leave stored keys untouched.
     async set(items: Record<string, any>): Promise<void> {
-        const newItems = Object.entries(items).reduce((acc, [key, value]) => {
-            if (value === undefined) {
-                return acc
-            }
-            return { ...acc, [key]: value }
-        }, {})
-        const settings = await getSettings()
-        const newSettings = { ...settings, ...newItems }
-        await writeSettings(newSettings)
+        await updateSettings(items, [])
     }
 
     async remove(keys: string[]): Promise<void> {
-        const settings = await getSettings()
-        for (const key of keys) {
-            delete settings[key]
-        }
-        await writeSettings(settings)
+        await updateSettings({}, keys)
     }
 }
 

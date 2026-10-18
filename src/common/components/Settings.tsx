@@ -4,13 +4,13 @@ import { Tabs, Tab, StyledTabList, StyledTabPanel } from 'baseui-sd/tabs-motion'
 import { Modal, ModalBody, ModalHeader } from 'baseui-sd/modal'
 import icon from '../assets/images/icon-large.png'
 import beams from '../assets/images/beams.jpg'
-import toast, { Toaster } from 'react-hot-toast'
+import toast from 'react-hot-toast/headless'
 import * as utils from '../utils'
 import { Client as Styletron } from 'styletron-engine-atomic'
 import { Provider as StyletronProvider } from 'styletron-react'
 import { BaseProvider } from 'baseui-sd'
 import { Input } from 'baseui-sd/input'
-import { createForm } from './Form'
+import { Form, FormItem, useForm } from './Form'
 import { Button, ButtonProps } from 'baseui-sd/button'
 import { Select, Value, Option } from 'baseui-sd/select'
 import { Checkbox } from 'baseui-sd/checkbox'
@@ -275,7 +275,7 @@ function TTSVoicesSettings({ value, providers, onChange, onBlur }: ITTSVoicesSet
     const { t } = useTranslation()
     const { theme, themeType } = useTheme()
 
-    const styles = useTTSSettingsStyles({ theme, themeType, isDesktopApp: utils.isDesktopApp() })
+    const styles = useTTSSettingsStyles({ theme, themeType, isTauri: utils.isTauri() })
 
     const [showLangSelector, setShowLangSelector] = useState(false)
 
@@ -977,7 +977,7 @@ function RunAtStartupCheckbox({ value, onChange, onBlur }: RunAtStartupCheckboxP
 
 const useStyles = createUseStyles({
     footer: (props: IThemedStyleProps) =>
-        props.isDesktopApp
+        props.isTauri
             ? {
                   zIndex: 999,
                   color: props.theme.colors.contentSecondary,
@@ -1485,8 +1485,6 @@ function LLMProvidersSettings({
     )
 }
 
-const { Form, FormItem, useForm } = createForm<ISettings>()
-
 interface IInnerSettingsProps {
     showFooter?: boolean
     onSave?: () => void
@@ -1667,9 +1665,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
         [form, persistSettings, values]
     )
 
-    const isDesktopApp = utils.isDesktopApp()
-
-    const styles = useStyles({ theme, themeType, isDesktopApp })
+    const styles = useStyles({ theme, themeType, isTauri })
 
     // On the desktop app the long settings form must scroll
     // inside an inner overflow container instead of at the document level. The
@@ -1678,7 +1674,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
     // bar whenever a mouse is connected or "Show scroll bars: Always" is set;
     // an inner overflow:auto element does honor the thin style declared in
     // src/tauri/index.html.
-    const usesInnerScroll = isDesktopApp
+    const usesInnerScroll = isTauri
     const scrollContainerRef = useRef<HTMLDivElement>(null)
 
     const [isScrolledToBottom, setIsScrolledToBottom] = useState(false)
@@ -1807,18 +1803,14 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                 // save footer (bottom) and the rounded window corners that would
                 // otherwise clip it ("切头去尾"). (::-webkit-scrollbar-track margin is
                 // ignored by WebKit, so this border-box trick is the reliable inset.)
-                paddingTop: utils.isBrowserExtensionOptions() || isDesktopApp ? undefined : '136px',
-                paddingBottom: utils.isBrowserExtensionOptions() ? undefined : isDesktopApp ? '16px' : '32px',
-                borderTop: isDesktopApp ? '136px solid transparent' : undefined,
-                borderBottom: isDesktopApp
-                    ? showFooter
-                        ? '42px solid transparent'
-                        : '12px solid transparent'
-                    : undefined,
-                background: isDesktopApp ? 'transparent' : theme.colors.backgroundPrimary,
-                minWidth: isDesktopApp ? 450 : 400,
-                height: isDesktopApp ? '100vh' : undefined,
-                boxSizing: isDesktopApp ? 'border-box' : undefined,
+                paddingTop: utils.isBrowserExtensionOptions() || isTauri ? undefined : '136px',
+                paddingBottom: utils.isBrowserExtensionOptions() ? undefined : isTauri ? '16px' : '32px',
+                borderTop: isTauri ? '136px solid transparent' : undefined,
+                borderBottom: isTauri ? (showFooter ? '42px solid transparent' : '12px solid transparent') : undefined,
+                background: isTauri ? 'transparent' : theme.colors.backgroundPrimary,
+                minWidth: isTauri ? 450 : 400,
+                height: isTauri ? '100vh' : undefined,
+                boxSizing: isTauri ? 'border-box' : undefined,
                 overflow: usesInnerScroll ? 'auto' : undefined,
             }}
             data-testid='settings-container'
@@ -1912,7 +1904,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                     />
                 </Tabs>
             </nav>
-            {!isDesktopApp && (
+            {!isTauri && (
                 <div
                     style={{
                         padding: '20px 25px 0px 25px',
@@ -2001,7 +1993,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         </FormItem>
                         <FormItem
                             style={{
-                                display: isDesktopApp ? 'block' : 'none',
+                                display: isTauri ? 'block' : 'none',
                             }}
                             name='enableBackgroundBlur'
                             label={t('Window background blur')}
@@ -2016,7 +2008,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         </FormItem>
                         <FormItem
                             style={{
-                                display: isDesktopApp ? 'block' : 'none',
+                                display: isTauri ? 'block' : 'none',
                             }}
                             name='restorePreviousPosition'
                             label={t('Fixed Position')}
@@ -2030,7 +2022,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         )}
                         <FormItem
                             style={{
-                                display: isDesktopApp ? 'block' : 'none',
+                                display: isTauri ? 'block' : 'none',
                             }}
                             name='automaticCheckForUpdates'
                             label={t('Automatic check for updates')}
@@ -2104,7 +2096,6 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         {t('Save')}
                     </Button>
                 </div>
-                <Toaster />
             </Form>
             {showFooter && (
                 <div

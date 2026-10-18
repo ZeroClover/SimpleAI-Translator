@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import toast from 'react-hot-toast'
+import toast from 'react-hot-toast/headless'
 import { Button } from 'baseui-sd/button'
 import { Input } from 'baseui-sd/input'
 import { Select } from 'baseui-sd/select'

@@ -374,10 +374,6 @@ export const isBrowserExtensionContentScript = () => {
     return window['__IS_OT_BROWSER_EXTENSION_CONTENT_SCRIPT__' as any] !== undefined
 }
 
-export const isDesktopApp = () => {
-    return isTauri()
-}
-
 export const isFirefox = () => /firefox/i.test(navigator.userAgent)
 
 interface FetchSSEOptions extends RequestInit {

@@ -19,7 +19,6 @@ import { Button } from 'baseui-sd/button'
 import { ErrorBoundary } from 'react-error-boundary'
 import { ErrorFallback } from '../components/ErrorFallback'
 import {
-    isDesktopApp,
     isTauri,
     isBrowserExtensionContentScript,
     isMacOS,
@@ -161,7 +160,7 @@ const useStyles = createUseStyles({
         gap: '3px',
     },
     'popupCardHeaderContainer': (props: IThemedStyleProps) =>
-        props.isDesktopApp
+        props.isTauri
             ? {
                   'position': 'fixed',
                   'backdropFilter': 'blur(20px)',
@@ -213,7 +212,7 @@ const useStyles = createUseStyles({
         'gap': '4px',
         'marginLeft': '10px',
         '@media screen and (max-width: 460px)': {
-            marginLeft: props.isDesktopApp ? '5px' : undefined,
+            marginLeft: props.isTauri ? '5px' : undefined,
         },
     }),
     'popupCardHeaderMoreActionsContainer': () => ({
@@ -255,8 +254,8 @@ const useStyles = createUseStyles({
         'padding': props.showLogo ? '5px 10px' : '5px 10px 5px 0px',
         'gap': '10px',
         '@media screen and (max-width: 460px)': {
-            padding: props.isDesktopApp ? '5px 0' : undefined,
-            gap: props.isDesktopApp ? '5px' : undefined,
+            padding: props.isTauri ? '5px 0' : undefined,
+            gap: props.isTauri ? '5px' : undefined,
         },
     }),
     'from': (props: IThemedStyleProps) => ({
@@ -765,7 +764,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const styles = useStyles({
         theme,
         themeType,
-        isDesktopApp: isDesktopApp(),
+        isTauri: isTauri(),
         showLogo,
     })
     const [isLoading, setIsLoading] = useState(false)
@@ -790,7 +789,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     translateDepsRef.current = translateDeps
 
     useEffect(() => {
-        if (!isDesktopApp()) {
+        if (!isTauri()) {
             return undefined
         }
         const header = headerRef.current
@@ -1240,7 +1239,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     )
 
     useEffect(() => {
-        if (!isDesktopApp()) {
+        if (!isTauri()) {
             return
         }
         let unlistenHistory: UnlistenFn | undefined
@@ -1298,7 +1297,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
 
     useEffect(() => {
         const container = contentScrollRef.current
-        const scrollOnContainer = isDesktopApp() && !!container
+        const scrollOnContainer = isTauri() && !!container
         const isOnTop = () => {
             if (scrollOnContainer && container) {
                 return container.scrollTop === 0
@@ -1394,8 +1393,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             })}
             ref={containerRef}
             style={{
-                background: isDesktopApp() ? 'transparent' : theme.colors.backgroundPrimary,
-                paddingBottom: showSettings || settings.enableBackgroundBlur || isDesktopApp() ? '0px' : '42px',
+                background: isTauri() ? 'transparent' : theme.colors.backgroundPrimary,
+                paddingBottom: showSettings || settings.enableBackgroundBlur || isTauri() ? '0px' : '42px',
             }}
         >
             {showSettings && <InnerSettings onSave={props.onSettingsSave} />}
@@ -1410,8 +1409,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         className={styles.popupCardHeaderContainer}
                         data-tauri-drag-region
                         style={{
-                            cursor: isDesktopApp() ? 'default' : showLogo ? 'move' : 'default',
-                            boxShadow: isDesktopApp() && !isScrolledToTop ? theme.lighting.shadow600 : undefined,
+                            cursor: isTauri() ? 'default' : showLogo ? 'move' : 'default',
+                            boxShadow: isTauri() && !isScrolledToTop ? theme.lighting.shadow600 : undefined,
                             background: settings.enableBackgroundBlur ? 'transparent' : '',
                         }}
                     >
@@ -1580,7 +1579,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         ref={contentScrollRef}
                         className={clsx(
                             styles.popupCardContentContainer,
-                            isDesktopApp() &&
+                            isTauri() &&
                                 !settings.enableBackgroundBlur &&
                                 styles.popupCardContentContainerDesktopScroll,
                             settings.enableBackgroundBlur && styles.popupCardContentContainerBackgroundBlur

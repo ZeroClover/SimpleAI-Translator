@@ -1,93 +1,27 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Channel } from '@tauri-apps/api/core'
 import { IBrowser, ISettings } from '../types'
 import { commands, type ProxyConfig } from '@/tauri/bindings'
 
-async function getSettings(): Promise<Record<string, any>> {
-    const settings = await commands.getConfigContent()
-    return JSON.parse(settings)
+export const tauriBrowser: IBrowser = {
+    storage: {
+        sync: {
+            async get(keys: string[]): Promise<Record<string, any>> {
+                const settings = JSON.parse(await commands.getConfigContent())
+                return Object.fromEntries(keys.map((key) => [key, settings[key]]))
+            },
+            // The native side merges each update into config.json under one lock, so saves from
+            // different windows never overwrite each other's keys. JSON serialization drops undefined
+            // values, so they leave stored keys untouched.
+            async set(items: Record<string, any>): Promise<void> {
+                const result = await commands.updateConfig(JSON.stringify(items))
+                if (result.status === 'error') {
+                    throw new Error(result.error)
+                }
+            },
+        },
+    },
 }
-
-// The native side merges each update into config.json under one lock, so saves from different
-// windows never overwrite each other's keys.
-async function updateSettings(items: Record<string, any>): Promise<void> {
-    const result = await commands.updateConfig(JSON.stringify(items))
-    if (result.status === 'error') {
-        throw new Error(result.error)
-    }
-}
-
-class BrowserStorageSync {
-    async get(keys: string[]): Promise<Record<string, any>> {
-        const settings = await getSettings()
-        return keys.reduce((acc, key) => {
-            return {
-                ...acc,
-                [key]: settings[key],
-            }
-        }, {})
-    }
-
-    // JSON serialization drops undefined values, so they leave stored keys untouched.
-    async set(items: Record<string, any>): Promise<void> {
-        await updateSettings(items)
-    }
-}
-
-class BrowserStorage {
-    sync: BrowserStorageSync
-
-    constructor() {
-        this.sync = new BrowserStorageSync()
-    }
-}
-
-class BrowserRuntimeOnMessage {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    addListener(_callback: (message: any, sender: any, sendResponse: any) => void): void {}
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    removeListener(_callback: (message: any, sender: any, sendResponse: any) => void): void {}
-}
-
-class BrowserRuntime {
-    onMessage: BrowserRuntimeOnMessage
-
-    constructor() {
-        this.onMessage = new BrowserRuntimeOnMessage()
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    sendMessage(_message: any): void {}
-
-    getURL(path: string): string {
-        return path
-    }
-}
-
-class BrowserI18n {
-    detectLanguage(_text: string): Promise<{ languages: { language: string; percentage: number }[] }> {
-        return new Promise((resolve) => {
-            resolve({
-                languages: [],
-            })
-        })
-    }
-}
-
-class Browser implements IBrowser {
-    storage: BrowserStorage
-    runtime: BrowserRuntime
-    i18n: BrowserI18n
-
-    constructor() {
-        this.storage = new BrowserStorage()
-        this.runtime = new BrowserRuntime()
-        this.i18n = new BrowserI18n()
-    }
-}
-
-export const tauriBrowser = new Browser()
 
 function toProxyConfig(proxy: NonNullable<ISettings['proxy']>): ProxyConfig {
     return {

@@ -1,7 +1,7 @@
 import toast from 'react-hot-toast/headless'
 import { langCode2TTSLang } from '.'
 import { SpeakOptions } from './types'
-import { isDesktopApp } from '../utils'
+import { isTauri } from '../utils'
 
 // https://github.com/microsoft/cognitive-services-speech-sdk-js/blob/e6faf6b7fc1febb45993b940617719e8ed1358b2/src/sdk/SpeechSynthesizer.ts#L216
 const languageToDefaultVoice: { [key: string]: string } = {
@@ -169,7 +169,7 @@ export async function speak({
     const volumeStr = volume >= 100 ? `+${Math.round(volume - 100)}%` : `-${Math.round(100 - volume)}%`
 
     try {
-        if (isDesktopApp()) {
+        if (isTauri()) {
             await speakDesktopEdge({
                 text,
                 voice: selectedVoice,
@@ -431,7 +431,7 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 
 export async function fetchEdgeVoices() {
     try {
-        if (isDesktopApp()) {
+        if (isTauri()) {
             const { commands } = await import('../../tauri/bindings')
             const result = await commands.edgeTtsListVoices()
 

@@ -686,6 +686,11 @@ test('the Markdown toggle and model switch keep settings saved by another window
         })
 })
 
+// The message element of each visible toast with this text.
+function toastMessages(page: Page, text: string) {
+    return page.locator('[role=status] [role=status]', { hasText: text })
+}
+
 function openSettings(page: Page) {
     return page.locator('button:has(svg path[d^="M262.29 192.31a64"])').click()
 }
@@ -697,7 +702,7 @@ test('the settings panel saves only the fields it changed', async ({ page }) => 
     await expect(page.getByText('Font size', { exact: true })).toBeVisible()
 
     await page.getByRole('button', { name: 'Save' }).click()
-    await expect(page.getByText('Saved', { exact: true })).toBeVisible()
+    await expect(toastMessages(page, 'Saved')).toHaveCount(1)
     expect(configFile.writes()).toBe(0)
 
     // The translator window switches the model while this settings form holds the old selection.
@@ -761,6 +766,36 @@ test('deleting a Provider keeps TTS settings saved by another window', async ({ 
     await expect.poll(() => (configFile.read().providers as unknown[]).length).toBe(1)
     expect(configFile.read().tts).toEqual({ provider: 'system' })
     await expect(page.getByText(/Switched to Edge TTS/)).toHaveCount(0)
+})
+
+test('the history window shows its copy notification', async ({ page }) => {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+    await openTranslator(page)
+    await page.locator('textarea').fill('History entry')
+    await page.locator('textarea').press('Enter')
+    await expect.poll(() => historyTexts(page)).toEqual(['Translated: History entry'])
+
+    await page.unroute(/\/src\/tauri\/index\.tsx$/)
+    await page.route(/\/src\/tauri\/index\.tsx$/, (route) =>
+        route.fulfill({
+            contentType: 'text/javascript',
+            body: `
+            import { mockIPC, mockWindows } from '/node_modules/@tauri-apps/api/mocks.js';
+            mockWindows('history');
+            window.__TAURI__ = {};
+            mockIPC((cmd, args) => {
+                ${CONFIG_FILE_IPC}
+            }, { shouldMockEvents: true });
+            await import('/src/tauri/index.tsx?actual');
+        `,
+        })
+    )
+    await page.reload()
+    const item = page.locator('[role=button]', { hasText: 'Translated: History entry' })
+    await item.locator('button').nth(1).click()
+
+    await expect(toastMessages(page, 'Copy to clipboard')).toHaveCount(1)
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('Translated: History entry')
 })
 
 test('settings toggles persist their new value on click', async ({ page }) => {

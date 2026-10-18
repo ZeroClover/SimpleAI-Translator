@@ -23,9 +23,6 @@ class BackgroundHistoryService implements IHistoryInternalService {
     list(options?: HistoryQueryOptions | undefined): Promise<HistoryItem[]> {
         return callMethod('historyService', 'list', [options])
     }
-    get(id: number): Promise<HistoryItem | undefined> {
-        return callMethod('historyService', 'get', [id])
-    }
 }
 
 export const backgroundHistoryService = new BackgroundHistoryService()

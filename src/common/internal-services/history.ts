@@ -27,7 +27,6 @@ export interface IHistoryInternalService {
     delete(id: number): Promise<void>
     clear(): Promise<void>
     list(options?: HistoryQueryOptions): Promise<HistoryItem[]>
-    get(id: number): Promise<HistoryItem | undefined>
 }
 
 class HistoryInternalService implements IHistoryInternalService {
@@ -56,10 +55,6 @@ class HistoryInternalService implements IHistoryInternalService {
 
     async clear(): Promise<void> {
         await this.db.history.clear()
-    }
-
-    async get(id: number): Promise<HistoryItem | undefined> {
-        return await this.db.history.get(id)
     }
 
     async list(options: HistoryQueryOptions = {}): Promise<HistoryItem[]> {

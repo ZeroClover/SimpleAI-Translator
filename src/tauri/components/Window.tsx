@@ -14,8 +14,8 @@ import { useSettings } from '../../common/hooks/useSettings'
 import { IThemedStyleProps } from '../../common/types'
 import { createUseStyles } from 'react-jss'
 import { open } from '@tauri-apps/plugin-shell'
-import { usePinned } from '../../common/hooks/usePinned'
-import { isMacOS, isTauri, isWindows } from '@/common/utils'
+import { usePinned } from '../hooks/usePinned'
+import { isMacOS, isWindows } from '@/common/utils'
 
 import { useSettingsVisibility } from '@/common/store/setting'
 import { commands } from '../bindings'
@@ -39,9 +39,7 @@ export function Window(props: IWindowProps) {
         async function handleKeyPress(event: KeyboardEvent) {
             if ((event.metaKey || event.ctrlKey) && event.key === ',') {
                 event.preventDefault()
-                if (isTauri()) {
-                    toggleSettingsVisibility()
-                }
+                toggleSettingsVisibility()
             }
         }
 

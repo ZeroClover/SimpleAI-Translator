@@ -35,7 +35,6 @@ const Options = () => {
         <div className={styles.root}>
             <div className={styles.container}>
                 <Settings engine={engine} />
-                {/* TTS reports errors through react-hot-toast/headless, which the Settings Toaster does not render. */}
                 <Toaster />
             </div>
         </div>

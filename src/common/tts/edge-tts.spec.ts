@@ -4,7 +4,7 @@ import { fetchEdgeVoices, speak } from './edge-tts'
 
 vi.mock('react-hot-toast/headless', () => ({ default: vi.fn() }))
 
-const isDesktopAppMock = vi.hoisted(() => vi.fn())
+const isTauriMock = vi.hoisted(() => vi.fn())
 const edgeTtsSynthesizeMock = vi.hoisted(() => vi.fn())
 const edgeTtsListVoicesMock = vi.hoisted(() => vi.fn())
 const edgeTtsUniversalImportMock = vi.hoisted(() => vi.fn())
@@ -15,7 +15,7 @@ vi.mock('../utils', async () => {
     const actual = await vi.importActual<typeof import('../utils')>('../utils')
     return {
         ...actual,
-        isDesktopApp: isDesktopAppMock,
+        isTauri: isTauriMock,
     }
 })
 
@@ -77,7 +77,7 @@ function latestAudioContext() {
 describe('Edge TTS desktop integration', () => {
     beforeEach(() => {
         FakeAudioContext.instances = []
-        isDesktopAppMock.mockReturnValue(true)
+        isTauriMock.mockReturnValue(true)
         edgeTtsSynthesizeMock.mockResolvedValue({
             status: 'ok',
             data: {
@@ -297,7 +297,7 @@ describe('Edge TTS desktop integration', () => {
 describe('Edge TTS browser errors', () => {
     beforeEach(() => {
         FakeAudioContext.instances = []
-        isDesktopAppMock.mockReturnValue(false)
+        isTauriMock.mockReturnValue(false)
         mockAudioContext()
     })
 

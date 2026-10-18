@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { Window } from '../components/Window'
 import { TranslationHistory } from '../../common/components/TranslationHistory'
+import Toaster from '../../common/components/Toaster'
 import { HistoryItem } from '../../common/internal-services/db'
 import { emit } from '@tauri-apps/api/event'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
@@ -22,6 +23,7 @@ export function HistoryWindow() {
     return (
         <Window>
             <TranslationHistory variant='window' isOpen onClose={handleClose} onRestore={handleRestore} />
+            <Toaster />
         </Window>
     )
 }

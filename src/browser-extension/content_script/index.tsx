@@ -50,7 +50,7 @@ async function createPopupCard() {
             const { addViteStyleTarget } = await import('@samrum/vite-plugin-web-extension/client')
             await addViteStyleTarget(shadowRoot)
         } else {
-            const browser = await utils.getBrowser()
+            const browser = (await import('webextension-polyfill')).default
             import.meta.PLUGIN_WEB_EXT_CHUNK_CSS_PATHS?.forEach((cssPath) => {
                 const styleEl = document.createElement('link')
                 styleEl.setAttribute('rel', 'stylesheet')
@@ -100,7 +100,7 @@ async function showPopupCard(reference: ReferenceElement, text: string, autoFocu
 }
 
 async function main() {
-    const browser = await utils.getBrowser()
+    const browser = (await import('webextension-polyfill')).default
     let lastMouseEvent: UserEventType | undefined
 
     const mouseUpHandler = (event: UserEventType) => {

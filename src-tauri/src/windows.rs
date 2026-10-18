@@ -2,8 +2,6 @@ use crate::config;
 use crate::ALWAYS_ON_TOP;
 use crate::APP_HANDLE;
 use crate::{check_update, UpdateResult};
-#[cfg(target_os = "macos")]
-use cocoa::appkit::NSWindow;
 use debug_print::debug_println;
 use mouse_position::mouse_position::Mouse;
 use std::sync::atomic::Ordering;
@@ -121,29 +119,12 @@ pub fn do_hide_translator_window() {
     }
 }
 
+// On macOS this also sets the CanJoinAllSpaces collection behavior. Tauri already turns off
+// automatic window tabbing for windows without a tabbing identifier.
 pub fn post_process_window<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
     window.set_visible_on_all_workspaces(true).unwrap();
 
     let _ = window.current_monitor();
-
-    #[cfg(target_os = "macos")]
-    {
-        use cocoa::appkit::NSWindowCollectionBehavior;
-        use cocoa::base::id;
-
-        let ns_win = window.ns_window().unwrap() as id;
-
-        unsafe {
-            // Disable the automatic creation of "Show Tab Bar" etc menu items on macOS
-            NSWindow::setAllowsAutomaticWindowTabbing_(ns_win, cocoa::base::NO);
-
-            let mut collection_behavior = ns_win.collectionBehavior();
-            collection_behavior |=
-                NSWindowCollectionBehavior::NSWindowCollectionBehaviorCanJoinAllSpaces;
-
-            ns_win.setCollectionBehavior_(collection_behavior);
-        }
-    }
 }
 
 #[cfg(target_os = "windows")]

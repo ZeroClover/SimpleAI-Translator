@@ -53,8 +53,8 @@ impl IpcResponse for FetchBodyMessage {
 }
 
 impl specta::Type for FetchBodyMessage {
-    fn inline(_: &mut specta::TypeCollection, _: specta::Generics) -> specta::datatype::DataType {
-        specta::datatype::DataType::Unknown
+    fn definition(types: &mut specta::Types) -> specta::datatype::DataType {
+        specta_typescript::Unknown::<()>::definition(types)
     }
 }
 

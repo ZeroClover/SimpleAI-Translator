@@ -34,50 +34,34 @@ pub fn remember_active_window() {
 
 #[cfg(target_os = "macos")]
 fn focus_window(window: &ActiveWindow) -> Result<(), String> {
-    use cocoa::appkit::{NSApplicationActivateIgnoringOtherApps, NSRunningApplication};
-    #[cfg(not(target_arch = "aarch64"))]
-    use cocoa::base::NO;
-    use cocoa::base::{id, nil};
+    use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication};
 
-    unsafe {
-        let running_app: id = <id as NSRunningApplication>::runningApplicationWithProcessIdentifier(
-            nil,
-            window.process_id as i32,
-        );
-        if running_app != nil {
-            let activated_raw = NSRunningApplication::activateWithOptions_(
-                running_app,
-                NSApplicationActivateIgnoringOtherApps,
+    if let Some(running_app) =
+        NSRunningApplication::runningApplicationWithProcessIdentifier(window.process_id as i32)
+    {
+        // Ignoring other apps has no effect from macOS 14 on, but older versions need it to
+        // activate another app while the translator is frontmost.
+        #[allow(deprecated)]
+        let activated = running_app
+            .activateWithOptions(NSApplicationActivationOptions::ActivateIgnoringOtherApps);
+        if activated {
+            debug_println!(
+                "[insertion] activated app via NSRunningApplication: {}",
+                window.app_name
             );
-            let activated = {
-                #[cfg(target_arch = "aarch64")]
-                {
-                    activated_raw
-                }
-                #[cfg(not(target_arch = "aarch64"))]
-                {
-                    activated_raw != NO
-                }
-            };
-            if activated {
-                debug_println!(
-                    "[insertion] activated app via NSRunningApplication: {}",
-                    window.app_name
-                );
-                return Ok(());
-            } else {
-                debug_println!(
-                    "[insertion] NSRunningApplication activation returned false for {}",
-                    window.app_name
-                );
-            }
+            return Ok(());
         } else {
             debug_println!(
-                "[insertion] NSRunningApplication not found for pid {} ({})",
-                window.process_id,
+                "[insertion] NSRunningApplication activation returned false for {}",
                 window.app_name
             );
         }
+    } else {
+        debug_println!(
+            "[insertion] NSRunningApplication not found for pid {} ({})",
+            window.process_id,
+            window.app_name
+        );
     }
 
     if window.app_name.is_empty() {

@@ -1,11 +1,11 @@
 use base64::{engine::general_purpose, Engine};
 use futures_util::{SinkExt, StreamExt};
-use rand::RngCore;
+use rand::Rng;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
     Client, Response, StatusCode,
 };
-use reqwest_websocket::{Message, RequestBuilderExt};
+use reqwest_websocket::{Message, Upgrade};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -536,12 +536,16 @@ fn generate_sec_ms_gec_for_unix_millis(unix_millis: i64) -> String {
     let ticks = seconds * 10_000_000;
     let mut hasher = Sha256::new();
     hasher.update(format!("{ticks}{TRUSTED_CLIENT_TOKEN}").as_bytes());
-    format!("{:X}", hasher.finalize())
+    hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02X}"))
+        .collect()
 }
 
 fn generate_muid() -> String {
     let mut bytes = [0_u8; 16];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    rand::rng().fill_bytes(&mut bytes);
     bytes.iter().map(|byte| format!("{byte:02X}")).collect()
 }
 

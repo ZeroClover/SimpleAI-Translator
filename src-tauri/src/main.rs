@@ -35,7 +35,7 @@ use crate::windows::{
 };
 
 #[cfg(debug_assertions)]
-use specta_typescript::{formatter::prettier, Typescript};
+use specta_typescript::Typescript;
 use tauri::AppHandle;
 use tauri_plugin_notification::NotificationExt;
 use tiny_http::{Response as HttpResponse, Server};
@@ -152,10 +152,7 @@ fn main() {
 
     #[cfg(debug_assertions)]
     specta_builder
-        .export(
-            Typescript::default().formatter(prettier),
-            "../src/tauri/bindings.ts",
-        )
+        .export(Typescript::default(), "../src/tauri/bindings.ts")
         .expect("Failed to export TypeScript bindings");
 
     let invoke_handler = specta_builder.invoke_handler();

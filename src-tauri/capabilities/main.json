@@ -102,29 +102,8 @@
     "autostart:allow-is-enabled",
     "autostart:allow-enable",
     "autostart:allow-disable",
-    "os:allow-platform",
-    "os:allow-version",
-    "os:allow-os-type",
-    "os:allow-family",
-    "os:allow-arch",
-    "os:allow-exe-extension",
-    "os:allow-locale",
-    "os:allow-hostname",
     "process:allow-restart",
-    "process:allow-exit",
-    "notification:default",
-    "notification:allow-is-permission-granted",
-    "fs:default",
-    "fs:allow-read-text-file",
-    "fs:allow-write-text-file",
-    {
-      "identifier": "fs:scope",
-      "allow": [
-        {
-          "path": "$DESKTOP/*"
-        }
-      ]
-    }
+    "process:allow-exit"
   ],
   "platforms": ["linux", "macOS", "windows"]
 }

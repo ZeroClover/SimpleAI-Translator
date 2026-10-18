@@ -1,17 +1,13 @@
 use crate::config;
-use crate::insertion::remember_active_window;
-use crate::utils;
 use crate::UpdateResult;
 use crate::ALWAYS_ON_TOP;
 use crate::APP_HANDLE;
 #[cfg(target_os = "macos")]
 use cocoa::appkit::NSWindow;
 use debug_print::debug_println;
-use get_selected_text::get_selected_text;
 use mouse_position::mouse_position::Mouse;
-use serde_json::json;
 use std::sync::atomic::Ordering;
-use tauri::{Emitter, Listener, LogicalPosition, Manager, PhysicalPosition};
+use tauri::{Listener, LogicalPosition, Manager, PhysicalPosition};
 use tauri_plugin_updater::UpdaterExt;
 use tauri_specta::Event;
 
@@ -110,41 +106,6 @@ pub fn get_translator_window_always_on_top() -> bool {
     ALWAYS_ON_TOP.load(Ordering::Acquire)
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn show_translator_window_with_selected_text_command() {
-    remember_active_window();
-    let config = config::get_config().ok();
-    let restore_previous_position = config
-        .as_ref()
-        .and_then(|conf| conf.restore_previous_position)
-        .unwrap_or(false);
-    let read_selected_text = || -> String {
-        match get_selected_text() {
-            Ok(text) => text,
-            Err(e) => {
-                eprintln!("Error getting selected text natively: {}", e);
-                String::new()
-            }
-        }
-    };
-
-    let selected_text = read_selected_text();
-
-    // Show the translator window only after we've captured the current selection.
-    let window = show_translator_window(false, true, true);
-
-    if !selected_text.trim().is_empty() {
-        utils::send_text(selected_text);
-    }
-
-    if !restore_previous_position {
-        position_translator_window_to_cursor(&window);
-    }
-    focus_translator_window(&window);
-    utils::show();
-}
-
 pub fn do_hide_translator_window() {
     if let Some(handle) = APP_HANDLE.get() {
         if let Some(window) = handle.get_webview_window(TRANSLATOR_WIN_NAME) {
@@ -159,12 +120,6 @@ pub fn do_hide_translator_window() {
             }
         }
     }
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn hide_translator_window() {
-    do_hide_translator_window();
 }
 
 pub fn post_process_window<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
@@ -265,100 +220,13 @@ pub fn build_window<'a, R: tauri::Runtime, M: tauri::Manager<R>>(
     }
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn show_translator_window_command() {
-    remember_active_window();
-    show_translator_window(false, false, true);
-}
-
-pub fn show_translator_window(
-    center: bool,
-    to_mouse_position: bool,
-    set_focus: bool,
-) -> tauri::WebviewWindow {
-    let window = get_translator_window(center, to_mouse_position, set_focus);
+pub fn show_translator_window(to_mouse_position: bool, set_focus: bool) -> tauri::WebviewWindow {
+    let window = get_translator_window(to_mouse_position, set_focus);
     window.show().unwrap();
     window
 }
 
-fn position_translator_window_to_cursor(window: &tauri::WebviewWindow) {
-    let current_monitor = get_current_monitor();
-    let mouse_position = get_mouse_location();
-    let window_physical_size = window.outer_size();
-    if mouse_position.is_err() || window_physical_size.is_err() {
-        return;
-    }
-    let (mouse_logical_x, mouse_logical_y) = mouse_position.unwrap();
-    let window_physical_size = window_physical_size.unwrap();
-    let scale_factor = window.scale_factor().unwrap_or(1.0);
-    let mut mouse_physical_position = PhysicalPosition::new(mouse_logical_x, mouse_logical_y);
-    if cfg!(target_os = "macos") {
-        mouse_physical_position =
-            LogicalPosition::new(mouse_logical_x as f64, mouse_logical_y as f64)
-                .to_physical(scale_factor);
-    }
-
-    let monitor_physical_size = current_monitor.size();
-    let monitor_physical_position = current_monitor.position();
-
-    let mut window_physical_position = mouse_physical_position;
-    if window_physical_position.x < monitor_physical_position.x {
-        window_physical_position.x = monitor_physical_position.x;
-    }
-    if window_physical_position.y < monitor_physical_position.y {
-        window_physical_position.y = monitor_physical_position.y;
-    }
-    if window_physical_position.x + (window_physical_size.width as i32)
-        > monitor_physical_position.x + (monitor_physical_size.width as i32)
-    {
-        window_physical_position.x = monitor_physical_position.x
-            + (monitor_physical_size.width as i32)
-            - (window_physical_size.width as i32);
-    }
-    if window_physical_position.y + (window_physical_size.height as i32)
-        > monitor_physical_position.y + (monitor_physical_size.height as i32)
-    {
-        window_physical_position.y = monitor_physical_position.y
-            + (monitor_physical_size.height as i32)
-            - (window_physical_size.height as i32);
-    }
-
-    if let Err(e) = window.set_position(window_physical_position) {
-        eprintln!("Error setting translator window position: {}", e);
-    }
-}
-
-fn focus_translator_window(window: &tauri::WebviewWindow) {
-    if let Err(e) = window.unminimize() {
-        eprintln!("Error unminimizing translator window: {}", e);
-    }
-
-    if let Err(e) = window.set_focus() {
-        eprintln!("Error focusing translator window: {}", e);
-    }
-
-    let should_restore_on_top = !ALWAYS_ON_TOP.load(Ordering::Acquire);
-    if let Err(e) = window.set_always_on_top(true) {
-        eprintln!("Error enabling always on top for translator window: {}", e);
-        return;
-    }
-
-    if should_restore_on_top {
-        if let Err(e) = window.set_always_on_top(false) {
-            eprintln!(
-                "Error disabling temporary always on top for translator window: {}",
-                e
-            );
-        }
-    }
-}
-
-pub fn get_translator_window(
-    center: bool,
-    to_mouse_position: bool,
-    set_focus: bool,
-) -> tauri::WebviewWindow {
+pub fn get_translator_window(to_mouse_position: bool, set_focus: bool) -> tauri::WebviewWindow {
     let current_monitor = get_current_monitor();
     let handle = APP_HANDLE.get().unwrap();
     let window = match handle.get_webview_window(TRANSLATOR_WIN_NAME) {
@@ -440,11 +308,6 @@ pub fn get_translator_window(
         debug_println!("Window physical size: {:?}", window_physical_size);
         debug_println!("Window physical position: {:?}", window_physical_position);
         window.set_position(window_physical_position).unwrap();
-    } else if center {
-        if !cfg!(target_os = "macos") {
-            window.unminimize().unwrap();
-        }
-        window.center().unwrap();
     }
 
     window
@@ -540,27 +403,14 @@ pub fn show_updater_window() {
             let builder = handle.updater_builder();
             let updater = builder.build().unwrap();
 
-            match updater.check().await {
-                Ok(Some(update)) => {
-                    CheckUpdateResultEvent(UpdateResult {
-                        version: update.version,
-                        current_version: update.current_version,
-                        body: update.body,
-                    })
-                    .emit(handle)
-                    .unwrap();
-                }
-                Ok(None) => {
-                    handle
-                        .emit(
-                            "update_result",
-                            json!({
-                                "result": None::<UpdateResult>
-                            }),
-                        )
-                        .unwrap();
-                }
-                Err(_) => {}
+            if let Ok(Some(update)) = updater.check().await {
+                CheckUpdateResultEvent(UpdateResult {
+                    version: update.version,
+                    current_version: update.current_version,
+                    body: update.body,
+                })
+                .emit(handle)
+                .unwrap();
             }
             window_clone.unlisten(event.id)
         });

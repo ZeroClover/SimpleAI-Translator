@@ -6,6 +6,10 @@ export const commands = {
     async getConfigContent(): Promise<string> {
         return await TAURI_INVOKE('get_config_content')
     },
+    /**
+     * Merges `set_json` (a JSON object) into config.json and then deletes `remove`, as one atomic
+     * update, so concurrent saves from different windows never overwrite each other's keys.
+     */
     async updateConfig(setJson: string, remove: string[]): Promise<Result<null, string>> {
         try {
             return { status: 'ok', data: await TAURI_INVOKE('update_config', { setJson, remove }) }
@@ -16,15 +20,6 @@ export const commands = {
     },
     async getUpdateResult(): Promise<[boolean, UpdateResult | null]> {
         return await TAURI_INVOKE('get_update_result')
-    },
-    async clearConfigCache(): Promise<void> {
-        await TAURI_INVOKE('clear_config_cache')
-    },
-    async showTranslatorWindowCommand(): Promise<void> {
-        await TAURI_INVOKE('show_translator_window_command')
-    },
-    async showTranslatorWindowWithSelectedTextCommand(): Promise<void> {
-        await TAURI_INVOKE('show_translator_window_with_selected_text_command')
     },
     async showHistoryWindow(): Promise<void> {
         await TAURI_INVOKE('show_history_window')
@@ -66,12 +61,6 @@ export const commands = {
     },
     async rememberActiveWindowCommand(): Promise<boolean> {
         return await TAURI_INVOKE('remember_active_window_command')
-    },
-    async detectLang(text: string): Promise<string> {
-        return await TAURI_INVOKE('detect_lang', { text })
-    },
-    async hideTranslatorWindow(): Promise<void> {
-        await TAURI_INVOKE('hide_translator_window')
     },
 }
 

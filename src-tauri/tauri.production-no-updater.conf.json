@@ -9,7 +9,6 @@
         "frontendDist": "../dist/tauri"
     },
     "plugins": {
-        "fs": {},
         "shell": {
             "open": true
         },
@@ -45,7 +44,6 @@
             "providerShortName": null,
             "signingIdentity": null
         },
-        "resources": ["resources/*"],
         "shortDescription": "",
         "targets": ["deb", "appimage", "nsis", "app", "dmg"],
         "windows": {
@@ -61,13 +59,7 @@
         "withGlobalTauri": true,
         "macOSPrivateApi": true,
         "security": {
-            "csp": "default-src 'self'; img-src 'self' data: asset: https://asset.localhost http://asset.localhost; media-src 'self' blob: asset: https://asset.localhost http://asset.localhost; style-src 'self' 'unsafe-inline'; style-src-elem 'self' 'unsafe-inline'; style-src-attr 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https: http: ipc: http://ipc.localhost",
-            "assetProtocol": {
-                "enable": true,
-                "scope": {
-                    "allow": ["$CACHE/**", "$CONFIG/**", "$APPCACHE/**"]
-                }
-            }
+            "csp": "default-src 'self'; img-src 'self' data:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; style-src-elem 'self' 'unsafe-inline'; style-src-attr 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https: http: ipc: http://ipc.localhost"
         },
         "trayIcon": {
             "id": "tray",

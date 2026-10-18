@@ -600,7 +600,6 @@ export interface IInnerTranslatorProps {
     uuid?: string
     autoFocus?: boolean
     showSettingsIcon?: boolean
-    showSettings?: boolean
     defaultShowSettings?: boolean
     containerStyle?: React.CSSProperties
     editorRows?: number
@@ -636,9 +635,10 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const setShowSettings = useSettingsVisibility((s) => s.setShowSettings)
     const toggleSettingsVisibility = useSettingsVisibility((s) => s.toggleSettingsVisibility)
 
+    // A new uuid means the window was summoned again, which always starts on the translator view.
     useEffect(() => {
-        setShowSettings(props.showSettings ?? false)
-    }, [props.showSettings, props.uuid, setShowSettings])
+        setShowSettings(false)
+    }, [props.uuid, setShowSettings])
 
     const { onSettingsShow } = props
 

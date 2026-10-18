@@ -7,7 +7,6 @@ mod config;
 mod edge_tts;
 mod fetch;
 mod insertion;
-mod lang;
 mod tray;
 mod utils;
 mod windows;
@@ -20,8 +19,7 @@ use insertion::{
 use parking_lot::Mutex;
 use std::env;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use sysinfo::{CpuExt, System, SystemExt};
+use std::sync::{Arc, OnceLock};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_updater::UpdaterExt;
 use tauri_specta::Event;
@@ -31,14 +29,11 @@ use windows::{get_translator_window, CheckUpdateEvent, CheckUpdateResultEvent};
 use crate::config::{clear_config_cache, get_config_content, update_config, ConfigUpdatedEvent};
 use crate::edge_tts::{edge_tts_list_voices, edge_tts_synthesize};
 use crate::fetch::fetch_stream;
-use crate::lang::detect_lang;
 use crate::windows::{
-    get_translator_window_always_on_top, hide_translator_window, show_history_window,
-    show_translator_window_command, show_translator_window_with_selected_text_command,
-    show_updater_window, TRANSLATOR_WIN_NAME,
+    get_translator_window_always_on_top, show_history_window, show_updater_window,
+    TRANSLATOR_WIN_NAME,
 };
 
-use once_cell::sync::OnceCell;
 #[cfg(debug_assertions)]
 use specta_typescript::{formatter::prettier, Typescript};
 use tauri::AppHandle;
@@ -46,9 +41,8 @@ use tauri_plugin_notification::NotificationExt;
 use tiny_http::{Response as HttpResponse, Server};
 use tokio::runtime::Runtime as TokioRuntime;
 
-pub static APP_HANDLE: OnceCell<AppHandle> = OnceCell::new();
+pub static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 pub static ALWAYS_ON_TOP: AtomicBool = AtomicBool::new(false);
-pub static CPU_VENDOR: Mutex<String> = Mutex::new(String::new());
 
 const DEFAULT_IPC_SOCKET_PATH: &str = "/tmp/simpleai-translator.sock";
 const IPC_SOCKET_PATH_ENV: &str = "SIMPLEAI_TRANSLATOR_IPC_SOCKET";
@@ -67,8 +61,6 @@ pub static UPDATE_RESULT: Mutex<Option<Option<UpdateResult>>> = Mutex::new(None)
 // async work (update checks, network) cannot stall the UI thread. It lives for
 // the whole process, which is the intended lifetime for a global runtime.
 fn init_tokio_runtime() {
-    use std::sync::OnceLock;
-
     static RUNTIME: OnceLock<TokioRuntime> = OnceLock::new();
 
     let runtime = RUNTIME.get_or_init(|| {
@@ -96,7 +88,7 @@ fn launch_ipc_server(server: &Server) {
         req.as_reader().read_to_string(&mut selected_text).unwrap();
         utils::send_text(selected_text);
         remember_active_window();
-        let window = windows::show_translator_window(false, true, false);
+        let window = windows::show_translator_window(true, false);
         window.set_focus().unwrap();
         utils::show();
         let response = HttpResponse::from_string("ok");
@@ -114,21 +106,11 @@ fn main() {
     init_tokio_runtime();
     let silently = env::args().any(|arg| arg == "--silently");
 
-    let mut sys = System::new();
-    sys.refresh_cpu(); // Refreshing CPU information.
-    if let Some(cpu) = sys.cpus().first() {
-        let vendor_id = cpu.vendor_id().to_string();
-        *CPU_VENDOR.lock() = vendor_id;
-    }
-
     let specta_builder = tauri_specta::Builder::<tauri::Wry>::new()
         .commands(tauri_specta::collect_commands![
             get_config_content,
             update_config,
             get_update_result,
-            clear_config_cache,
-            show_translator_window_command,
-            show_translator_window_with_selected_text_command,
             show_history_window,
             get_translator_window_always_on_top,
             fetch_stream,
@@ -136,8 +118,6 @@ fn main() {
             edge_tts_synthesize,
             insert_translation_into_previous_input,
             remember_active_window_command,
-            detect_lang,
-            hide_translator_window,
         ])
         .events(tauri_specta::collect_events![
             CheckUpdateEvent,
@@ -164,7 +144,6 @@ fn main() {
     let mut app = tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             println!("{}, {argv:?}, {cwd}", app.package_info().name);
@@ -214,11 +193,11 @@ fn main() {
             app_handle.plugin(tauri_plugin_updater::Builder::new().build())?;
             if silently {
                 // create translator window
-                let _ = get_translator_window(false, false, false);
+                let _ = get_translator_window(false, false);
                 windows::do_hide_translator_window();
                 debug_println!("translator window is hidden");
             } else {
-                let window = get_translator_window(false, false, false);
+                let window = get_translator_window(false, false);
                 window.set_focus().unwrap();
                 window.show().unwrap();
             }
@@ -349,7 +328,7 @@ fn main() {
             ..
         } => {
             remember_active_window();
-            windows::show_translator_window(false, false, false);
+            windows::show_translator_window(false, false);
         }
         _ => {}
     });

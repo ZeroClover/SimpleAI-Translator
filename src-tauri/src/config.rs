@@ -37,7 +37,6 @@ pub struct ProxyConfig {
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub restore_previous_position: Option<bool>,
-    pub allow_using_clipboard_when_selected_text_not_available: Option<bool>,
     pub automatic_check_for_updates: Option<bool>,
     pub proxy: Option<ProxyConfig>,
 }
@@ -52,17 +51,6 @@ pub fn get_config() -> Result<Config, Box<dyn std::error::Error>> {
 }
 
 pub fn get_config_by_app(app: &AppHandle) -> Result<Config, Box<dyn std::error::Error>> {
-    let conf = _get_config_by_app(app);
-    match conf {
-        Ok(conf) => Ok(conf),
-        Err(e) => {
-            println!("get config failed: {}", e);
-            Err(e)
-        }
-    }
-}
-
-pub fn _get_config_by_app(app: &AppHandle) -> Result<Config, Box<dyn std::error::Error>> {
     if let Some(config_cache) = &*CONFIG_CACHE.lock() {
         return Ok(config_cache.clone());
     }
@@ -75,8 +63,6 @@ pub fn _get_config_by_app(app: &AppHandle) -> Result<Config, Box<dyn std::error:
     Ok(config)
 }
 
-#[tauri::command]
-#[specta::specta]
 pub fn clear_config_cache() {
     CONFIG_CACHE.lock().take();
 }

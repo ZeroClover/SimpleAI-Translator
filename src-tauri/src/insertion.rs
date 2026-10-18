@@ -1,4 +1,3 @@
-use std::thread;
 use std::time::Duration;
 
 use active_win_pos_rs::{get_active_window, ActiveWindow};
@@ -238,7 +237,6 @@ fn replace_input_with_text(text: &str) -> Result<(), String> {
         let _input_lock = INPUT_LOCK.lock();
         enigo.text(text).map_err(|e| e.to_string())?;
     }
-    thread::sleep(Duration::from_millis(80));
 
     Ok(())
 }
@@ -247,8 +245,9 @@ fn replace_input_with_text(text: &str) -> Result<(), String> {
 #[specta::specta]
 pub async fn insert_translation_into_previous_input(text: String) -> Result<(), String> {
     focus_previous_window()?;
-    thread::sleep(Duration::from_millis(200));
+    tokio::time::sleep(Duration::from_millis(200)).await;
     replace_input_with_text(&text)?;
+    tokio::time::sleep(Duration::from_millis(80)).await;
     debug_println!("[insertion] inserted translation ({} chars)", text.len());
     Ok(())
 }

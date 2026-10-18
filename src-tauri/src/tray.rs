@@ -86,7 +86,7 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
         }
         "show" => {
             remember_active_window();
-            crate::windows::show_translator_window(false, false, true);
+            crate::windows::show_translator_window(false, true);
         }
         "hide" => {
             if let Some(window) = app.get_webview_window(TRANSLATOR_WIN_NAME) {
@@ -109,7 +109,7 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
         if let TrayIconEvent::Click { button, .. } = event {
             if button == MouseButton::Left {
                 remember_active_window();
-                crate::windows::show_translator_window(false, false, true);
+                crate::windows::show_translator_window(false, true);
             }
         };
     });

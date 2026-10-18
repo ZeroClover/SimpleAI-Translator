@@ -533,11 +533,6 @@ jobs:
               env:
                   VERSION: ${{ needs.create-release.outputs.version }}
 
-            - name: Build userscript
-              run: make build-userscript
-              env:
-                  VERSION: ${{ needs.create-release.outputs.version }}
-
             - name: Package browser extension assets
               shell: bash
               run: |
@@ -545,7 +540,6 @@ jobs:
                   mkdir -p release-assets
                   cp dist/browser-extension/chromium.zip "release-assets/SimpleAI-Translator-chromium-extension-${{ needs.create-release.outputs.version }}.zip"
                   cp dist/browser-extension/firefox.zip "release-assets/SimpleAI-Translator-firefox-extension-${{ needs.create-release.outputs.version }}.xpi"
-                  cp "dist/simpleai-translator.user.js" "release-assets/SimpleAI-Translator-${{ needs.create-release.outputs.version }}.user.js"
 
             - name: Upload browser extension assets
               uses: actions/upload-artifact@v7.0.1

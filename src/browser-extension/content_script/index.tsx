@@ -82,7 +82,6 @@ async function showPopupCard(reference: ReferenceElement, text: string, autoFocu
     })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(window as any).__IS_OT_BROWSER_EXTENSION_CONTENT_SCRIPT__ = true
-    const isUserscript = utils.isUserscript()
     const JSS = JssProvider
     root = createRoot($popupCard)
     root.render(
@@ -91,13 +90,7 @@ async function showPopupCard(reference: ReferenceElement, text: string, autoFocu
                 <JSS jss={jss} generateId={generateId} classNamePrefix='__zeroclover-simpleai-translator-jss-'>
                     <InnerContainer reference={reference}>
                         <TitleBar pinned={settings.pinned} onClose={hidePopupCard} engine={engine} />
-                        <Translator
-                            engine={engine}
-                            autoFocus={autoFocus}
-                            showSettingsIcon
-                            defaultShowSettings={isUserscript}
-                            showLogo={false}
-                        />
+                        <Translator engine={engine} autoFocus={autoFocus} showSettingsIcon showLogo={false} />
                     </InnerContainer>
                 </JSS>
             </GlobalSuspense>

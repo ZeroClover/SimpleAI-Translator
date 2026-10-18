@@ -434,9 +434,6 @@ export async function getBrowser(): Promise<IBrowser> {
     if (isTauri()) {
         return (await import('./polyfills/tauri')).tauriBrowser
     }
-    if (isUserscript()) {
-        return (await import('./polyfills/userscript')).userscriptBrowser
-    }
     return (await import('webextension-polyfill')).default
 }
 
@@ -463,11 +460,6 @@ export const isBrowserExtensionContentScript = () => {
 
 export const isDesktopApp = () => {
     return isTauri()
-}
-
-export const isUserscript = () => {
-    // eslint-disable-next-line camelcase
-    return typeof GM_info !== 'undefined'
 }
 
 export const isDarkMode = async () => {
@@ -736,9 +728,6 @@ export async function fetchSSE(input: string, options: FetchSSEOptions) {
 }
 
 export function getAssetUrl(asset: string) {
-    if (isUserscript()) {
-        return asset
-    }
     return new URL(asset, import.meta.url).href
 }
 export const isMacOS = navigator.userAgent.includes('Mac OS X')

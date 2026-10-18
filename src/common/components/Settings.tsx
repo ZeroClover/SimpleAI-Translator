@@ -1670,14 +1670,14 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
 
     const styles = useStyles({ theme, themeType, isDesktopApp })
 
-    // On the desktop app (and userscript) the long settings form must scroll
+    // On the desktop app the long settings form must scroll
     // inside an inner overflow container instead of at the document level. The
     // macOS WKWebView main-frame scrollbar is a native AppKit scroller that
     // ignores the global ::-webkit-scrollbar style and renders an ugly legacy
     // bar whenever a mouse is connected or "Show scroll bars: Always" is set;
     // an inner overflow:auto element does honor the thin style declared in
     // src/tauri/index.html.
-    const usesInnerScroll = isDesktopApp || utils.isUserscript()
+    const usesInnerScroll = isDesktopApp
     const scrollContainerRef = useRef<HTMLDivElement>(null)
 
     const [isScrolledToBottom, setIsScrolledToBottom] = useState(false)
@@ -1818,7 +1818,6 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                 minWidth: isDesktopApp ? 450 : 400,
                 height: isDesktopApp ? '100vh' : undefined,
                 boxSizing: isDesktopApp ? 'border-box' : undefined,
-                maxHeight: utils.isUserscript() ? 'calc(100vh - 32px)' : undefined,
                 overflow: usesInnerScroll ? 'auto' : undefined,
             }}
             data-testid='settings-container'

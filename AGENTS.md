@@ -12,7 +12,7 @@
 - `src/common/components/Settings.tsx` and `src/common/components/ProviderForm.tsx` own LLM Provider management, model refresh, default model selection, per Provider + Model output controls, and OpenAI TTS settings.
 - `src/common/openai-api-path.ts` normalizes user-supplied endpoints into protocol URLs.
 - `src/common/tts/` owns TTS backends. OpenAI TTS is implemented in `openai-tts.ts` and reuses an existing OpenAI-compatible Provider instead of storing a separate API key.
-- `src/browser-extension/manifest.ts` and `src/common/universal-fetch.ts` cover extension permissions and fetch behavior, including optional host permissions for custom endpoints. `fetchSSE` in `src/common/utils.ts` decodes UTF-8 across chunks, consumes SSE events serially, reports complete error bodies, and hands whole JSON responses to `onJSONResponse`; the extension bridge and userscript adapter preserve the response media type.
+- `src/browser-extension/manifest.ts` and `src/common/universal-fetch.ts` cover extension permissions and fetch behavior, including optional host permissions for custom endpoints. `fetchSSE` in `src/common/utils.ts` decodes UTF-8 across chunks, consumes SSE events serially, reports complete error bodies, and hands whole JSON responses to `onJSONResponse`; the extension bridge preserves the response media type.
 - `src-tauri/` keeps native shell behavior such as windows, tray, updates, and packaging; removed global shortcuts, OCR, and writing commands should not be reintroduced.
 
 ## Behavior Specs
@@ -35,7 +35,7 @@
 ## Build, Test, and Development Commands
 Install dependencies with `pnpm install` (package manager is pinned in `package.json`).
 - `pnpm dev-chromium` / `pnpm dev-firefox` start the extension in Vite with HMR; `pnpm dev-tauri` boots the desktop shell with Tauri devtools.
-- `pnpm build-browser-extension`, `pnpm build-tauri` (or `pnpm build-tauri-no-updater`), and `pnpm build-userscript` produce distributable bundles; use `pnpm clean` to reset `dist/` before packaging.
+- `pnpm build-browser-extension`, and `pnpm build-tauri` (or `pnpm build-tauri-no-updater`) produce distributable bundles; use `pnpm clean` to reset `dist/` before packaging.
 - `pnpm test` runs Vitest suites and `pnpm test:e2e` executes Playwright specs in `e2e/`.
 - `pnpm lint` / `pnpm lint:fix` run ESLint on `src/**/*.{ts,tsx}`; `pnpm format` runs Prettier on `src/`.
 - `pnpm check:no-telemetry` and `pnpm check:no-old-identity` are the grep guards behind the `no-telemetry` and `app-identity` specs.

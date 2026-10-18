@@ -13,9 +13,6 @@ build-browser-extension: change-package-version
 	cd dist/browser-extension/chromium && zip -r ../chromium.zip .
 	cd dist/browser-extension/firefox && zip -r ../firefox.zip .
 
-build-userscript: change-package-version
-	pnpm vite build -c vite.config.userscript.ts
-
 build-popclip-extension:
 	rm -f dist/SimpleAI-Translator.popclipextz
 	mkdir -p dist/SimpleAI-Translator.popclipext

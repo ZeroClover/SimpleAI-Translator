@@ -189,6 +189,13 @@ describe('browser stream transport', () => {
         expect(options.onMessage).not.toHaveBeenCalled()
     })
 
+    it.each(['', '  \n'])('reports an empty error body as undefined (%j)', async (body) => {
+        const { options } = browserOptions(streamResponse(bytes(body), { status: 502 }))
+        await fetchSSE('https://example.test', options)
+        expect(options.onError).toHaveBeenCalledOnce()
+        expect(options.onError).toHaveBeenCalledWith(undefined)
+    })
+
     it('reports a non-JSON error body as text', async () => {
         const { options } = browserOptions(streamResponse(bytes('Bad ', 'Gateway'), { status: 502 }))
         await fetchSSE('https://example.test', options)

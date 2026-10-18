@@ -443,7 +443,7 @@ export async function sendProtocolRequest(session: EngineSession, protocol: Prot
         try {
             data = JSON.parse(body)
         } catch {
-            data = body
+            data = body.trim() || undefined
         }
         if (!resp.ok) {
             session.failWith(data)

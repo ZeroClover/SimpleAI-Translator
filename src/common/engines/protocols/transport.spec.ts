@@ -317,6 +317,28 @@ describe('engines over the real stream transport', () => {
         ])
     })
 
+    it.each([
+        ['streaming request', [new Response('', { status: 502 })]],
+        [
+            'fallback request',
+            [
+                new Response(JSON.stringify({ error: { message: 'Streaming is not supported for this model.' } }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json' },
+                }),
+                new Response(' ', { status: 503 }),
+            ],
+        ],
+    ])('reports Unknown error for an empty error body on the %s', async (_name, responses) => {
+        mockNetwork(...responses)
+        const { req, log } = createRequest()
+        await new OpenAIChatEngine(config).sendMessage(req)
+        expect(log).toEqual([
+            ['error', 'Unknown error'],
+            ['finish', 'error'],
+        ])
+    })
+
     it('reports a malformed SSE payload as a controlled error', async () => {
         mockNetwork(response('data: {"choices":\n\n', SSE))
         const { req, log } = createRequest()

@@ -576,7 +576,8 @@ function createResponseConsumer(
         },
         async end() {
             if (mode === 'error') {
-                let error: unknown = body
+                // An empty body leaves the engine's "Unknown error" fallback to report.
+                let error: unknown = body.trim() || undefined
                 try {
                     error = JSON.parse(body)
                 } catch {

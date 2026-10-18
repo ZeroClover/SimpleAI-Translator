@@ -135,6 +135,19 @@ describe('desktop fetch', () => {
         expect(commands.fetch).not.toHaveBeenCalled()
     })
 
+    it('does not start a request that was aborted while its body was read', async () => {
+        const controller = new AbortController()
+        const response = tauriFetch('https://api.example.test', {
+            method: 'POST',
+            body: '{"stream":true}',
+            signal: controller.signal,
+        })
+        controller.abort()
+
+        await expect(response).rejects.toMatchObject({ name: 'AbortError' })
+        expect(commands.fetch).not.toHaveBeenCalled()
+    })
+
     it('cancels the native request when aborted before the response arrives', async () => {
         vi.mocked(commands.fetch).mockImplementationOnce(() => new Promise<never>(() => {}))
         const controller = new AbortController()

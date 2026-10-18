@@ -47,11 +47,12 @@ export default defineConfig({
             'https://translate.google.com/*',
         ],
         optional_host_permissions: ['http://*/*', 'https://*/*'],
-        // Images the popup card shows inside web pages. WXT names the content script's assets
-        // after the entrypoint, so these are the logo and the settings background.
+        // Images the popup card shows inside web pages (the logo and the settings background).
+        // WXT names the content script's assets after the entrypoint and Rolldown may add a
+        // number on a name clash, so match by extension rather than by exact name.
         web_accessible_resources: [
             {
-                resources: ['assets/content.png', 'assets/content.jpg'],
+                resources: ['assets/*.png', 'assets/*.jpg'],
                 matches: ['<all_urls>'],
             },
         ],

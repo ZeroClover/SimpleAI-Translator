@@ -49,9 +49,11 @@ export async function tauriFetch(
     init: RequestInit & { proxy?: ISettings['proxy'] } = {}
 ): Promise<Response> {
     const { signal } = init
+    const body = init.body === undefined || init.body === null ? null : await new Response(init.body).text()
+    // Checked after reading the body: from here to `invoke` nothing awaits, so a later abort
+    // reaches the listener registered below.
     signal?.throwIfAborted()
     const id = crypto.randomUUID()
-    const body = init.body === undefined || init.body === null ? null : await new Response(init.body).text()
     let controller!: ReadableStreamDefaultController<Uint8Array>
     let finished = false
     const finish = () => {

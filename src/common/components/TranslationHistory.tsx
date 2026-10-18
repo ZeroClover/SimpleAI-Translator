@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Modal, ModalBody, ModalHeader } from 'baseui-sd/modal'
-import { Input } from 'baseui-sd/input'
-import { Button } from 'baseui-sd/button'
+import { Modal, ModalBody, ModalHeader } from 'baseui/modal'
+import { Input } from 'baseui/input'
+import { Button } from 'baseui/button'
 import { createUseStyles } from 'react-jss'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../hooks/useTheme'
@@ -258,7 +258,7 @@ export function TranslationHistory(props: TranslationHistoryProps) {
     const renderControls = (styleOverride?: React.CSSProperties) => (
         <div className={styles.controls} style={styleOverride} data-tauri-drag-ignore='true'>
             <Input
-                inputRef={searchInputRef}
+                inputRef={searchInputRef as React.RefObject<HTMLInputElement>}
                 value={search}
                 clearable
                 placeholder={t('Search History')}

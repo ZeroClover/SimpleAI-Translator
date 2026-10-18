@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createUseStyles } from 'react-jss'
 import { useTranslation } from 'react-i18next'
-import { BaseProvider } from 'baseui-sd'
+import { BaseProvider } from 'baseui'
 import { Provider as StyletronProvider } from 'styletron-react'
 import { Client as Styletron } from 'styletron-engine-atomic'
 import { IThemedStyleProps } from '../../common/types'

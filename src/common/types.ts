@@ -1,4 +1,4 @@
-import { Theme } from 'baseui-sd/theme'
+import { Theme } from 'baseui/theme'
 import { OpenAITTSSettings, TTSProvider } from './tts/types'
 import { LangCode } from './lang'
 

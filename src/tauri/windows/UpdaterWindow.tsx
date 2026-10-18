@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react'
 import { Window } from '@/tauri/components/Window'
 import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
-import { Button } from 'baseui-sd/button'
+import { Button } from 'baseui/button'
 import { useTheme } from '@/common/hooks/useTheme'
 import monkey from '@/common/assets/images/monkey.gif'
 import icon from '@/common/assets/images/icon.png'
 import { getAssetUrl } from '@/common/utils'
-import { ProgressBarRounded } from 'baseui-sd/progress-bar'
+import { ProgressBarRounded } from 'baseui/progress-bar'
 import { createUseStyles } from 'react-jss'
 import { MdBrowserUpdated } from 'react-icons/md'
 import { IoIosCloseCircleOutline } from 'react-icons/io'
@@ -168,9 +168,9 @@ export function UpdaterWindow() {
                                             >
                                                 {t('A new version is available!')}
                                             </span>{' '}
-                                            {t('The current version is {{0}}, and the latest version is', [
-                                                checkResult.currentVersion,
-                                            ])}{' '}
+                                            {t('The current version is {{0}}, and the latest version is', {
+                                                0: checkResult.currentVersion,
+                                            })}{' '}
                                             <span
                                                 style={{
                                                     color: theme.colors.positive,

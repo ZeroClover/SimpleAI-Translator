@@ -1,4 +1,4 @@
-import { DarkTheme, LightTheme } from 'baseui-sd/themes'
+import { DarkTheme, LightTheme } from 'baseui/themes'
 import { useCurrentThemeType } from './useCurrentThemeType'
 import { useMemo } from 'react'
 

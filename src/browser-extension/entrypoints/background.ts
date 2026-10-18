@@ -102,7 +102,8 @@ export default defineBackground(() => {
                 const controller = new AbortController()
                 const { signal } = controller
 
-                port.onMessage.addListener(function (message: BackgroundFetchRequestMessage) {
+                port.onMessage.addListener(function (data) {
+                    const message = data as BackgroundFetchRequestMessage
                     switch (message.type) {
                         case 'abort':
                             controller.abort()
@@ -128,7 +129,8 @@ export default defineBackground(() => {
         return { result }
     }
 
-    browser.runtime.onMessage.addListener(async (request) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    browser.runtime.onMessage.addListener(async (request: any) => {
         switch (request.type) {
             case BackgroundEventNames.historyService:
                 return await callMethod(request, historyInternalService)

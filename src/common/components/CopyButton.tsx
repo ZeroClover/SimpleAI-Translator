@@ -1,4 +1,4 @@
-import { Tooltip } from 'baseui-sd/tooltip'
+import { Tooltip } from 'baseui/tooltip'
 import { CopyToClipboard } from 'react-copy-to-clipboard'
 import { RxCopy } from 'react-icons/rx'
 import { useTranslation } from 'react-i18next'

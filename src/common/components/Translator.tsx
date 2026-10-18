@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast/headless'
 import { Client as Styletron } from 'styletron-engine-atomic'
 import { Provider as StyletronProvider } from 'styletron-react'
-import { BaseProvider } from 'baseui-sd'
-import { Textarea } from 'baseui-sd/textarea'
+import { BaseProvider } from 'baseui'
+import { Textarea } from 'baseui/textarea'
 import { createUseStyles } from 'react-jss'
 import { IoSettingsOutline } from 'react-icons/io5'
 import { TiArrowBack } from 'react-icons/ti'
@@ -12,10 +12,10 @@ import { TbArrowsExchange, TbMarkdown } from 'react-icons/tb'
 import { MdHistory } from 'react-icons/md'
 import { detectLang, getLangConfig, sourceLanguages, targetLanguages, LangCode } from '../lang'
 import { getTranslationCacheKey, resolveTranslationModel, translate } from '../translate'
-import { Select, Value, Option } from 'baseui-sd/select'
+import { Select, Value, Option } from 'baseui/select'
 import { RxEraser, RxEnter, RxReload, RxStop } from 'react-icons/rx'
 import { clsx } from 'clsx'
-import { Button } from 'baseui-sd/button'
+import { Button } from 'baseui/button'
 import { ErrorBoundary } from 'react-error-boundary'
 import { ErrorFallback } from '../components/ErrorFallback'
 import {
@@ -1539,7 +1539,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             </div>
                             <div>
                                 <Textarea
-                                    inputRef={editorRef}
+                                    inputRef={editorRef as React.RefObject<HTMLTextAreaElement>}
                                     autoFocus={autoFocus}
                                     overrides={{
                                         Root: {

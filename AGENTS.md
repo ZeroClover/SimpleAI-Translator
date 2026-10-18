@@ -42,7 +42,7 @@ Install dependencies with `pnpm install` (package manager is pinned in `package.
 - `pnpm check:no-telemetry` and `pnpm check:no-old-identity` are the grep guards behind the `no-telemetry` and `app-identity` specs.
 
 ## Coding Style & Naming Conventions
-TypeScript + React 18 is the primary stack, with Base Web (`baseui-sd`) on Styletron plus `react-jss` for component styles. Keep 4-space indentation, single quotes, and trailing commas—Prettier enforces this, so format before pushing. Components stay in `PascalCase`, hooks/utilities in `camelCase`, and constants in `SCREAMING_SNAKE_CASE`. Reuse helpers from `src/common` instead of duplicating logic, and keep staged files lint-clean: the `simple-git-hooks` pre-commit hook runs `lint-staged` (ESLint + Prettier).
+TypeScript + React 19 is the primary stack, with Base Web (`baseui`, carrying `patches/baseui@18.2.0.patch` so Select works inside the content script's shadow root) on Styletron plus `react-jss` for component styles. Keep 4-space indentation, single quotes, and trailing commas—Prettier enforces this, so format before pushing. Components stay in `PascalCase`, hooks/utilities in `camelCase`, and constants in `SCREAMING_SNAKE_CASE`. Reuse helpers from `src/common` instead of duplicating logic, and keep staged files lint-clean: the `simple-git-hooks` pre-commit hook runs `lint-staged` (ESLint + Prettier).
 
 ## Testing Guidelines
 Unit tests live next to the code as `foo.spec.ts` and run with Vitest. Mock remote APIs and keep snapshots deterministic, especially around translation results. Update Playwright specs in `e2e/*.spec.ts` when UI flows change, and verify `pnpm test` plus `pnpm test:e2e` before requesting review.

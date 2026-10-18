@@ -1,7 +1,7 @@
 import React, { ReactElement, ReactNode } from 'react'
 import { Field } from 'rc-field-form'
 import { NamePath } from 'rc-field-form/es/interface'
-import { FormControl } from 'baseui-sd/form-control'
+import { FormControl } from 'baseui/form-control'
 import styles from './index.module.css'
 
 export { default as Form, useForm } from 'rc-field-form'

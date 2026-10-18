@@ -1,4 +1,4 @@
-import { StatefulTooltip, StatefulTooltipProps } from 'baseui-sd/tooltip'
+import { StatefulTooltip, StatefulTooltipProps } from 'baseui/tooltip'
 
 interface ITooltipProps extends StatefulTooltipProps {
     content: string

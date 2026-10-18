@@ -70,3 +70,21 @@ test('clicking a page without an open card does not read settings', async ({ pag
     await expect.poll(storageReads).toBeGreaterThan(readsWhenOpening)
     await expect(page.locator(`#${popupCardInnerContainerId}`)).not.toBeAttached()
 })
+
+// The card lives in a shadow root, where document listeners see clicks retargeted to the shadow
+// host. A click inside an open Select must not count as a click outside it.
+test('a Select in the popup card stays usable inside the shadow root', async ({ page }) => {
+    await page.goto(`file:${path.join(__dirname, 'test.html')}`)
+    await openTranslatorWithSelectedText(page)
+    const card = page.locator(`#${popupCardInnerContainerId}`)
+    const targetLanguage = card.getByRole('combobox').nth(1)
+
+    await targetLanguage.click()
+    await page.keyboard.type('日')
+    await targetLanguage.click()
+    await expect(page.getByRole('option', { name: '日本語', exact: true })).toBeVisible()
+    await page.getByRole('option', { name: '日本語', exact: true }).click()
+
+    await expect(page.getByRole('option')).toHaveCount(0)
+    await expect(card.getByText('日本語', { exact: true })).toBeVisible()
+})

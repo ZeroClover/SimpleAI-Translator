@@ -111,8 +111,8 @@ export async function backgroundFetch(input: string, options: RequestInit) {
 
             const readableStream = new ReadableStream({
                 start(controller) {
-                    port.onMessage.addListener((msg: BackgroundFetchResponseMessage) => {
-                        const { data, error, ...restResp } = msg
+                    port.onMessage.addListener((message) => {
+                        const { data, error, ...restResp } = message as BackgroundFetchResponseMessage
                         if (error) {
                             const e = new Error()
                             e.message = error.message

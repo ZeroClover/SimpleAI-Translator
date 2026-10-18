@@ -8,10 +8,10 @@ export async function callMethod(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any> {
     const browser = (await import('webextension-polyfill')).default
-    const resp = await browser.runtime.sendMessage({
+    const resp = (await browser.runtime.sendMessage({
         type: BackgroundEventNames[eventType],
         method: methodName,
         args: args,
-    })
+    })) as { result: unknown }
     return resp.result
 }

@@ -413,10 +413,10 @@ function createResponseConsumer(
 ) {
     const mode = status !== 200 ? 'error' : onJSONResponse && isJSONMediaType(contentType) ? 'json' : 'sse'
     const events: string[] = []
-    const sseParser = createParser((event) => {
-        if (event.type === 'event') {
+    const sseParser = createParser({
+        onEvent(event) {
             events.push(event.data)
-        }
+        },
     })
     let body = ''
     return {

@@ -118,4 +118,5 @@ export interface ISettings {
         noProxy?: string
     }
     fontSize: number
+    renderMarkdown: boolean
 }

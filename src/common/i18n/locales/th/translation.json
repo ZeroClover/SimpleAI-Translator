@@ -176,5 +176,8 @@
     "The OpenAI TTS request was rejected. Check the linked Provider in settings.": "คำขอ OpenAI TTS ถูกปฏิเสธ โปรดตรวจสอบ Provider ที่เชื่อมโยงในการตั้งค่า",
     "The OpenAI TTS service is temporarily unavailable. Please try again later.": "บริการ OpenAI TTS ไม่พร้อมใช้งานชั่วคราว โปรดลองอีกครั้งในภายหลัง",
     "OpenAI TTS audio playback failed.": "การเล่นเสียง OpenAI TTS ล้มเหลว",
-    "The model provider blocked this request with its content filter.": "ผู้ให้บริการโมเดลบล็อกคำขอนี้ด้วยตัวกรองเนื้อหา"
+    "The model provider blocked this request with its content filter.": "ผู้ให้บริการโมเดลบล็อกคำขอนี้ด้วยตัวกรองเนื้อหา",
+    "Markdown rendering": "การแสดงผล Markdown",
+    "Markdown rendering is off. Click to turn it on.": "การแสดงผล Markdown ปิดอยู่ คลิกเพื่อเปิด",
+    "Markdown rendering is on. Click to turn it off.": "การแสดงผล Markdown เปิดอยู่ คลิกเพื่อปิด"
 }

@@ -1573,8 +1573,10 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
     const onSubmit = useCallback(
         async (data: ISettings) => {
             setLoading(true)
-            const nextSettings = mergeFormValues(valuesRef.current, data)
+            const formSettings = mergeFormValues(valuesRef.current, data)
             const oldSettings = await utils.getSettings()
+            // The Markdown preference is toggled in the translator, so the stored value wins over this form's snapshot.
+            const nextSettings = { ...formSettings, renderMarkdown: oldSettings.renderMarkdown }
             if (isTauri) {
                 try {
                     const {
@@ -1612,7 +1614,9 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
     )
 
     const persistSettings = useCallback(
-        async (nextValues: ISettings) => {
+        async (values_: ISettings) => {
+            const { renderMarkdown } = await utils.getSettings()
+            const nextValues = { ...values_, renderMarkdown }
             await utils.setSettings(nextValues)
             valuesRef.current = nextValues
             setPrevValues(nextValues)

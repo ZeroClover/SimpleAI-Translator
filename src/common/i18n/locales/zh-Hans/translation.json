@@ -176,5 +176,8 @@
     "The OpenAI TTS request was rejected. Check the linked Provider in settings.": "OpenAI TTS 请求被拒绝，请检查关联的 Provider 配置",
     "The OpenAI TTS service is temporarily unavailable. Please try again later.": "OpenAI TTS 服务暂不可用，请稍后重试",
     "OpenAI TTS audio playback failed.": "OpenAI TTS 音频播放失败",
-    "The model provider blocked this request with its content filter.": "很抱歉！由于您使用的 LLM 有敏感词限制，很不幸这个请求已经触发了敏感词，请您接受这个结果。"
+    "The model provider blocked this request with its content filter.": "很抱歉！由于您使用的 LLM 有敏感词限制，很不幸这个请求已经触发了敏感词，请您接受这个结果。",
+    "Markdown rendering": "Markdown 渲染",
+    "Markdown rendering is off. Click to turn it on.": "Markdown 渲染已关闭，点击开启",
+    "Markdown rendering is on. Click to turn it off.": "Markdown 渲染已开启，点击关闭"
 }

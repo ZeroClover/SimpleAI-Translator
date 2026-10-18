@@ -12,9 +12,11 @@ class BrowserStorageSync {
     }
 
     async set(items: Record<string, any>): Promise<void> {
-        Object.entries(items).forEach(async ([key, value]) => {
-            value && (await GM.setValue(key, value))
-        })
+        await Promise.all(
+            Object.entries(items)
+                .filter(([, value]) => value !== undefined)
+                .map(([key, value]) => GM.setValue(key, value))
+        )
     }
 
     async remove(keys: string[]): Promise<void> {

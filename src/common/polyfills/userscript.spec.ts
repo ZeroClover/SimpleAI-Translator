@@ -1,7 +1,7 @@
 /* eslint-disable camelcase */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchSSE } from '../utils'
-import { userscriptFetch } from './userscript'
+import { fetchSSE, getSettings, setSettings } from '../utils'
+import { userscriptBrowser, userscriptFetch } from './userscript'
 
 const encoder = new TextEncoder()
 
@@ -123,5 +123,41 @@ describe('userscript fetch', () => {
         controller.abort()
         await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
         expect(abort).toHaveBeenCalledOnce()
+    })
+})
+
+function stubGMStorage() {
+    const values = new Map<string, unknown>()
+    // Writes resolve on a later task so set() must await them to be observable.
+    const later = () => new Promise((resolve) => setTimeout(resolve, 5))
+    vi.stubGlobal('GM_info', {})
+    vi.stubGlobal('GM', {
+        getValue: async (key: string, fallback: unknown) => (values.has(key) ? values.get(key) : fallback),
+        setValue: async (key: string, value: unknown) => {
+            await later()
+            values.set(key, value)
+        },
+        deleteValue: async (key: string) => {
+            values.delete(key)
+        },
+    })
+    return values
+}
+
+describe('userscript storage', () => {
+    it('stores every defined value, including falsy ones, before set() resolves', async () => {
+        const values = stubGMStorage()
+        await userscriptBrowser.storage.sync.set({ off: false, empty: null, zero: 0, blank: '', skipped: undefined })
+        expect(Object.fromEntries(values)).toEqual({ off: false, empty: null, zero: 0, blank: '' })
+    })
+
+    it('keeps Markdown rendering off after it is turned on and off again', async () => {
+        stubGMStorage()
+        const settings = await getSettings()
+        expect(settings.renderMarkdown).toBe(false)
+        await setSettings({ ...settings, renderMarkdown: true })
+        expect((await getSettings()).renderMarkdown).toBe(true)
+        await setSettings({ ...settings, renderMarkdown: false })
+        expect((await getSettings()).renderMarkdown).toBe(false)
     })
 })

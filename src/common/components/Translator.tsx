@@ -8,7 +8,7 @@ import { Textarea } from 'baseui-sd/textarea'
 import { createUseStyles } from 'react-jss'
 import { IoSettingsOutline } from 'react-icons/io5'
 import { TiArrowBack } from 'react-icons/ti'
-import { TbArrowsExchange } from 'react-icons/tb'
+import { TbArrowsExchange, TbMarkdown } from 'react-icons/tb'
 import { MdHistory } from 'react-icons/md'
 import { detectLang, getLangConfig, sourceLanguages, targetLanguages, LangCode } from '../lang'
 import { getTranslationCacheKey, resolveTranslationModel, translate } from '../translate'
@@ -48,12 +48,13 @@ import { useLazyEffect } from '../hooks/useLazyEffect'
 import LogoWithText, { type LogoWithTextRef } from './LogoWithText'
 import Toaster from './Toaster'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { useDeepCompareCallback } from 'use-deep-compare'
+import { useDeepCompareCallback, useDeepCompareEffect } from 'use-deep-compare'
 import { useTranslatorStore } from '../store'
 import { SpeakerIcon } from './SpeakerIcon'
 import color from 'color'
 import { useSettingsVisibility } from '../store/setting'
 import { sortModelIds } from '../engines/model-filter'
+import { MarkdownResult } from './MarkdownResult'
 
 const SUCCESS_FINISH_REASONS = new Set(['stop', 'eos', 'end_turn'])
 
@@ -95,7 +96,9 @@ function getProviderModelOptions(provider: ISettings['providers'][number] | unde
     }))
 }
 
-function resolveModelSelection(settings: ISettings): ModelSelection | null {
+function resolveModelSelection(
+    settings: Pick<ISettings, 'providers' | 'defaultProviderId' | 'defaultModel'>
+): ModelSelection | null {
     if (
         settings.defaultModel &&
         settings.providers.some((provider) => provider.id === settings.defaultModel?.providerId) &&
@@ -405,6 +408,104 @@ const useStyles = createUseStyles({
             transform: 'scale(0.92)',
         },
     }),
+    'resultActionButtonsContainer': {
+        display: 'flex',
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: '4px',
+        marginTop: '4px',
+    },
+    'markdownToggle': (props: IThemedStyleProps) => ({
+        'boxSizing': 'border-box',
+        'minWidth': '28px',
+        'minHeight': '28px',
+        'margin': 0,
+        'padding': '5px',
+        'font': 'inherit',
+        'color': props.theme.colors.contentSecondary,
+        'background': 'transparent',
+        'border': '1px solid transparent',
+        'borderRadius': '8px',
+        'cursor': 'pointer',
+        'display': 'flex',
+        'alignItems': 'center',
+        'justifyContent': 'center',
+        'transition': 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        '&:hover': {
+            color: props.theme.colors.contentPrimary,
+            background: props.themeType === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+        },
+        '&:focus-visible': {
+            outline: `2px solid ${props.theme.colors.accent}`,
+            outlineOffset: '1px',
+        },
+        '&[aria-pressed="true"]': {
+            color: props.theme.colors.accent,
+            background: color(props.theme.colors.accent).alpha(0.14).string(),
+            borderColor: color(props.theme.colors.accent).alpha(0.5).string(),
+        },
+    }),
+    'markdownResult': (props: IThemedStyleProps) => {
+        const codeBackground = props.themeType === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'
+        return {
+            'minWidth': 0,
+            'overflowWrap': 'anywhere',
+            '& p': {
+                margin: '0.5em 0',
+            },
+            '& h1, & h2, & h3, & h4, & h5, & h6': {
+                margin: '0.6em 0 0.4em',
+                lineHeight: 1.3,
+                fontWeight: 600,
+            },
+            '& h1': { fontSize: '1.4em' },
+            '& h2': { fontSize: '1.25em' },
+            '& h3': { fontSize: '1.1em' },
+            '& h4, & h5, & h6': { fontSize: '1em' },
+            '& ul, & ol': {
+                margin: '0.5em 0',
+                paddingInlineStart: '1.5em',
+            },
+            '& li > p, & li > ul, & li > ol': {
+                margin: '0.25em 0',
+            },
+            '& blockquote': {
+                margin: '0.5em 0',
+                paddingInlineStart: '0.8em',
+                borderInlineStart: `3px solid ${
+                    props.themeType === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)'
+                }`,
+                color: props.theme.colors.contentTertiary,
+            },
+            '& code': {
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                fontSize: '0.9em',
+                padding: '0.1em 0.3em',
+                borderRadius: '4px',
+                background: codeBackground,
+            },
+            '& pre': {
+                margin: '0.5em 0',
+                padding: '8px 10px',
+                borderRadius: '8px',
+                background: codeBackground,
+                overflowX: 'auto',
+                whiteSpace: 'pre',
+                overflowWrap: 'normal',
+            },
+            '& pre code': {
+                padding: 0,
+                fontSize: 'inherit',
+                background: 'transparent',
+            },
+            '& hr': {
+                margin: '0.8em 0',
+                border: 0,
+                borderTop: `1px solid ${props.themeType === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)'}`,
+            },
+        }
+    },
     'actionButtonDisabled': (props: IThemedStyleProps) => ({
         color: props.theme.colors.buttonDisabledText,
         cursor: 'default',
@@ -587,15 +688,18 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         [modelOptions, selectedModel]
     )
 
-    useEffect(() => {
+    const { providers, defaultProviderId, defaultModel, providerModelOutputControls } = settings
+    // Only the values that pick the default model may reset the current one; display
+    // preferences must not overwrite a model restored from history.
+    useDeepCompareEffect(() => {
         setSelectedModel((currentModel) => {
-            const nextModel = resolveModelSelection(settings)
+            const nextModel = resolveModelSelection({ providers, defaultProviderId, defaultModel })
             if (currentModel?.providerId === nextModel?.providerId && currentModel?.model === nextModel?.model) {
                 return currentModel
             }
             return nextModel
         })
-    }, [settings])
+    }, [providers, defaultProviderId, defaultModel])
 
     useEffect(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -740,6 +844,15 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         [setSettings, settings]
     )
 
+    const toggleRenderMarkdown = useCallback(() => {
+        const nextSettings = {
+            ...settings,
+            renderMarkdown: !settings.renderMarkdown,
+        }
+        setSettings(nextSettings)
+        void persistSettings(nextSettings)
+    }, [setSettings, settings])
+
     const getTranslateDeps = useCallback(
         async function (text: string): Promise<typeof translateDeps> {
             const newSourceLang = await detectLang(text)
@@ -881,6 +994,22 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         }
     }, [showSettings])
 
+    // Resolve once so the cache key, output controls, request, and history all use the same model.
+    // translateText depends only on these request inputs, so display preferences never restart it.
+    const requestedProviderId = translateDeps.providerId ?? selectedModel?.providerId
+    const { providerConfig: requestProviderConfig, model: requestModel } = resolveTranslationModel(
+        { providers, defaultProviderId, defaultModel },
+        requestedProviderId,
+        translateDeps.engineModel ?? selectedModel?.model
+    )
+    // An unknown provider id is passed through so translate() reports it instead of silently switching.
+    const requestProviderId = requestProviderConfig?.id ?? requestedProviderId
+    const requestOutputControls = resolveProviderModelOutputControls(
+        { providerModelOutputControls },
+        requestProviderId,
+        requestModel
+    )
+
     const translateText = useDeepCompareCallback(
         async (signal: AbortSignal) => {
             translationIDRef.current += 1
@@ -900,16 +1029,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 return
             }
             const isCurrentTranslation = () => translationID === translationIDRef.current
-            // Resolve once so the cache key, output controls, request, and history all use the same model.
-            const requestedProviderId = translateDeps.providerId ?? selectedModel?.providerId
-            const resolved = resolveTranslationModel(
-                settings,
-                requestedProviderId,
-                translateDeps.engineModel ?? selectedModel?.model
-            )
-            // An unknown provider id is passed through so translate() reports it instead of silently switching.
-            const providerId = resolved.providerConfig?.id ?? requestedProviderId
-            const model = resolved.model
+            const providerId = requestProviderId
+            const model = requestModel
             let reportedError: string | undefined
             const persistHistory = async (resultText: string) => {
                 if (!resultText || !resultText.trim()) {
@@ -990,7 +1111,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 }
             }
             beforeTranslate()
-            const outputControls = resolveProviderModelOutputControls(settings, providerId, model)
+            const outputControls = requestOutputControls
             const cachedKey = getTranslationCacheKey({
                 providerId,
                 model,
@@ -1090,9 +1211,10 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             }
         },
         [
-            selectedModel?.model,
-            selectedModel?.providerId,
-            settings,
+            requestProviderConfig,
+            requestProviderId,
+            requestModel,
+            requestOutputControls,
             translateDeps,
             translationFlag,
             submissionFlag,
@@ -1765,21 +1887,48 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                                 fontSize: settings.fontSize,
                                             }}
                                         >
-                                            <div>
-                                                {translatedLines.map((line, i) => {
-                                                    return (
-                                                        <div className={styles.paragraph} key={`p-${i}`}>
-                                                            {line}
-                                                            {isLoading && i === translatedLines.length - 1 && (
-                                                                <span className={styles.caret} />
-                                                            )}
-                                                        </div>
-                                                    )
-                                                })}
-                                            </div>
+                                            {settings.renderMarkdown ? (
+                                                <div className={styles.markdownResult}>
+                                                    <MarkdownResult text={translatedText} />
+                                                    {isLoading && <span className={styles.caret} />}
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    {translatedLines.map((line, i) => {
+                                                        return (
+                                                            <div className={styles.paragraph} key={`p-${i}`}>
+                                                                {line}
+                                                                {isLoading && i === translatedLines.length - 1 && (
+                                                                    <span className={styles.caret} />
+                                                                )}
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
                                         {translatedText && (
-                                            <div ref={actionButtonsRef} className={styles.actionButtonsContainer}>
+                                            <div ref={actionButtonsRef} className={styles.resultActionButtonsContainer}>
+                                                <Tooltip
+                                                    content={
+                                                        settings.renderMarkdown
+                                                            ? t('Markdown rendering is on. Click to turn it off.')
+                                                            : t('Markdown rendering is off. Click to turn it on.')
+                                                    }
+                                                    placement='bottom'
+                                                >
+                                                    <div>
+                                                        <button
+                                                            type='button'
+                                                            className={styles.markdownToggle}
+                                                            aria-label={t('Markdown rendering')}
+                                                            aria-pressed={settings.renderMarkdown}
+                                                            onClick={toggleRenderMarkdown}
+                                                        >
+                                                            <TbMarkdown size={16} />
+                                                        </button>
+                                                    </div>
+                                                </Tooltip>
                                                 <div style={{ marginRight: 'auto' }} />
                                                 {!isLoading && (
                                                     <Tooltip content={t('Retry')} placement='bottom'>

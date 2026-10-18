@@ -8,11 +8,11 @@
 
 ## Current Code Map
 - `src/common/translate.ts` is the single translation entry point. It resolves the provider and model (runtime `providerId`/`model`, then `settings.defaultModel`, then `settings.defaultProviderId`), looks up that Provider + Model's output controls (thinking, `reasoningEffort`, structured output), assembles the prompt, and dispatches through `src/common/engines/index.ts`.
-- `src/common/engines/` is protocol-based. Keep runtime engines limited to `protocols/openai-chat.ts`, `protocols/openai-responses.ts`, `protocols/anthropic.ts`, plus `interfaces.ts`, `index.ts`, `model-filter.ts`, and `thinking-filter.ts` (strips inline thinking blocks from streamed output).
+- `src/common/engines/` is protocol-based. Keep runtime engines limited to `protocols/openai-chat.ts`, `protocols/openai-responses.ts`, `protocols/anthropic.ts`, plus `interfaces.ts`, `index.ts`, `model-filter.ts`, and `thinking-filter.ts` (strips inline thinking blocks from streamed output). `interfaces.ts` also owns the shared structured-output preview/final validation, the single terminal callback per request (`EngineSession`), and the one-time `stream: false` fallback (`sendProtocolRequest`).
 - `src/common/components/Settings.tsx` and `src/common/components/ProviderForm.tsx` own LLM Provider management, model refresh, default model selection, per Provider + Model output controls, and OpenAI TTS settings.
 - `src/common/openai-api-path.ts` normalizes user-supplied endpoints into protocol URLs.
 - `src/common/tts/` owns TTS backends. OpenAI TTS is implemented in `openai-tts.ts` and reuses an existing OpenAI-compatible Provider instead of storing a separate API key.
-- `src/browser-extension/manifest.ts` and `src/common/universal-fetch.ts` cover extension permissions and fetch behavior, including optional host permissions for custom endpoints.
+- `src/browser-extension/manifest.ts` and `src/common/universal-fetch.ts` cover extension permissions and fetch behavior, including optional host permissions for custom endpoints. `fetchSSE` in `src/common/utils.ts` decodes UTF-8 across chunks, consumes SSE events serially, reports complete error bodies, and hands whole JSON responses to `onJSONResponse`; the extension bridge and userscript adapter preserve the response media type.
 - `src-tauri/` keeps native shell behavior such as windows, tray, updates, and packaging; removed global shortcuts, OCR, and writing commands should not be reintroduced.
 
 ## Behavior Specs

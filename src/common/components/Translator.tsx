@@ -1032,13 +1032,15 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         if (!isCurrentTranslation() || signal.aborted) {
                             return
                         }
-                        if (!message.content) {
+                        // A full-text snapshot replaces the current text, even when it is empty.
+                        if (message.isFullText) {
+                            resultText = message.content
+                        } else if (message.content) {
+                            resultText += message.content
+                        } else {
                             return
                         }
-                        resultText = message.isFullText ? message.content : resultText + message.content
-                        if (message.isFullText) {
-                            flushText()
-                        } else if (flushTimer === undefined) {
+                        if (flushTimer === undefined) {
                             flushTimer = setTimeout(flushText, 100)
                         }
                     },
@@ -1049,7 +1051,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         flushText()
                         afterTranslate(reason)
                         // Partial output (errors, truncation, filtering) stays on screen but is never cached or saved.
-                        if (!SUCCESS_FINISH_REASONS.has(reason)) {
+                        if (!SUCCESS_FINISH_REASONS.has(reason) || !resultText.trim()) {
                             return
                         }
                         cache.set(cachedKey, resultText)

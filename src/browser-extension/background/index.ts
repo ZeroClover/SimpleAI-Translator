@@ -57,11 +57,13 @@ async function fetchWithStream(
         redirected: response.redirected,
         type: response.type,
         url: response.url,
+        headers: Array.from(response.headers.entries()),
     }
 
+    // Send the response head first so an empty body still resolves the request.
+    port.postMessage(responseSend)
     const reader = response?.body?.getReader()
     if (!reader) {
-        port.postMessage(responseSend)
         port.disconnect()
         return
     }

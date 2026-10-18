@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { fetchSSE } from '../utils'
 import { backgroundFetch, getHostPermissionOrigin, requestHostPermission } from './fetch'
 
 const browserMock = vi.hoisted(() => ({
@@ -9,6 +10,8 @@ const browserMock = vi.hoisted(() => ({
     },
     runtime: {
         connect: vi.fn(),
+        onConnect: { addListener: vi.fn() },
+        onMessage: { addListener: vi.fn() },
     },
 }))
 
@@ -165,5 +168,141 @@ describe('backgroundFetch host permissions', () => {
             origins: ['http://127.0.0.1:43124/*'],
         })
         expect(browserMock.runtime.connect).not.toHaveBeenCalled()
+    })
+})
+
+type PortListener = (message: unknown) => void
+
+// A connected pair of runtime ports, like the one the extension runtime creates.
+function createPortPair(name: string) {
+    const create = () => {
+        const messageListeners: PortListener[] = []
+        const disconnectListeners: Array<() => void> = []
+        const port = {
+            name,
+            messageListeners,
+            disconnectListeners,
+            onMessage: { addListener: (listener: PortListener) => messageListeners.push(listener) },
+            onDisconnect: { addListener: (listener: () => void) => disconnectListeners.push(listener) },
+            // Replaced by link() once both ends exist.
+            postMessage: (() => undefined) as (message: unknown) => void,
+            disconnect: () => undefined as void,
+        }
+        return port
+    }
+    const front = create()
+    const back = create()
+    const link = (from: typeof front, to: typeof front) => {
+        from.postMessage = (message) =>
+            queueMicrotask(() => to.messageListeners.forEach((listener) => listener(message)))
+        from.disconnect = () => queueMicrotask(() => to.disconnectListeners.forEach((listener) => listener()))
+    }
+    link(front, back)
+    link(back, front)
+    return { front, back }
+}
+
+function chunkedResponse(chunks: string[], init: ResponseInit): Response {
+    const encoder = new TextEncoder()
+    return new Response(
+        new ReadableStream({
+            start(controller) {
+                chunks.forEach((chunk) => controller.enqueue(encoder.encode(chunk)))
+                controller.close()
+            },
+        }),
+        init
+    )
+}
+
+describe('background fetch bridge', () => {
+    let fetchMock: ReturnType<typeof vi.fn>
+    let onConnect: (port: unknown) => void
+
+    beforeAll(async () => {
+        // Route the content side through the real background listener.
+        await import('../../browser-extension/background/index')
+        ;[onConnect] = browserMock.runtime.onConnect.addListener.mock.calls[0] as [(port: unknown) => void]
+    })
+
+    beforeEach(() => {
+        vi.clearAllMocks()
+        fetchMock = vi.fn()
+        vi.stubGlobal('fetch', fetchMock)
+        browserMock.runtime.connect.mockImplementation(({ name }: { name: string }) => {
+            const { front, back } = createPortPair(name)
+            onConnect(back)
+            return front
+        })
+        browserMock.permissions.contains.mockResolvedValue(true)
+    })
+
+    afterEach(() => {
+        vi.unstubAllGlobals()
+    })
+
+    it('restores the JSON media type so a direct JSON response is consumed once', async () => {
+        fetchMock.mockResolvedValueOnce(
+            chunkedResponse(['{"choices":[{"message":', '{"content":"好"}}]}'], {
+                headers: { 'Content-Type': 'application/json; charset=utf-8' },
+            })
+        )
+        const onJSONResponse = vi.fn(async () => {})
+        const onMessage = vi.fn(async () => {})
+        await fetchSSE('https://api.example.test/v1/chat/completions', {
+            method: 'POST',
+            fetcher: backgroundFetch,
+            onMessage,
+            onError: vi.fn(),
+            onJSONResponse,
+        })
+        expect(fetchMock).toHaveBeenCalledOnce()
+        expect(onJSONResponse).toHaveBeenCalledWith({ choices: [{ message: { content: '好' } }] })
+        expect(onMessage).not.toHaveBeenCalled()
+    })
+
+    it('streams SSE through the bridge', async () => {
+        fetchMock.mockResolvedValueOnce(
+            chunkedResponse(['data: a\n', '\ndata: [DONE]\n\n'], {
+                headers: { 'Content-Type': 'text/event-stream' },
+            })
+        )
+        const events: string[] = []
+        await fetchSSE('https://api.example.test/v1/chat/completions', {
+            fetcher: backgroundFetch,
+            onMessage: async (data) => {
+                events.push(data)
+            },
+            onError: vi.fn(),
+            onJSONResponse: vi.fn(async () => {}),
+        })
+        expect(events).toEqual(['a', '[DONE]'])
+    })
+
+    it('reports a chunked error body once with its status', async () => {
+        fetchMock.mockResolvedValueOnce(
+            chunkedResponse(['{"error":{"message":"bad', ' key"}}'], {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' },
+            })
+        )
+        const onError = vi.fn()
+        const onStatusCode = vi.fn()
+        await fetchSSE('https://api.example.test/v1/chat/completions', {
+            fetcher: backgroundFetch,
+            onMessage: vi.fn(async () => {}),
+            onError,
+            onStatusCode,
+        })
+        expect(onStatusCode).toHaveBeenCalledWith(401)
+        expect(onError).toHaveBeenCalledOnce()
+        expect(onError).toHaveBeenCalledWith({ error: { message: 'bad key' } })
+    })
+
+    it('resolves a response with an empty body', async () => {
+        fetchMock.mockResolvedValueOnce(new Response(null, { status: 200 }))
+        const response = await backgroundFetch('https://api.example.test/v1/models', {})
+        expect(response.status).toBe(200)
+        await expect(response.text()).resolves.toBe('')
     })
 })

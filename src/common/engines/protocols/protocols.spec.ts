@@ -102,7 +102,7 @@ describe('protocol engines', () => {
         expect(onFinished).toHaveBeenCalledWith('stop')
     })
 
-    it('uses OpenAI Chat strict schema response_format and emits only formatted text', async () => {
+    it('uses OpenAI Chat strict schema response_format and emits formatted previews and final text', async () => {
         const engine = new OpenAIChatEngine(providerConfig)
         const { req, onMessage, onFinished } = createRequest(undefined, {
             structuredOutput: sentenceStructuredOutput,
@@ -131,8 +131,11 @@ describe('protocol engines', () => {
 
         await engine.sendMessage(req)
 
-        expect(onMessage).toHaveBeenCalledTimes(1)
-        expect(onMessage).toHaveBeenCalledWith({ content: '你好', role: 'assistant', isFullText: true })
+        // One preview while streaming, then the validated final snapshot.
+        expect(onMessage.mock.calls).toEqual([
+            [{ content: '你好', role: 'assistant', isFullText: true }],
+            [{ content: '你好', role: 'assistant', isFullText: true }],
+        ])
         expect(onFinished).toHaveBeenCalledWith('stop')
     })
 

@@ -19,6 +19,20 @@ describe('settings schema normalization', () => {
         expect(settings.tts?.provider).toBe('edge')
     })
 
+    it('turns Markdown rendering on only for a stored boolean true', () => {
+        expect(normalizeSettings({}).renderMarkdown).toBe(false)
+        for (const renderMarkdown of [false, null, 'true', 1, {}]) {
+            expect(normalizeSettings({ renderMarkdown } as Record<string, unknown>).renderMarkdown).toBe(false)
+        }
+        expect(normalizeSettings({ renderMarkdown: true }).renderMarkdown).toBe(true)
+    })
+
+    it('writes the Markdown rendering preference in both states', () => {
+        expect(sanitizeSettingsForStorage({ renderMarkdown: true }).renderMarkdown).toBe(true)
+        expect(sanitizeSettingsForStorage({ renderMarkdown: false }).renderMarkdown).toBe(false)
+        expect(sanitizeSettingsForStorage({})).not.toHaveProperty('renderMarkdown')
+    })
+
     it('migrates the old default target language to native language', () => {
         const settings = normalizeSettings({
             defaultTargetLanguage: 'ja',

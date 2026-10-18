@@ -39,6 +39,7 @@ const settingKeys = {
     languageDetectionEngine: 1,
     proxy: 1,
     fontSize: 1,
+    renderMarkdown: 1,
 } satisfies Partial<Record<keyof ISettings, number>>
 
 const legacySettingKeys = [
@@ -367,6 +368,7 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
             noProxy: 'localhost,127.0.0.1',
         },
         fontSize: rawSettings.fontSize ?? 15,
+        renderMarkdown: rawSettings.renderMarkdown === true,
     } as ISettings
 }
 

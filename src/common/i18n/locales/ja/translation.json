@@ -176,5 +176,8 @@
     "The OpenAI TTS request was rejected. Check the linked Provider in settings.": "OpenAI TTS のリクエストが拒否されました。設定で関連付けられた Provider を確認してください。",
     "The OpenAI TTS service is temporarily unavailable. Please try again later.": "OpenAI TTS サービスは一時的に利用できません。しばらくしてから再試行してください。",
     "OpenAI TTS audio playback failed.": "OpenAI TTS の音声再生に失敗しました。",
-    "The model provider blocked this request with its content filter.": "ご利用中の LLM のコンテンツフィルターにより、このリクエストはブロックされました。"
+    "The model provider blocked this request with its content filter.": "ご利用中の LLM のコンテンツフィルターにより、このリクエストはブロックされました。",
+    "Markdown rendering": "Markdown 表示",
+    "Markdown rendering is off. Click to turn it on.": "Markdown 表示はオフです。クリックしてオンにします。",
+    "Markdown rendering is on. Click to turn it off.": "Markdown 表示はオンです。クリックしてオフにします。"
 }

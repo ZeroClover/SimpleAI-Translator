@@ -1561,37 +1561,46 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
 
     const onChange = useCallback(
         (_changes: Partial<ISettings>, values_: ISettings) => {
-            setValues((currentValues) => {
-                const nextValues = mergeFormValues(currentValues, values_)
-                valuesRef.current = nextValues
-                return nextValues
-            })
+            // Update the ref synchronously: toggles call onBlur right after onChange, before a re-render.
+            const nextValues = mergeFormValues(valuesRef.current, values_)
+            valuesRef.current = nextValues
+            setValues(nextValues)
         },
         [mergeFormValues]
+    )
+
+    const syncAutostart = useCallback(
+        async (nextSettings: ISettings) => {
+            if (!isTauri) {
+                return
+            }
+            try {
+                const {
+                    enable: autostartEnable,
+                    disable: autostartDisable,
+                    isEnabled: autostartIsEnabled,
+                } = await import('@tauri-apps/plugin-autostart')
+                if (nextSettings.runAtStartup) {
+                    await autostartEnable()
+                } else {
+                    await autostartDisable()
+                }
+                nextSettings.runAtStartup = await autostartIsEnabled()
+            } catch (e) {
+                console.log('err', e)
+            }
+        },
+        [isTauri]
     )
 
     const onSubmit = useCallback(
         async (data: ISettings) => {
             setLoading(true)
-            const nextSettings = mergeFormValues(valuesRef.current, data)
+            const formSettings = mergeFormValues(valuesRef.current, data)
             const oldSettings = await utils.getSettings()
-            if (isTauri) {
-                try {
-                    const {
-                        enable: autostartEnable,
-                        disable: autostartDisable,
-                        isEnabled: autostartIsEnabled,
-                    } = await import('@tauri-apps/plugin-autostart')
-                    if (nextSettings.runAtStartup) {
-                        await autostartEnable()
-                    } else {
-                        await autostartDisable()
-                    }
-                    nextSettings.runAtStartup = await autostartIsEnabled()
-                } catch (e) {
-                    console.log('err', e)
-                }
-            }
+            // The Markdown preference is toggled in the translator, so the stored value wins over this form's snapshot.
+            const nextSettings = { ...formSettings, renderMarkdown: oldSettings.renderMarkdown }
+            await syncAutostart(nextSettings)
             await utils.setSettings(nextSettings)
 
             if (nextSettings.themeType) {
@@ -1608,24 +1617,27 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
             setSettings(nextSettings)
             onSave?.(oldSettings)
         },
-        [isTauri, onSave, setSettings, refreshThemeType, t, mergeFormValues]
+        [syncAutostart, onSave, setSettings, refreshThemeType, t, mergeFormValues]
     )
 
     const persistSettings = useCallback(
-        async (nextValues: ISettings) => {
+        async (values_: ISettings) => {
+            const { renderMarkdown } = await utils.getSettings()
+            const nextValues = { ...values_, renderMarkdown }
+            await syncAutostart(nextValues)
             await utils.setSettings(nextValues)
             valuesRef.current = nextValues
             setPrevValues(nextValues)
             setSettings(nextValues)
         },
-        [setSettings]
+        [setSettings, syncAutostart]
     )
 
     const onBlur = useCallback(async () => {
-        if (!_.isEqual(values, prevValues)) {
-            await persistSettings(values)
+        if (!_.isEqual(valuesRef.current, prevValues)) {
+            await persistSettings(valuesRef.current)
         }
-    }, [persistSettings, prevValues, values])
+    }, [persistSettings, prevValues])
 
     const handleLLMProvidersChange = useCallback(
         (

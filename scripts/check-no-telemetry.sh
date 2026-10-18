@@ -11,7 +11,7 @@ paths=(
     pnpm-lock.yaml
     src-tauri/Cargo.toml
     src-tauri/Cargo.lock
-    src/browser-extension/manifest.ts
+    wxt.config.ts
 )
 
 if matches=$(git grep -n -i -E "$pattern" -- "${paths[@]}"); then

@@ -1021,14 +1021,14 @@ function LLMProvidersSettings({
     const selectedModelOption = useMemo(
         () =>
             defaultModel
-                ? modelOptions.find(
+                ? (modelOptions.find(
                       (option) => option.providerId === defaultModel.providerId && option.model === defaultModel.model
                   ) ?? {
                       id: `${defaultModel.providerId}:${defaultModel.model}`,
                       label: defaultModel.model,
                       providerId: defaultModel.providerId,
                       model: defaultModel.model,
-                  }
+                  })
                 : undefined,
         [defaultModel, modelOptions]
     )
@@ -1120,7 +1120,7 @@ function LLMProvidersSettings({
         (providerId: string) => {
             const nextProviders = providers.filter((provider) => provider.id !== providerId)
             const nextDefaultProviderId =
-                defaultProviderId === providerId ? nextProviders[0]?.id ?? null : defaultProviderId
+                defaultProviderId === providerId ? (nextProviders[0]?.id ?? null) : defaultProviderId
             const fallbackProvider = nextProviders.find((provider) => provider.model)
             const nextDefaultModel =
                 defaultModel?.providerId === providerId && fallbackProvider
@@ -1129,8 +1129,8 @@ function LLMProvidersSettings({
                           model: fallbackProvider.model,
                       }
                     : defaultModel?.providerId === providerId
-                    ? null
-                    : defaultModel
+                      ? null
+                      : defaultModel
             onChange(
                 nextProviders,
                 nextDefaultProviderId,
@@ -1192,8 +1192,8 @@ function LLMProvidersSettings({
                         ? { providerId: provider.id, model: ids[0] }
                         : defaultModel
                     : nextDefaultProviderId === provider.id
-                    ? { providerId: provider.id, model: ids[0] }
-                    : null
+                      ? { providerId: provider.id, model: ids[0] }
+                      : null
                 onChange(nextProviders, nextDefaultProviderId, nextDefaultModel, providerModelOutputControls)
             } catch (error) {
                 toast(

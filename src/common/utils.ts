@@ -105,7 +105,7 @@ function normalizeProviderList(providers: unknown): ProviderConfig[] {
         const modelOptions = Array.isArray(item.modelOptions)
             ? item.modelOptions.filter((model): model is string => typeof model === 'string' && model.trim() !== '')
             : []
-        const model = typeof item.model === 'string' ? item.model : modelOptions[0] ?? ''
+        const model = typeof item.model === 'string' ? item.model : (modelOptions[0] ?? '')
         return {
             id: item.id,
             name: item.name,
@@ -256,7 +256,7 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
         typeof rawSettings.defaultProviderId === 'string' &&
         providers.some((provider) => provider.id === rawSettings.defaultProviderId)
             ? rawSettings.defaultProviderId
-            : providers[0]?.id ?? null
+            : (providers[0]?.id ?? null)
     const nativeLanguage = getStringSetting(rawSettings.nativeLanguage) ?? defaultNativeLanguage
     const translationTargetLanguage =
         getStringSetting(rawSettings.translationTargetLanguage) ?? getDefaultTranslationTargetLanguage(nativeLanguage)
@@ -379,7 +379,7 @@ export const isFirefox = () => /firefox/i.test(navigator.userAgent)
 interface FetchSSEOptions extends RequestInit {
     onMessage(data: string): Promise<void>
     // Receives the complete error body of a non-200 response, parsed as JSON when possible.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     onError(error: any): void
     onStatusCode?: (statusCode: number) => void
     // When set, a successful response with a JSON media type is read whole and passed here
@@ -479,7 +479,7 @@ export async function fetchSSE(input: string, options: FetchSSEOptions) {
         reader = resp.body?.getReader()
         if (reader) {
             const decode = createUTF8Decoder()
-            // eslint-disable-next-line no-constant-condition
+
             while (true) {
                 if (signal?.aborted) {
                     throw abortError()

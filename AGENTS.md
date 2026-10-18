@@ -1,10 +1,10 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `src/browser-extension/` hosts extension surfaces (popup, options, background) and manifest tooling.
+- `src/browser-extension/entrypoints/` holds the WXT extension entrypoints (background, content script, popup, options); the content script only registers listeners and imports the popup card UI in `src/browser-extension/content_script/` when the card opens. `wxt.config.ts` defines the manifest.
 - `src/tauri/` contains the React renderer for desktop windows, while `src/common/` keeps shared hooks, stores, and translator logic consumed by both targets.
 - `src-tauri/` is the Rust/Tauri backend for native commands, updates, and packaging; platform assets live in `src-tauri/resources` and `src-tauri/icons`.
-- Supporting content sits in `public/` (static assets), `scripts/` (build helpers), `docs/` (release docs and notes), and `e2e/` (Playwright specs). Build outputs land in `dist/` and long-lived bundles in `release/`.
+- Supporting content sits in `public/` (static assets), `scripts/` (build helpers), `docs/` (release docs and notes), and `e2e/` (Playwright specs). Build outputs land in `dist/` (WXT writes `dist/browser-extension/{chromium,firefox}` and their zips) and long-lived bundles in `release/`.
 
 ## Current Code Map
 - `src/common/translate.ts` is the single translation entry point. It resolves the provider and model (runtime `providerId`/`model`, then `settings.defaultModel`, then `settings.defaultProviderId`), looks up that Provider + Model's output controls (thinking, `reasoningEffort`, structured output), assembles the prompt, and dispatches through `src/common/engines/index.ts`.
@@ -12,7 +12,7 @@
 - `src/common/components/Settings.tsx` and `src/common/components/ProviderForm.tsx` own LLM Provider management, model refresh, default model selection, per Provider + Model output controls, and OpenAI TTS settings.
 - `src/common/openai-api-path.ts` normalizes user-supplied endpoints into protocol URLs.
 - `src/common/tts/` owns TTS backends. OpenAI TTS is implemented in `openai-tts.ts` and reuses an existing OpenAI-compatible Provider instead of storing a separate API key.
-- `src/browser-extension/manifest.ts` and `src/common/universal-fetch.ts` cover extension permissions and fetch behavior, including optional host permissions for custom endpoints. `fetchSSE` in `src/common/utils.ts` reads any `fetch`-compatible `Response` the same way on every platform: it decodes UTF-8 across chunks, consumes SSE events serially, reports complete error bodies, hands whole JSON responses to `onJSONResponse`, and cancels the reader as soon as the signal aborts; the extension bridge preserves the response media type.
+- `wxt.config.ts` (the extension manifest, built with WXT) and `src/common/universal-fetch.ts` cover extension permissions and fetch behavior, including optional host permissions for custom endpoints. `fetchSSE` in `src/common/utils.ts` reads any `fetch`-compatible `Response` the same way on every platform: it decodes UTF-8 across chunks, consumes SSE events serially, reports complete error bodies, hands whole JSON responses to `onJSONResponse`, and cancels the reader as soon as the signal aborts; the extension bridge preserves the response media type.
 - The desktop app has a single HTTP transport: `tauriFetch` in `src/common/polyfills/tauri.ts` calls the native `fetch` command in `src-tauri/src/fetch.rs`, which streams the body over a `tauri::ipc::Channel` and closes the connection on `fetch_cancel` (abort or `reader.cancel()`). It applies the stored proxy settings through `config::reqwest_proxy`, shared with Edge TTS.
 - `src-tauri/` keeps native shell behavior such as windows, tray, updates, and packaging; removed global shortcuts, OCR, and writing commands should not be reintroduced.
 
@@ -35,7 +35,7 @@
 
 ## Build, Test, and Development Commands
 Install dependencies with `pnpm install` (package manager is pinned in `package.json`).
-- `pnpm dev-chromium` / `pnpm dev-firefox` start the extension in Vite with HMR; `pnpm dev-tauri` boots the desktop shell with Tauri devtools.
+- `pnpm dev-chromium` / `pnpm dev-firefox` run `wxt` for that browser with HMR; `pnpm dev-tauri` boots the desktop shell with Tauri devtools.
 - `pnpm build-browser-extension`, and `pnpm build-tauri` (or `pnpm build-tauri-no-updater`) produce distributable bundles; use `pnpm clean` to reset `dist/` before packaging.
 - `pnpm test` runs Vitest suites and `pnpm test:e2e` executes Playwright specs in `e2e/`.
 - `pnpm lint` / `pnpm lint:fix` run ESLint on `src/**/*.{ts,tsx}`; `pnpm format` runs Prettier on `src/`.

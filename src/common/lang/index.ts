@@ -1,6 +1,3 @@
-/* eslint-disable no-control-regex */
-/* eslint-disable no-misleading-character-class */
-
 import { isTraditional } from '../traditional-or-simplified'
 import ISO6391 from 'iso-639-1'
 import { LANG_CONFIGS, Config as OptionalLangConfig } from './data'

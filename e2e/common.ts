@@ -1,11 +1,11 @@
 import { Page } from '@playwright/test'
 
 export function getOptionsPageUrl(extensionId: string) {
-    return `chrome-extension://${extensionId}/src/browser-extension/options/index.html`
+    return `chrome-extension://${extensionId}/options.html`
 }
 
 export function getPopupPageUrl(extensionId: string) {
-    return `chrome-extension://${extensionId}/src/browser-extension/popup/index.html`
+    return `chrome-extension://${extensionId}/popup.html`
 }
 
 export async function selectExampleText(page: Page) {

@@ -8,7 +8,7 @@ paths=(
     src-tauri/tauri.conf.json
     src-tauri/capabilities
     package.json
-    src/browser-extension/manifest.ts
+    wxt.config.ts
 )
 
 matches=$(

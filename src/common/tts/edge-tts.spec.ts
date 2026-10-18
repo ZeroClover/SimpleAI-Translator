@@ -301,11 +301,14 @@ describe('Edge TTS browser errors', () => {
     })
 
     it('shows a toast when browser synthesis fails', async () => {
-        browserEdgeTtsMock.mockImplementation(() => ({
-            synthesize: vi.fn(async () => {
-                throw new Error('WebSocket closed')
-            }),
-        }))
+        // EdgeTTS is constructed with `new`, which an arrow function cannot be.
+        browserEdgeTtsMock.mockImplementation(function () {
+            return {
+                synthesize: vi.fn(async () => {
+                    throw new Error('WebSocket closed')
+                }),
+            }
+        })
         const onFinish = vi.fn()
 
         await expect(
@@ -324,12 +327,14 @@ describe('Edge TTS browser errors', () => {
 
     it('stays silent when synthesis fails after the user stopped playback', async () => {
         const controller = new AbortController()
-        browserEdgeTtsMock.mockImplementation(() => ({
-            synthesize: vi.fn(async () => {
-                controller.abort()
-                throw new Error('WebSocket closed')
-            }),
-        }))
+        browserEdgeTtsMock.mockImplementation(function () {
+            return {
+                synthesize: vi.fn(async () => {
+                    controller.abort()
+                    throw new Error('WebSocket closed')
+                }),
+            }
+        })
 
         await expect(
             speak({

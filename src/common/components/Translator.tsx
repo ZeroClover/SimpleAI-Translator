@@ -580,14 +580,14 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const selectedModelOption = useMemo(
         () =>
             selectedModel
-                ? modelOptions.find(
+                ? (modelOptions.find(
                       (option) => option.providerId === selectedModel.providerId && option.model === selectedModel.model
                   ) ?? {
                       id: `${selectedModel.providerId}:${selectedModel.model}`,
                       label: selectedModel.model,
                       providerId: selectedModel.providerId,
                       model: selectedModel.model,
-                  }
+                  })
                 : undefined,
         [modelOptions, selectedModel]
     )
@@ -1239,8 +1239,9 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         const scrollTarget: HTMLElement | Window = scrollOnContainer && container ? container : window
         scrollTarget.addEventListener('scroll', onScroll, { passive: true })
         window.addEventListener('resize', onScroll)
+        // Only this component's own content changes its scroll edges; host page mutations do not.
         const observer = new MutationObserver(onScroll)
-        observer.observe(scrollOnContainer && container ? container : document.body, {
+        observer.observe(scrollOnContainer && container ? container : (containerRef.current as HTMLDivElement), {
             childList: true,
             subtree: true,
         })

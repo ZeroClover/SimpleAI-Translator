@@ -36,7 +36,7 @@ jobs:
               run: pnpm exec playwright install chromium webkit --with-deps
 
             - name: Build Chromium extension
-              run: pnpm vite build -c vite.config.chromium.ts
+              run: pnpm exec wxt build -b chromium
 
             - name: Run Playwright tests
               run: pnpm test:e2e --reporter github

@@ -221,7 +221,8 @@ describe('background fetch bridge', () => {
 
     beforeAll(async () => {
         // Route the content side through the real background listener.
-        await import('../../browser-extension/background/index')
+        const { default: background } = await import('../../browser-extension/entrypoints/background')
+        background.main()
         ;[onConnect] = browserMock.runtime.onConnect.addListener.mock.calls[0] as [(port: unknown) => void]
     })
 

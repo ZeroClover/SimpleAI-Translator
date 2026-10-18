@@ -1,13 +1,12 @@
 import { defineConfig, normalizePath } from 'vite'
 import react from '@vitejs/plugin-react'
-import tsconfigPaths from 'vite-tsconfig-paths'
 import { fileURLToPath, URL } from 'url'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-    plugins: [tsconfigPaths(), react()],
+    plugins: [react()],
     resolve: {
-        alias: [{ find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) }],
+        tsconfigPaths: true,
     },
     // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
     // prevent vite from obscuring rust errors
@@ -24,7 +23,7 @@ export default defineConfig({
         // Tauri supports es2021, upgraded to es2020 for async generators
         target: ['es2020', 'chrome87', 'safari14'],
         // don't minify for debug builds
-        minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
+        minify: !process.env.TAURI_DEBUG,
         // produce sourcemaps for debug builds
         sourcemap: !!process.env.TAURI_DEBUG,
         rollupOptions: {

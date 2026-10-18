@@ -458,11 +458,11 @@ describe.each(PROTOCOLS)('$name structured streaming', (protocol) => {
             protocol.name === 'OpenAI Chat'
                 ? [JSON.stringify({ choices: [{ delta: { refusal: 'No.' }, finish_reason: 'stop' }] })]
                 : protocol.name === 'OpenAI Responses'
-                ? [
-                      JSON.stringify({ type: 'response.refusal.delta', delta: 'No.' }),
-                      JSON.stringify({ type: 'response.completed' }),
-                  ]
-                : [JSON.stringify({ type: 'message_delta', delta: { stop_reason: 'refusal' } })]
+                  ? [
+                        JSON.stringify({ type: 'response.refusal.delta', delta: 'No.' }),
+                        JSON.stringify({ type: 'response.completed' }),
+                    ]
+                  : [JSON.stringify({ type: 'message_delta', delta: { stop_reason: 'refusal' } })]
         script((options) => sendAll(options, [protocol.delta('{"translatedText":"x'), ...refusal]))
 
         await protocol.engine().sendMessage(req)

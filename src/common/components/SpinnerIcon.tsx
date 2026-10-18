@@ -19,9 +19,7 @@ const useStyles = createUseStyles({
     },
 })
 
-export interface ISpinnerIconProps extends IconBaseProps {}
-
-export function SpinnerIcon(props: ISpinnerIconProps) {
+export function SpinnerIcon(props: IconBaseProps) {
     const styles = useStyles()
     return <CgSpinner className={styles.root} {...props} />
 }

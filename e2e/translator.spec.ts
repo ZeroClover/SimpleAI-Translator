@@ -19,13 +19,17 @@ const CONFIG = {
     defaultProviderId: 'test',
 }
 
-// The desktop config file lives on the test side, so it survives page reloads. The settings
-// polyfill writes a temp file and renames it to config.json; the rename commits the write.
+// The desktop config file lives on the test side, so it survives page reloads. Like the native
+// update_config command, an update merges the set keys into the file and then deletes the removed ones.
 async function mockConfigFile(page: Page, config: Record<string, unknown>) {
     const file = { content: JSON.stringify(config) }
     await page.exposeFunction('readConfigFile', () => file.content)
-    await page.exposeFunction('writeConfigFile', (content: string) => {
-        file.content = content
+    await page.exposeFunction('updateConfigFile', (setJson: string, remove: string[]) => {
+        const next = { ...JSON.parse(file.content), ...JSON.parse(setJson) }
+        for (const key of remove) {
+            delete next[key]
+        }
+        file.content = JSON.stringify(next)
     })
     return {
         read: () => JSON.parse(file.content) as Record<string, unknown>,
@@ -37,14 +41,7 @@ async function mockConfigFile(page: Page, config: Record<string, unknown>) {
 
 const CONFIG_FILE_IPC = `
     if (cmd === 'get_config_content') return window.readConfigFile();
-    if (cmd === 'plugin:fs|write_text_file') {
-        window.pendingConfigFile = new TextDecoder().decode(args);
-        return null;
-    }
-    if (cmd === 'plugin:fs|rename') {
-        if (args.newPath === 'config.json') return window.writeConfigFile(window.pendingConfigFile);
-        return null;
-    }
+    if (cmd === 'update_config') return window.updateConfigFile(args.setJson, args.remove).then(() => null);
 `
 
 async function openTranslator(page: Page, { controlled = false, config = CONFIG as Record<string, unknown> } = {}) {
@@ -649,6 +646,40 @@ test('the Markdown preference persists and survives saving other settings', asyn
     await page.getByText('Go back', { exact: true }).click()
     await expect(markdownToggle(page)).toHaveAttribute('aria-pressed', 'true')
     expect(await requests(page)).toHaveLength(requestCount)
+})
+
+test('the Markdown toggle and model switch keep settings saved by another window', async ({ page }) => {
+    const provider = { ...CONFIG.providers[0], modelOptions: ['test-model', 'model-b'] }
+    const configFile = await openTranslator(page, { config: { ...CONFIG, providers: [provider] } })
+    const editor = page.locator('textarea')
+    await editor.fill('**Keep newer**')
+    await editor.press('Enter')
+    await expect(page.getByText('Translated: **Keep newer**', { exact: true })).toBeVisible()
+
+    // Another window saves a new API key and font size while this translator holds the old settings.
+    const newerProvider = { ...provider, apiKey: 'newer-key' }
+    configFile.write({ ...configFile.read(), providers: [newerProvider], fontSize: 18 })
+
+    await markdownToggle(page).click()
+    await expect
+        .poll(() => configFile.read())
+        .toMatchObject({
+            providers: [newerProvider],
+            fontSize: 18,
+            renderMarkdown: true,
+        })
+
+    await page.getByText('test-model', { exact: true }).click()
+    await page.getByRole('option', { name: 'model-b' }).click()
+    await expect
+        .poll(() => configFile.read())
+        .toMatchObject({
+            providers: [newerProvider],
+            defaultProviderId: 'test',
+            defaultModel: { providerId: 'test', model: 'model-b' },
+            fontSize: 18,
+            renderMarkdown: true,
+        })
 })
 
 test('settings toggles persist their new value on click', async ({ page }) => {

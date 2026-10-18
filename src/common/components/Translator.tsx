@@ -833,24 +833,18 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const changeSelectedModel = useCallback(
         (model: ModelSelection) => {
             setSelectedModel(model)
-            const nextSettings = {
-                ...settings,
-                defaultProviderId: model.providerId,
-                defaultModel: model,
-            }
-            setSettings(nextSettings)
-            void persistSettings(nextSettings)
+            const change = { defaultProviderId: model.providerId, defaultModel: model }
+            setSettings({ ...settings, ...change })
+            // Persist only the change: `settings` may predate a save from another window.
+            void persistSettings(change)
         },
         [setSettings, settings]
     )
 
     const toggleRenderMarkdown = useCallback(() => {
-        const nextSettings = {
-            ...settings,
-            renderMarkdown: !settings.renderMarkdown,
-        }
-        setSettings(nextSettings)
-        void persistSettings(nextSettings)
+        const change = { renderMarkdown: !settings.renderMarkdown }
+        setSettings({ ...settings, ...change })
+        void persistSettings(change)
     }, [setSettings, settings])
 
     const getTranslateDeps = useCallback(

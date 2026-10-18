@@ -6,6 +6,14 @@ export const commands = {
     async getConfigContent(): Promise<string> {
         return await TAURI_INVOKE('get_config_content')
     },
+    async updateConfig(setJson: string, remove: string[]): Promise<Result<null, string>> {
+        try {
+            return { status: 'ok', data: await TAURI_INVOKE('update_config', { setJson, remove }) }
+        } catch (e) {
+            if (e instanceof Error) throw e
+            else return { status: 'error', error: e as any }
+        }
+    },
     async getUpdateResult(): Promise<[boolean, UpdateResult | null]> {
         return await TAURI_INVOKE('get_update_result')
     },

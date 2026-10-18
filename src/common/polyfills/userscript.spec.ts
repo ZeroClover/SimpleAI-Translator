@@ -160,4 +160,30 @@ describe('userscript storage', () => {
         await setSettings({ ...settings, renderMarkdown: false })
         expect((await getSettings()).renderMarkdown).toBe(false)
     })
+
+    it('keeps stored providers when writing only one field', async () => {
+        const values = stubGMStorage()
+        const provider = {
+            id: 'provider-1',
+            name: 'Primary',
+            protocol: 'openai-chat' as const,
+            apiKey: 'sk-newer',
+            model: 'gpt-4o-mini',
+            modelOptions: [],
+        }
+        values.set('providers', [provider])
+        values.set('defaultProviderId', provider.id)
+        values.set('defaultModel', { providerId: provider.id, model: provider.model })
+        values.set('fontSize', 18)
+
+        await setSettings({ renderMarkdown: true })
+
+        expect(await getSettings()).toMatchObject({
+            providers: [provider],
+            defaultProviderId: provider.id,
+            defaultModel: { providerId: provider.id, model: provider.model },
+            fontSize: 18,
+            renderMarkdown: true,
+        })
+    })
 })

@@ -28,7 +28,7 @@ use tauri_specta::Event;
 use tray::{PinnedFromTrayEvent, PinnedFromWindowEvent};
 use windows::{get_translator_window, CheckUpdateEvent, CheckUpdateResultEvent};
 
-use crate::config::{clear_config_cache, get_config_content, ConfigUpdatedEvent};
+use crate::config::{clear_config_cache, get_config_content, update_config, ConfigUpdatedEvent};
 use crate::edge_tts::{edge_tts_list_voices, edge_tts_synthesize};
 use crate::fetch::fetch_stream;
 use crate::lang::detect_lang;
@@ -124,6 +124,7 @@ fn main() {
     let specta_builder = tauri_specta::Builder::<tauri::Wry>::new()
         .commands(tauri_specta::collect_commands![
             get_config_content,
+            update_config,
             get_update_result,
             clear_config_cache,
             show_translator_window_command,

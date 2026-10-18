@@ -365,7 +365,7 @@ ModelSelection SHALL 只标识默认 Provider 与模型名。系统 SHALL NOT �
 
 ### Requirement: 主界面模型切换
 
-系统 SHALL 在主翻译界面提供模型下拉控件,选项为当前选中 Provider 的 `model` 与 `modelOptions` 去重排序后的结果;没有任何选项时 SHALL 不渲染该控件。主界面 SHALL NOT 提供跨 Provider 的切换控件。主界面中的选择 SHALL 立即生效,并同时写回且持久化 `settings.defaultProviderId` 与 `settings.defaultModel`。页脚 SHALL 显示"Provider: <name> · Model: <model>"。
+系统 SHALL 在主翻译界面提供模型下拉控件,选项为当前选中 Provider 的 `model` 与 `modelOptions` 去重排序后的结果;没有任何选项时 SHALL 不渲染该控件。主界面 SHALL NOT 提供跨 Provider 的切换控件。主界面中的选择 SHALL 立即生效,并同时写回且持久化 `settings.defaultProviderId` 与 `settings.defaultModel`;该写入 SHALL 只持久化这两个字段,并以当前已存储的 `providers` 校验 `defaultModel`,SHALL NOT 用主界面持有的旧 settings 覆盖其它界面已保存的 Provider 或其它字段。页脚 SHALL 显示"Provider: <name> · Model: <model>"。
 
 #### Scenario: 主界面切换模型并持久化
 
@@ -373,6 +373,12 @@ ModelSelection SHALL 只标识默认 Provider 与模型名。系统 SHALL NOT �
 -   **THEN** 该次 `translate` 调用 SHALL 使用当前 Provider 与 `gpt-5.6-sol`
 -   **AND** `settings.defaultModel` SHALL 被持久化为该 Provider + `gpt-5.6-sol`,下次打开主界面时仍为该选择
 -   **AND** 该次写入 history 的 `providerId` 与 `model` SHALL 为该 Provider id 与 `gpt-5.6-sol`
+
+#### Scenario: 切换模型不覆盖其它界面保存的设置
+
+-   **WHEN** 主界面保持打开期间,设置页保存了新的 Provider API key,随后用户在主界面切换模型
+-   **THEN** 持久化的 `settings.defaultModel` SHALL 为新选择
+-   **AND** 持久化的 Provider SHALL 保留设置页保存的新 API key
 
 ### Requirement: 新 App schema 初始化与旧字段清理
 

@@ -35,12 +35,17 @@ Linux 托盘 SHALL 提供可用的 Quit 菜单项，通过应用菜单事件退�
 
 ### Requirement: 桌面设置文件完整性
 
-桌面设置的保存与键删除 SHALL 先写入同目录的唯一临时文件，再替换 `config.json`；失败时 SHALL 保留旧文件并清理临时文件。读取到非法 UTF-8、损坏 JSON 或非对象 JSON 时 SHALL 将原文件的全部字节保留为唯一的 `.corrupted` 备份并初始化空设置，不覆盖既有备份。原生字段类型错误 SHALL 使用原生默认值，不改写用户文件。配置读取错误 SHALL NOT 导致原生进程 panic。
+桌面设置的保存与键删除 SHALL 由原生进程在同一把锁内完成：读取当前 `config.json`，合并写入的键、删除指定的键，先写入同目录的唯一临时文件，再替换 `config.json`；失败时 SHALL 保留旧文件并清理临时文件。各窗口的 WebView SHALL NOT 自行读改写整个 `config.json`。读取到非法 UTF-8、损坏 JSON 或非对象 JSON 时 SHALL 将原文件的全部字节保留为唯一的 `.corrupted` 备份并初始化空设置，不覆盖既有备份。原生字段类型错误 SHALL 使用原生默认值，不改写用户文件。配置读取错误 SHALL NOT 导致原生进程 panic。
 
 #### Scenario: 写入失败
 
 - **WHEN** 临时文件写入或替换失败
 - **THEN** 原设置 SHALL 保持有效，错误 SHALL 传回调用方
+
+#### Scenario: 多窗口同时保存
+
+- **WHEN** 翻译窗口与设置窗口几乎同时保存不同的键
+- **THEN** 两次保存的键 SHALL 都保留在 `config.json` 中，后完成的保存 SHALL NOT 恢复另一次保存之前的值
 
 #### Scenario: 损坏文件恢复
 
@@ -291,6 +296,26 @@ These toggles SHALL be persisted to the matching ProviderModelOutputControls rec
 -   **WHEN** 旧设置中 `useStructuredOutput === true`，但当前 Provider + Model 没有启用 Structured Output 的 ProviderModelOutputControls 记录
 -   **THEN** 翻译请求 SHALL NOT 启用结构化输出
 -   **AND** 设置面板 SHALL NOT 把该旧全局字段显示为当前 Provider + Model 已启用
+
+### Requirement: 部分设置写入
+
+只修改部分字段的设置写入(如主界面 Markdown 开关、主界面模型切换、浮窗固定、OpenAI TTS 回退)SHALL 只持久化被修改的字段,存储中的其它字段 SHALL 保持原值。写入值 SHALL 在当前已存储设置的基础上校验,依赖 Provider 的字段 SHALL 以已存储的 `providers` 校验。`providers` SHALL 仅在写入包含它时写入;写入包含 `providers`、`defaultProviderId` 或 `defaultModel` 中任一字段时,SHALL 同时写入校验后的 `defaultProviderId` 与 `defaultModel`。设置面板的完整保存 SHALL 保持现有行为。
+
+#### Scenario: 其它界面保存后再切换 Markdown
+
+-   **WHEN** 翻译界面保持打开期间,另一个界面保存了新的 Provider 与字号,随后用户在翻译界面切换 Markdown
+-   **THEN** 存储中的 `renderMarkdown` SHALL 为新值
+-   **AND** 另一个界面保存的 Provider 与字号 SHALL 保持不变
+
+#### Scenario: 部分写入不清空 Provider
+
+-   **WHEN** 一次写入只包含 `renderMarkdown` 或 `pinned`
+-   **THEN** 存储中的 `providers`、`defaultProviderId` 与 `defaultModel` SHALL 保持不变
+
+#### Scenario: 切换模型不回写 Provider
+
+-   **WHEN** 一次写入只包含 `defaultProviderId` 与 `defaultModel`
+-   **THEN** 该写入 SHALL NOT 包含 `providers`,存储中的 Provider SHALL 保持不变
 
 ### Requirement: Markdown 阅读偏好持久化
 

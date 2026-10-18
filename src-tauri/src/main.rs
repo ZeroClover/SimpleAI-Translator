@@ -28,7 +28,7 @@ use windows::{get_translator_window, CheckUpdateEvent, CheckUpdateResultEvent};
 
 use crate::config::{clear_config_cache, get_config_content, update_config, ConfigUpdatedEvent};
 use crate::edge_tts::{edge_tts_list_voices, edge_tts_synthesize};
-use crate::fetch::fetch_stream;
+use crate::fetch::{fetch, fetch_cancel};
 use crate::windows::{
     get_translator_window_always_on_top, show_history_window, show_updater_window,
     TRANSLATOR_WIN_NAME,
@@ -113,7 +113,8 @@ fn main() {
             get_update_result,
             show_history_window,
             get_translator_window_always_on_top,
-            fetch_stream,
+            fetch,
+            fetch_cancel,
             edge_tts_list_voices,
             edge_tts_synthesize,
             insert_translation_into_previous_input,
@@ -142,7 +143,6 @@ fn main() {
 
     #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
     let mut app = tauri::Builder::default()
-        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {

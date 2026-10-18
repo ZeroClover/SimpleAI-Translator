@@ -1,9 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Proxy, ProxyConfig, fetch } from '@tauri-apps/plugin-http'
-import * as utils from '../utils'
+import { Channel } from '@tauri-apps/api/core'
 import { IBrowser, ISettings } from '../types'
-import { commands } from '@/tauri/bindings'
+import { commands, type ProxyConfig } from '@/tauri/bindings'
 
 async function getSettings(): Promise<Record<string, any>> {
     const settings = await commands.getConfigContent()
@@ -94,48 +93,100 @@ class Browser implements IBrowser {
 
 export const tauriBrowser = new Browser()
 
-export const getFetchProxy = (proxy?: ISettings['proxy'], ignoreEnabled?: boolean): Proxy | undefined => {
-    const proxyConfig = getFetchProxyConfig(proxy, ignoreEnabled)
-    if (!proxyConfig) {
-        return undefined
-    }
+function toProxyConfig(proxy: NonNullable<ISettings['proxy']>): ProxyConfig {
     return {
-        all: proxyConfig,
-        http: proxyConfig,
-        https: proxyConfig,
+        enabled: proxy.enabled ?? null,
+        protocol: proxy.protocol ?? null,
+        server: proxy.server ?? null,
+        port: proxy.port ?? null,
+        basicAuth: proxy.basicAuth
+            ? { username: proxy.basicAuth.username ?? null, password: proxy.basicAuth.password ?? null }
+            : null,
+        noProxy: proxy.noProxy ?? null,
     }
 }
 
-export const getFetchProxyConfig = (proxy?: ISettings['proxy'], ignoreEnabled?: boolean): ProxyConfig | undefined => {
-    if (!proxy) {
-        return undefined
+// Status codes whose responses must not carry a body.
+const NULL_BODY_STATUSES = new Set([101, 103, 204, 205, 304])
+
+/**
+ * A `fetch` backed by the native `fetch` command. Requests use the stored proxy settings unless
+ * `init.proxy` overrides them. Aborting `init.signal` or cancelling the body stops the native
+ * request and closes its connection.
+ */
+export async function tauriFetch(
+    input: string,
+    init: RequestInit & { proxy?: ISettings['proxy'] } = {}
+): Promise<Response> {
+    const { signal } = init
+    signal?.throwIfAborted()
+    const id = crypto.randomUUID()
+    const body = init.body === undefined || init.body === null ? null : await new Response(init.body).text()
+    let controller!: ReadableStreamDefaultController<Uint8Array>
+    let finished = false
+    const finish = () => {
+        finished = true
+        signal?.removeEventListener('abort', abort)
     }
-    if (!ignoreEnabled && !proxy.enabled) {
-        return undefined
-    }
-    if (!proxy.protocol || !proxy.server || !proxy.port) {
-        return undefined
-    }
-    const proxyURL = `${proxy.protocol?.toLowerCase()}://${proxy.server}:${proxy.port}`
-    const proxyConfig: ProxyConfig = {
-        url: proxyURL,
-        noProxy: proxy.noProxy,
-    }
-    if (proxy.basicAuth?.username) {
-        proxyConfig.basicAuth = {
-            username: proxy.basicAuth?.username || '',
-            password: proxy.basicAuth?.password || '',
+    const cancel = () => {
+        if (!finished) {
+            finish()
+            void commands.fetchCancel(id)
         }
     }
-    return proxyConfig
-}
-
-export const tauriFetch = async (input: RequestInfo, init?: RequestInit) => {
-    const settings = await utils.getSettings()
-    const fetchProxy = getFetchProxy(settings.proxy, false)
-    const proxyInit = {
-        ...init,
-        proxy: fetchProxy,
+    const stream = new ReadableStream<Uint8Array>({
+        start(streamController) {
+            controller = streamController
+        },
+        cancel,
+    })
+    let rejectResponse: (reason: unknown) => void = () => {}
+    function abort() {
+        rejectResponse(signal?.reason)
+        controller.error(signal?.reason)
+        cancel()
     }
-    return await fetch(input, proxyInit)
+    signal?.addEventListener('abort', abort, { once: true })
+
+    const onBody = new Channel<unknown>((message) => {
+        if (finished) {
+            return
+        }
+        // Body chunks arrive as an ArrayBuffer; the end of the body as `{ done: true }` or `{ error }`.
+        const { done, error } = message as { done?: true; error?: string }
+        if (error !== undefined) {
+            finish()
+            controller.error(new TypeError(error))
+        } else if (done) {
+            finish()
+            controller.close()
+        } else {
+            controller.enqueue(new Uint8Array(message as ArrayBuffer))
+        }
+    })
+
+    return new Promise<Response>((resolve, reject) => {
+        rejectResponse = reject
+        commands
+            .fetch(
+                {
+                    id,
+                    method: init.method ?? 'GET',
+                    url: input,
+                    headers: Array.from(new Headers(init.headers).entries()),
+                    body,
+                    proxy: init.proxy ? toProxyConfig(init.proxy) : null,
+                },
+                onBody
+            )
+            .then((result) => {
+                if (result.status === 'error') {
+                    finish()
+                    reject(signal?.aborted ? signal.reason : new TypeError(result.error))
+                    return
+                }
+                const { status, statusText, headers } = result.data
+                resolve(new Response(NULL_BODY_STATUSES.has(status) ? null : stream, { status, statusText, headers }))
+            }, reject)
+    })
 }

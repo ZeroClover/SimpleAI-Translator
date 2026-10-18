@@ -27,13 +27,20 @@ export const commands = {
     async getTranslatorWindowAlwaysOnTop(): Promise<boolean> {
         return await TAURI_INVOKE('get_translator_window_always_on_top')
     },
-    async fetchStream(id: string, url: string, optionsStr: string): Promise<Result<string, string>> {
+    /**
+     * Sends a request and streams its body through `on_body`. The command returns once the response
+     * headers arrive; `fetch_cancel` stops the request at any point and closes the connection.
+     */
+    async fetch(request: FetchRequest, onBody: TAURI_CHANNEL<unknown>): Promise<Result<FetchResponse, string>> {
         try {
-            return { status: 'ok', data: await TAURI_INVOKE('fetch_stream', { id, url, optionsStr }) }
+            return { status: 'ok', data: await TAURI_INVOKE('fetch', { request, onBody }) }
         } catch (e) {
             if (e instanceof Error) throw e
             else return { status: 'error', error: e as any }
         }
+    },
+    async fetchCancel(id: string): Promise<void> {
+        await TAURI_INVOKE('fetch_cancel', { id })
     },
     async edgeTtsListVoices(): Promise<Result<EdgeTtsVoice[], string>> {
         try {
@@ -84,6 +91,7 @@ export const events = __makeEvents__<{
 
 /** user-defined types **/
 
+export type BasicAuth = { username: string | null; password: string | null }
 export type CheckUpdateEvent = null
 export type CheckUpdateResultEvent = UpdateResult
 export type ConfigUpdatedEvent = null
@@ -96,8 +104,29 @@ export type EdgeTtsSynthesizeRequest = {
 }
 export type EdgeTtsSynthesizeResult = { mimeType: string; audioSegments: string[] }
 export type EdgeTtsVoice = { shortName: string; friendlyName: string; locale: string }
+export type FetchRequest = {
+    id: string
+    method: string
+    url: string
+    headers: [string, string][]
+    body: string | null
+    /**
+     * Overrides the stored proxy settings, for example to test a proxy before saving it.
+     */
+    proxy: ProxyConfig | null
+}
+export type FetchResponse = { status: number; statusText: string; headers: [string, string][] }
 export type PinnedFromTrayEvent = { pinned: boolean }
 export type PinnedFromWindowEvent = { pinned: boolean }
+export type ProxyConfig = {
+    enabled: boolean | null
+    protocol: ProxyProtocol | null
+    server: string | null
+    port: string | null
+    basicAuth: BasicAuth | null
+    noProxy: string | null
+}
+export type ProxyProtocol = 'HTTP' | 'HTTPS'
 export type UpdateResult = { version: string; currentVersion: string; body: string | null }
 
 /** tauri-specta globals **/

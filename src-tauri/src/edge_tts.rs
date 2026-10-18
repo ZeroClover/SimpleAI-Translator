@@ -3,7 +3,7 @@ use futures_util::{SinkExt, StreamExt};
 use rand::RngCore;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
-    Client, ClientBuilder, Response, StatusCode,
+    Client, Response, StatusCode,
 };
 use reqwest_websocket::{Message, RequestBuilderExt};
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,7 @@ use time::{Month, OffsetDateTime, Weekday};
 use url::Url;
 use uuid::Uuid;
 
-use crate::config::{get_config, Config, ProxyProtocol};
+use crate::config::{get_config, reqwest_proxy, Config};
 
 pub(crate) const BASE_URL: &str = "speech.platform.bing.com/consumer/speech/synthesize/readaloud";
 pub(crate) const WSS_URL: &str =
@@ -253,57 +253,21 @@ fn edge_client() -> Result<Client, EdgeTtsError> {
 }
 
 fn build_edge_client(config: Option<&Config>) -> Result<Client, EdgeTtsError> {
-    let builder = Client::builder()
+    let mut builder = Client::builder()
         .http1_only()
         .connect_timeout(CONNECT_TIMEOUT);
-
-    apply_proxy_config(builder, config)?
+    if let Some(proxy) = config
+        .and_then(|config| config.proxy.as_ref())
+        .map(reqwest_proxy)
+        .transpose()
+        .map_err(EdgeTtsError::network)?
+        .flatten()
+    {
+        builder = builder.proxy(proxy);
+    }
+    builder
         .build()
         .map_err(|error| EdgeTtsError::network(format!("failed to build HTTP client: {error}")))
-}
-
-fn apply_proxy_config(
-    mut builder: ClientBuilder,
-    config: Option<&Config>,
-) -> Result<ClientBuilder, EdgeTtsError> {
-    let Some(proxy_config) = config.and_then(|config| config.proxy.as_ref()) else {
-        return Ok(builder);
-    };
-
-    if !proxy_config.enabled.unwrap_or(false) {
-        return Ok(builder);
-    }
-
-    let (Some(protocol), Some(server), Some(port)) = (
-        proxy_config.protocol.as_ref(),
-        proxy_config.server.as_ref(),
-        proxy_config.port.as_ref(),
-    ) else {
-        return Ok(builder);
-    };
-
-    let proxy_url = match protocol {
-        ProxyProtocol::HTTP => format!("http://{server}:{port}"),
-        ProxyProtocol::HTTPS => format!("https://{server}:{port}"),
-    };
-    let mut proxy = reqwest::Proxy::all(&proxy_url)
-        .map_err(|error| EdgeTtsError::network(format!("invalid proxy URL: {error}")))?;
-
-    if let Some(basic_auth) = proxy_config.basic_auth.as_ref() {
-        let username = basic_auth.username.as_deref().unwrap_or_default();
-        if !username.is_empty() {
-            proxy = proxy.basic_auth(username, basic_auth.password.as_deref().unwrap_or_default());
-        }
-    }
-
-    if let Some(no_proxy) = proxy_config.no_proxy.as_deref() {
-        let no_proxy = reqwest::NoProxy::from_string(no_proxy)
-            .ok_or_else(|| EdgeTtsError::network("invalid no_proxy value"))?;
-        proxy = proxy.no_proxy(Some(no_proxy));
-    }
-
-    builder = builder.proxy(proxy);
-    Ok(builder)
 }
 
 async fn fetch_voice_list_once(client: &Client) -> Result<Vec<EdgeTtsVoice>, EdgeTtsError> {

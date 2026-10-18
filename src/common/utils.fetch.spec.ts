@@ -1,10 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { emit, listen } from '@tauri-apps/api/event'
-import { commands } from '@/tauri/bindings'
 import { fetchSSE } from './utils'
-
-vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(), emit: vi.fn(async () => {}) }))
-vi.mock('@/tauri/bindings', () => ({ commands: { fetchStream: vi.fn(async () => ({ status: 'ok', data: '' })) } }))
 
 afterEach(() => {
     vi.clearAllMocks()
@@ -203,192 +198,60 @@ describe('browser stream transport', () => {
     })
 })
 
-type Listener = (event: { payload: Record<string, unknown> }) => void
-
-// Captures the desktop listeners so a test can play the events the native command emits.
-function captureDesktopListeners() {
-    const listeners = new Map<string, Listener>()
-    const stops = [vi.fn(), vi.fn()]
-    let index = 0
-    vi.mocked(listen).mockImplementation(async (name, handler) => {
-        listeners.set(name, handler as unknown as Listener)
-        return stops[index++]
-    })
-    const emitEvent = (name: string, payload: Record<string, unknown>) => listeners.get(name)?.({ payload })
-    return { emitEvent, stops }
-}
-
-describe('desktop stream lifetime', () => {
-    const options = (signal?: AbortSignal) => ({ signal, onMessage: vi.fn(async () => {}), onError: vi.fn() })
-
-    it('registers both listeners before fetching and removes them on success', async () => {
-        vi.stubGlobal('__TAURI__', {})
-        const { emitEvent, stops } = captureDesktopListeners()
-        vi.mocked(commands.fetchStream).mockImplementationOnce(async (id) => {
-            expect(listen).toHaveBeenCalledTimes(2)
-            emitEvent('fetch-stream-chunk', { id, data: '', done: true, status: 200 })
-            return { status: 'ok' as const, data: '' }
-        })
-        await fetchSSE('https://example.test', options())
-        stops.forEach((stop) => expect(stop).toHaveBeenCalledOnce())
+describe('stream cancellation', () => {
+    const options = (signal: AbortSignal, fetcher: () => Promise<Response>) => ({
+        signal,
+        fetcher: vi.fn(fetcher),
+        onMessage: vi.fn(async () => {}),
+        onError: vi.fn(),
     })
 
-    it('removes registrations that complete after cancellation without starting a request', async () => {
-        vi.stubGlobal('__TAURI__', {})
-        const controller = new AbortController()
-        let complete!: (stop: () => void) => void
-        const stop = vi.fn()
-        vi.mocked(listen).mockReturnValue(
-            new Promise((resolve) => {
-                complete = resolve
-            })
-        )
-        const request = fetchSSE('https://example.test', options(controller.signal))
-        expect(listen).toHaveBeenCalledTimes(2)
-        controller.abort()
-        await expect(request).rejects.toMatchObject({ name: 'AbortError' })
-        complete(stop)
-        await new Promise((resolve) => setTimeout(resolve, 0))
-        expect(stop).toHaveBeenCalledTimes(2)
-        expect(commands.fetchStream).not.toHaveBeenCalled()
-    })
-
-    it('cleans listeners after a native request failure', async () => {
-        vi.stubGlobal('__TAURI__', {})
-        const stop = vi.fn()
-        vi.mocked(listen).mockResolvedValue(stop)
-        vi.mocked(commands.fetchStream).mockRejectedValueOnce(new Error('offline'))
-        await expect(fetchSSE('https://example.test', options())).rejects.toThrow('offline')
-        expect(stop).toHaveBeenCalledTimes(2)
-    })
-
-    it('does not register or fetch when already aborted', async () => {
-        vi.stubGlobal('__TAURI__', {})
+    it('does not call the fetcher when the signal is already aborted', async () => {
         const controller = new AbortController()
         controller.abort()
-        await expect(fetchSSE('https://example.test', options(controller.signal))).rejects.toMatchObject({
-            name: 'AbortError',
-        })
-        expect(listen).not.toHaveBeenCalled()
-        expect(commands.fetchStream).not.toHaveBeenCalled()
+        const request = options(controller.signal, async () => streamResponse([]))
+
+        await expect(fetchSSE('https://example.test', request)).rejects.toMatchObject({ name: 'AbortError' })
+        expect(request.fetcher).not.toHaveBeenCalled()
     })
 
-    it('surfaces native Result errors and still removes listeners', async () => {
-        vi.stubGlobal('__TAURI__', {})
-        const stop = vi.fn()
-        vi.mocked(listen).mockResolvedValue(stop)
-        vi.mocked(commands.fetchStream).mockResolvedValueOnce({ status: 'error', error: 'connection refused' })
-        await expect(fetchSSE('https://example.test', options())).rejects.toThrow('connection refused')
-        expect(stop).toHaveBeenCalledTimes(2)
-    })
-
-    it('consumes queued events in order before resolving, even when the command returns first', async () => {
-        vi.stubGlobal('__TAURI__', {})
-        const { emitEvent } = captureDesktopListeners()
-        const order: string[] = []
-        let finishEvents!: () => void
-        vi.mocked(commands.fetchStream).mockImplementationOnce(async (id) => {
-            emitEvent('fetch-stream-status-code', { id, status: 200, contentType: 'text/event-stream' })
-            emitEvent('fetch-stream-chunk', { id, data: 'data: a\n\ndata: b\n', done: false, status: 200 })
-            // The final chunk and EOF arrive after the command has already resolved.
-            finishEvents = () => {
-                emitEvent('fetch-stream-chunk', { id, data: '\ndata: [DONE]\n\n', done: false, status: 200 })
-                emitEvent('fetch-stream-chunk', { id, data: '', done: true, status: 200 })
-            }
-            return { status: 'ok' as const, data: '' }
-        })
-        const request = fetchSSE('https://example.test', {
-            onMessage: vi.fn(async (data: string) => {
-                await new Promise((resolve) => setTimeout(resolve, 2))
-                order.push(data)
-            }),
-            onError: vi.fn(),
-        }).then(() => order.push('resolved'))
-        await new Promise((resolve) => setTimeout(resolve, 0))
-        finishEvents()
-        await request
-        expect(order).toEqual(['a', 'b', '[DONE]', 'resolved'])
-    })
-
-    it('passes the native content type and consumes a JSON response once', async () => {
-        vi.stubGlobal('__TAURI__', {})
-        const { emitEvent } = captureDesktopListeners()
-        const onJSONResponse = vi.fn(async () => {})
-        vi.mocked(commands.fetchStream).mockImplementationOnce(async (id) => {
-            emitEvent('fetch-stream-status-code', { id, status: 200, contentType: 'application/json; charset=utf-8' })
-            emitEvent('fetch-stream-chunk', { id, data: '{"content":[{"type":"te', done: false, status: 200 })
-            emitEvent('fetch-stream-chunk', { id, data: 'xt","text":"好"}]}', done: false, status: 200 })
-            emitEvent('fetch-stream-chunk', { id, data: '', done: true, status: 200 })
-            return { status: 'ok' as const, data: '' }
-        })
-        const onMessage = vi.fn(async () => {})
-        await fetchSSE('https://example.test', { onMessage, onError: vi.fn(), onJSONResponse })
-        expect(commands.fetchStream).toHaveBeenCalledOnce()
-        expect(onJSONResponse).toHaveBeenCalledWith({ content: [{ type: 'text', text: '好' }] })
-        expect(onMessage).not.toHaveBeenCalled()
-    })
-
-    it('reports an error body split across native chunks once', async () => {
-        vi.stubGlobal('__TAURI__', {})
-        const { emitEvent } = captureDesktopListeners()
-        const onError = vi.fn()
-        const onStatusCode = vi.fn()
-        vi.mocked(commands.fetchStream).mockImplementationOnce(async (id) => {
-            emitEvent('fetch-stream-status-code', { id, status: 400, contentType: 'application/json' })
-            emitEvent('fetch-stream-chunk', { id, data: '{"error":{"message":"Stre', done: false, status: 400 })
-            emitEvent('fetch-stream-chunk', { id, data: 'aming is not supported"}}', done: false, status: 400 })
-            emitEvent('fetch-stream-chunk', { id, data: '', done: true, status: 400 })
-            return { status: 'ok' as const, data: '' }
-        })
-        await fetchSSE('https://example.test', { onMessage: vi.fn(async () => {}), onError, onStatusCode })
-        expect(onStatusCode).toHaveBeenCalledWith(400)
-        expect(onError).toHaveBeenCalledOnce()
-        expect(onError).toHaveBeenCalledWith({ error: { message: 'Streaming is not supported' } })
-    })
-
-    it('stops the native request when a consumer fails and ignores later events', async () => {
-        vi.stubGlobal('__TAURI__', {})
-        const { emitEvent, stops } = captureDesktopListeners()
-        const onMessage = vi.fn(async () => {
-            throw new Error('consumer failed')
-        })
-        let sendLate!: () => void
-        vi.mocked(commands.fetchStream).mockImplementationOnce(async (id) => {
-            emitEvent('fetch-stream-status-code', { id, status: 200, contentType: 'text/event-stream' })
-            emitEvent('fetch-stream-chunk', { id, data: 'data: a\n\n', done: false, status: 200 })
-            sendLate = () => {
-                emitEvent('fetch-stream-chunk', { id, data: 'data: late\n\n', done: false, status: 200 })
-                emitEvent('fetch-stream-chunk', { id, data: '', done: true, status: 200 })
-            }
-            return new Promise(() => {})
-        })
-        await expect(fetchSSE('https://example.test', { onMessage, onError: vi.fn() })).rejects.toThrow(
-            'consumer failed'
-        )
-        expect(emit).toHaveBeenCalledWith('abort-fetch-stream', expect.objectContaining({ id: expect.any(String) }))
-        stops.forEach((stop) => expect(stop).toHaveBeenCalledOnce())
-        sendLate()
-        await new Promise((resolve) => setTimeout(resolve, 0))
-        expect(onMessage).toHaveBeenCalledOnce()
-    })
-
-    it('cancels while a consumer is running without reporting later events', async () => {
-        vi.stubGlobal('__TAURI__', {})
-        const { emitEvent } = captureDesktopListeners()
+    it('ends a pending read at once and rejects with AbortError when aborted mid-stream', async () => {
         const controller = new AbortController()
-        const onMessage = vi.fn(async () => {
+        const cancel = vi.fn()
+        // The transport never settles the read on its own, like a server that stopped sending.
+        const body = new ReadableStream<Uint8Array>({
+            start(streamController) {
+                streamController.enqueue(encoder.encode('data: first\n\n'))
+            },
+            cancel,
+        })
+        const request = options(controller.signal, async () => new Response(body, { headers: SSE_HEADERS }))
+        request.onMessage.mockImplementation(async () => {
+            setTimeout(() => controller.abort(), 0)
+        })
+
+        await expect(fetchSSE('https://example.test', request)).rejects.toMatchObject({ name: 'AbortError' })
+        expect(request.onMessage).toHaveBeenCalledTimes(1)
+        expect(cancel).toHaveBeenCalled()
+        expect(request.onError).not.toHaveBeenCalled()
+    })
+
+    it('reports AbortError when the aborted transport errors the stream with another error', async () => {
+        const controller = new AbortController()
+        let streamController!: ReadableStreamDefaultController<Uint8Array>
+        const body = new ReadableStream<Uint8Array>({
+            start(value) {
+                streamController = value
+                value.enqueue(encoder.encode('data: first\n\n'))
+            },
+        })
+        const request = options(controller.signal, async () => new Response(body, { headers: SSE_HEADERS }))
+        request.onMessage.mockImplementation(async () => {
             controller.abort()
+            streamController.error(new TypeError('connection reset'))
         })
-        vi.mocked(commands.fetchStream).mockImplementationOnce(async (id) => {
-            emitEvent('fetch-stream-status-code', { id, status: 200, contentType: 'text/event-stream' })
-            emitEvent('fetch-stream-chunk', { id, data: 'data: a\n\n', done: false, status: 200 })
-            emitEvent('fetch-stream-chunk', { id, data: 'data: b\n\n', done: false, status: 200 })
-            return new Promise(() => {})
-        })
-        await expect(
-            fetchSSE('https://example.test', { signal: controller.signal, onMessage, onError: vi.fn() })
-        ).rejects.toMatchObject({ name: 'AbortError' })
-        await new Promise((resolve) => setTimeout(resolve, 0))
-        expect(onMessage).toHaveBeenCalledOnce()
+
+        await expect(fetchSSE('https://example.test', request)).rejects.toMatchObject({ name: 'AbortError' })
+        expect(request.onError).not.toHaveBeenCalled()
     })
 })

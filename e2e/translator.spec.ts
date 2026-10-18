@@ -105,8 +105,9 @@ interface EngineTestWindow extends Window {
     fallbackResponse: { status: number; body: unknown }
 }
 
-// Runs the real translate() and protocol engine. Only the native boundary is mocked: the
-// desktop streaming command (driven by the test) and the non-streaming fetch.
+// Runs the real translate() and protocol engine. Only the transport boundary is mocked: a
+// streaming request returns a Response whose head and body the test drives, and the
+// non-streaming fallback request returns `fallbackResponse`.
 async function openEngineTranslator(page: Page, config: Record<string, unknown>) {
     await mockConfigFile(page, config)
     await page.route(/\/src\/tauri\/index\.tsx$/, (route) =>
@@ -114,30 +115,12 @@ async function openEngineTranslator(page: Page, config: Record<string, unknown>)
             contentType: 'text/javascript',
             body: `
             import { mockIPC, mockWindows } from '/node_modules/@tauri-apps/api/mocks.js';
-            import { emit } from '/node_modules/@tauri-apps/api/event.js';
             mockWindows('translator');
             window.__TAURI__ = {};
             window.nativeStreams = [];
             window.fallbackRequests = [];
             mockIPC((cmd, args) => {
                 ${CONFIG_FILE_IPC}
-                if (cmd === 'fetch_stream') {
-                    return new Promise((resolve) => {
-                        let status = 200;
-                        window.nativeStreams.push({
-                            body: JSON.parse(JSON.parse(args.optionsStr).body),
-                            status: async (code, contentType) => {
-                                status = code;
-                                await emit('fetch-stream-status-code', { id: args.id, status: code, contentType });
-                            },
-                            chunk: (data) => emit('fetch-stream-chunk', { id: args.id, data, done: false, status }),
-                            end: async () => {
-                                await emit('fetch-stream-chunk', { id: args.id, data: '', done: true, status });
-                                resolve('');
-                            },
-                        });
-                    });
-                }
             }, { shouldMockEvents: true });
             await import('/src/tauri/index.tsx?actual');
         `,
@@ -150,9 +133,29 @@ async function openEngineTranslator(page: Page, config: Record<string, unknown>)
             export function getUniversalFetch() {
                 return async (_url, init) => {
                     if (init?.method !== 'POST') return new Response('{}', { status: 404 });
-                    window.fallbackRequests.push(JSON.parse(init.body));
-                    const { status, body } = window.fallbackResponse;
-                    return new Response(JSON.stringify(body), {
+                    const body = JSON.parse(init.body);
+                    if (body.stream) {
+                        return new Promise((resolve, reject) => {
+                            let controller;
+                            const stream = new ReadableStream({ start: (value) => { controller = value; } });
+                            init.signal?.addEventListener('abort', () => {
+                                const error = new DOMException('Aborted', 'AbortError');
+                                reject(error);
+                                controller.error(error);
+                            });
+                            const encoder = new TextEncoder();
+                            window.nativeStreams.push({
+                                body,
+                                status: async (status, contentType) =>
+                                    resolve(new Response(stream, { status, headers: { 'Content-Type': contentType } })),
+                                chunk: async (data) => controller.enqueue(encoder.encode(data)),
+                                end: async () => controller.close(),
+                            });
+                        });
+                    }
+                    window.fallbackRequests.push(body);
+                    const { status, body: responseBody } = window.fallbackResponse;
+                    return new Response(JSON.stringify(responseBody), {
                         status,
                         headers: { 'Content-Type': 'application/json' },
                     });

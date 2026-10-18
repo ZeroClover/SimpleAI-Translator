@@ -9,20 +9,20 @@ use crate::APP_HANDLE;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type, tauri_specta::Event)]
 pub struct ConfigUpdatedEvent;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, specta::Type)]
 #[allow(clippy::upper_case_acronyms)]
 pub enum ProxyProtocol {
     HTTP,
     HTTPS,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, specta::Type)]
 pub struct BasicAuth {
     pub username: Option<String>,
     pub password: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProxyConfig {
     pub enabled: Option<bool>,
@@ -31,6 +31,37 @@ pub struct ProxyConfig {
     pub port: Option<String>,
     pub basic_auth: Option<BasicAuth>,
     pub no_proxy: Option<String>,
+}
+
+/// Builds the proxy for native requests, or `None` when the proxy is disabled or incomplete.
+pub fn reqwest_proxy(config: &ProxyConfig) -> Result<Option<reqwest::Proxy>, String> {
+    if !config.enabled.unwrap_or(false) {
+        return Ok(None);
+    }
+    let non_empty = |value: &Option<String>| value.clone().filter(|value| !value.is_empty());
+    let (Some(protocol), Some(server), Some(port)) = (
+        config.protocol.as_ref(),
+        non_empty(&config.server),
+        non_empty(&config.port),
+    ) else {
+        return Ok(None);
+    };
+    let scheme = match protocol {
+        ProxyProtocol::HTTP => "http",
+        ProxyProtocol::HTTPS => "https",
+    };
+    let mut proxy = reqwest::Proxy::all(format!("{scheme}://{server}:{port}"))
+        .map_err(|error| format!("invalid proxy URL: {error}"))?;
+    if let Some(basic_auth) = &config.basic_auth {
+        let username = basic_auth.username.as_deref().unwrap_or_default();
+        if !username.is_empty() {
+            proxy = proxy.basic_auth(username, basic_auth.password.as_deref().unwrap_or_default());
+        }
+    }
+    if let Some(no_proxy) = config.no_proxy.as_deref() {
+        proxy = proxy.no_proxy(reqwest::NoProxy::from_string(no_proxy));
+    }
+    Ok(Some(proxy))
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
@@ -149,6 +180,32 @@ fn read_config_file(path: &std::path::Path) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn proxy_config(enabled: bool, server: &str) -> ProxyConfig {
+        ProxyConfig {
+            enabled: Some(enabled),
+            protocol: Some(ProxyProtocol::HTTP),
+            server: Some(server.to_string()),
+            port: Some("1080".to_string()),
+            basic_auth: Some(BasicAuth {
+                username: Some("user".to_string()),
+                password: None,
+            }),
+            no_proxy: Some(String::new()),
+        }
+    }
+
+    #[test]
+    fn builds_a_proxy_only_when_enabled_and_complete() {
+        assert!(reqwest_proxy(&proxy_config(true, "127.0.0.1"))
+            .unwrap()
+            .is_some());
+        assert!(reqwest_proxy(&proxy_config(false, "127.0.0.1"))
+            .unwrap()
+            .is_none());
+        assert!(reqwest_proxy(&proxy_config(true, "")).unwrap().is_none());
+        assert!(reqwest_proxy(&proxy_config(true, "bad host")).is_err());
+    }
 
     #[test]
     fn preserve_invalid_config_before_recovery() {

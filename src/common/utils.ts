@@ -9,9 +9,6 @@ import {
     ReasoningEffort,
 } from './types'
 import { getUniversalFetch } from './universal-fetch'
-import { v4 as uuidv4 } from 'uuid'
-import { listen, Event, emit } from '@tauri-apps/api/event'
-import { commands } from '@/tauri/bindings'
 import toast from 'react-hot-toast'
 
 export const defaultNativeLanguage = 'zh-Hans'
@@ -545,133 +542,52 @@ function createResponseConsumer(
 
 export async function fetchSSE(input: string, options: FetchSSEOptions) {
     const { onMessage, onError, onStatusCode, onJSONResponse, fetcher = getUniversalFetch(), ...fetchOptions } = options
-    const handlers = { onMessage, onError, onJSONResponse }
-
-    if (isTauri()) {
-        const id = uuidv4()
-        const signal = options.signal
-        const abortError = () => new DOMException('Aborted', 'AbortError')
-        if (signal?.aborted) {
-            throw abortError()
-        }
-        const unlistens: Array<() => void> = []
-        let cleanedUp = false
-        const track = (unlisten: () => void) => {
-            if (cleanedUp) {
-                unlisten()
-            } else {
-                unlistens.push(unlisten)
-            }
-        }
-        let rejectRun: (error: unknown) => void = () => {}
-        const interrupted = new Promise<never>((_resolve, reject) => {
-            rejectRun = reject
-        })
-        const handleAbort = () => {
-            rejectRun(abortError())
-            void emit('abort-fetch-stream', { id }).catch(() => {})
-        }
-        signal?.addEventListener('abort', handleAbort, { once: true })
-        let consumer: ReturnType<typeof createResponseConsumer> | undefined
-        const getConsumer = (status: number, contentType?: string | null) => {
-            consumer ??= createResponseConsumer(status, contentType, handlers)
-            return consumer
-        }
-        // Native events arrive without waiting for the consumer, so they are queued and
-        // handled in order. A failed consumer stops the request.
-        let queue = Promise.resolve()
-        let failed = false
-        const enqueue = (task: () => Promise<void>) => {
-            queue = queue
-                .then(async () => {
-                    if (!failed && !cleanedUp && !signal?.aborted) {
-                        await task()
-                    }
-                })
-                .catch((error) => {
-                    failed = true
-                    rejectRun(error)
-                    void emit('abort-fetch-stream', { id }).catch(() => {})
-                })
-        }
-        let resolveEnd: () => void = () => {}
-        const ended = new Promise<void>((resolve) => {
-            resolveEnd = resolve
-        })
-        const isCurrent = (eventId: string) => !cleanedUp && !signal?.aborted && eventId === id
-        const run = async () => {
-            await Promise.all([
-                listen(
-                    'fetch-stream-status-code',
-                    (event: Event<{ id: string; status: number; contentType?: string | null }>) => {
-                        if (isCurrent(event.payload.id)) {
-                            getConsumer(event.payload.status, event.payload.contentType)
-                            onStatusCode?.(event.payload.status)
-                        }
-                    }
-                ).then(track),
-                listen(
-                    'fetch-stream-chunk',
-                    (event: Event<{ id: string; data: string; done: boolean; status: number }>) => {
-                        const payload = event.payload
-                        if (!isCurrent(payload.id)) {
-                            return
-                        }
-                        if (payload.done) {
-                            enqueue(async () => {
-                                await getConsumer(payload.status).end()
-                                resolveEnd()
-                            })
-                        } else {
-                            enqueue(() => getConsumer(payload.status).push(payload.data))
-                        }
-                    }
-                ).then(track),
-            ])
-            if (cleanedUp || signal?.aborted) {
-                return
-            }
-            const result = await commands.fetchStream(id, input, JSON.stringify(fetchOptions))
-            if (result.status === 'error') {
-                throw new Error(result.error)
-            }
-            // The command returns after emitting the final chunk; wait until it is consumed.
-            await ended
-        }
-        try {
-            await Promise.race([run(), interrupted])
-        } finally {
-            cleanedUp = true
-            signal?.removeEventListener('abort', handleAbort)
-            unlistens.splice(0).forEach((unlisten) => unlisten())
-        }
-        return
+    const { signal } = fetchOptions
+    const abortError = () => new DOMException('Aborted', 'AbortError')
+    if (signal?.aborted) {
+        throw abortError()
     }
-
-    const resp = await fetcher(input, fetchOptions)
-    onStatusCode?.(resp.status)
-    const consumer = createResponseConsumer(resp.status, resp.headers.get('content-type'), handlers)
-    const reader = resp.body?.getReader()
-    if (reader) {
-        const decode = createUTF8Decoder()
-        try {
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+    // Cancelling the reader ends a pending read at once, even if the transport never settles it.
+    const cancelReader = () => {
+        reader?.cancel().catch(() => {})
+    }
+    signal?.addEventListener('abort', cancelReader, { once: true })
+    try {
+        const resp = await fetcher(input, fetchOptions)
+        onStatusCode?.(resp.status)
+        const consumer = createResponseConsumer(resp.status, resp.headers.get('content-type'), {
+            onMessage,
+            onError,
+            onJSONResponse,
+        })
+        reader = resp.body?.getReader()
+        if (reader) {
+            const decode = createUTF8Decoder()
             // eslint-disable-next-line no-constant-condition
             while (true) {
+                if (signal?.aborted) {
+                    throw abortError()
+                }
                 const { done, value } = await reader.read()
                 if (done) {
                     break
                 }
                 await consumer.push(decode(value))
             }
+            if (signal?.aborted) {
+                throw abortError()
+            }
             await consumer.push(decode())
-        } catch (error) {
-            await reader.cancel().catch(() => {})
-            throw error
-        } finally {
-            reader.releaseLock()
         }
+        await consumer.end()
+    } catch (error) {
+        await reader?.cancel().catch(() => {})
+        throw signal?.aborted ? abortError() : error
+    } finally {
+        signal?.removeEventListener('abort', cancelReader)
+        reader?.releaseLock()
     }
-    await consumer.end()
 }
 
 export function getAssetUrl(asset: string) {

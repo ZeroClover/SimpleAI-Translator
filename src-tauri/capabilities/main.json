@@ -5,17 +5,6 @@
   "context": "local",
   "windows": ["translator", "settings", "updater", "history"],
   "permissions": [
-    {
-      "identifier": "http:default",
-      "allow": [
-        {
-          "url": "https://*:*"
-        },
-        {
-          "url": "http://*:*"
-        }
-      ]
-    },
     "core:path:default",
     "core:event:default",
     "core:webview:default",

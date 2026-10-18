@@ -58,8 +58,12 @@ async function openTranslator(page: Page, { controlled = false, config = CONFIG 
             window.__TAURI__ = {};
             window.translationRequests = [];
             window.translationRuns = [];
+            window.autostartEnabled = false;
             mockIPC((cmd, args) => {
                 ${CONFIG_FILE_IPC}
+                if (cmd === 'plugin:autostart|is_enabled') return window.autostartEnabled;
+                if (cmd === 'plugin:autostart|enable') window.autostartEnabled = true;
+                if (cmd === 'plugin:autostart|disable') window.autostartEnabled = false;
             }, { shouldMockEvents: true });
             await import('/src/tauri/index.tsx?actual');
         `,
@@ -645,6 +649,30 @@ test('the Markdown preference persists and survives saving other settings', asyn
     await page.getByText('Go back', { exact: true }).click()
     await expect(markdownToggle(page)).toHaveAttribute('aria-pressed', 'true')
     expect(await requests(page)).toHaveLength(requestCount)
+})
+
+test('settings toggles persist their new value on click', async ({ page }) => {
+    const configFile = await openTranslator(page)
+    await page.locator('button:has(svg path[d^="M262.29 192.31a64"])').click()
+    const toggle = (label: string) =>
+        page
+            .getByText(label, { exact: true })
+            .locator('xpath=ancestor::*[.//input[@type="checkbox"]][1]')
+            .getByRole('checkbox')
+
+    const fixedPosition = toggle('Fixed Position')
+    await expect(fixedPosition).not.toBeChecked()
+    expect(configFile.read().restorePreviousPosition).toBeUndefined()
+    await fixedPosition.locator('xpath=ancestor::label[1]').click()
+    await expect.poll(() => configFile.read().restorePreviousPosition).toBe(true)
+
+    // Run at startup is backed by the OS autostart registration, which the blur save must update too.
+    const runAtStartup = toggle('Run at startup')
+    await expect(runAtStartup).not.toBeChecked()
+    await runAtStartup.locator('xpath=ancestor::label[1]').click()
+    await expect.poll(() => configFile.read().runAtStartup).toBe(true)
+    await expect(runAtStartup).toBeChecked()
+    expect(await page.evaluate(() => (window as unknown as { autostartEnabled: boolean }).autostartEnabled)).toBe(true)
 })
 
 test('cache hits, history restores and retries follow the current Markdown preference', async ({ page }) => {

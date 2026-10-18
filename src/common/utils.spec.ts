@@ -449,7 +449,6 @@ describe('settings schema normalization', () => {
                 stored
             )
         ).toEqual({
-            providers: [first, second],
             defaultProviderId: second.id,
             defaultModel: { providerId: second.id, model: 'gpt-5.5' },
         })

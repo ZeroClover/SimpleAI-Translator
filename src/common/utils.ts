@@ -373,24 +373,20 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
 }
 
 // Normalizes `settings` on top of the currently stored settings and returns only the keys the
-// caller wrote, so a partial write never replaces fields saved elsewhere. The Provider trio is
-// written together because defaultProviderId and defaultModel are validated against providers.
+// caller wrote, so a partial write never replaces fields saved elsewhere. A write that touches
+// providers or the selection also writes the normalized selection, which is validated against
+// providers; providers themselves are written only when the caller supplies them.
 export function sanitizeSettingsForStorage(settings: RawSettings, storedSettings: RawSettings): Partial<ISettings> {
     const normalized = normalizeSettings({ ...storedSettings, ...settings })
     const has = (key: string) => Object.prototype.hasOwnProperty.call(settings, key)
     const hasLegacyDefaultTargetLanguage = has('defaultTargetLanguage')
-    const writesProviders = has('providers') || has('defaultProviderId') || has('defaultModel')
+    const writesProviderSelection = has('providers') || has('defaultProviderId') || has('defaultModel')
     const sanitized: Record<string, unknown> = {}
 
     for (const key of Object.keys(settingKeys) as Array<keyof typeof settingKeys>) {
-        if (key === 'providers' || key === 'defaultProviderId' || key === 'defaultModel') {
-            if (writesProviders) {
-                sanitized[key] = normalized[key]
-            }
-            continue
-        }
         if (
             has(key) ||
+            (writesProviderSelection && (key === 'defaultProviderId' || key === 'defaultModel')) ||
             (hasLegacyDefaultTargetLanguage && (key === 'nativeLanguage' || key === 'translationTargetLanguage'))
         ) {
             sanitized[key] = normalized[key]

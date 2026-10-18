@@ -294,7 +294,7 @@ These toggles SHALL be persisted to the matching ProviderModelOutputControls rec
 
 ### Requirement: 部分设置写入
 
-只修改部分字段的设置写入(如主界面 Markdown 开关、主界面模型切换、浮窗固定、OpenAI TTS 回退)SHALL 只持久化被修改的字段,存储中的其它字段 SHALL 保持原值。写入值 SHALL 在当前已存储设置的基础上校验:`providers`、`defaultProviderId` 与 `defaultModel` SHALL 作为一组写入,仅当写入包含其中任一字段时才写入;依赖 Provider 的字段 SHALL 以已存储的 `providers` 校验。设置面板的完整保存 SHALL 保持现有行为。
+只修改部分字段的设置写入(如主界面 Markdown 开关、主界面模型切换、浮窗固定、OpenAI TTS 回退)SHALL 只持久化被修改的字段,存储中的其它字段 SHALL 保持原值。写入值 SHALL 在当前已存储设置的基础上校验,依赖 Provider 的字段 SHALL 以已存储的 `providers` 校验。`providers` SHALL 仅在写入包含它时写入;写入包含 `providers`、`defaultProviderId` 或 `defaultModel` 中任一字段时,SHALL 同时写入校验后的 `defaultProviderId` 与 `defaultModel`。设置面板的完整保存 SHALL 保持现有行为。
 
 #### Scenario: 其它界面保存后再切换 Markdown
 
@@ -306,6 +306,11 @@ These toggles SHALL be persisted to the matching ProviderModelOutputControls rec
 
 -   **WHEN** 一次写入只包含 `renderMarkdown` 或 `pinned`
 -   **THEN** 存储中的 `providers`、`defaultProviderId` 与 `defaultModel` SHALL 保持不变
+
+#### Scenario: 切换模型不回写 Provider
+
+-   **WHEN** 一次写入只包含 `defaultProviderId` 与 `defaultModel`
+-   **THEN** 该写入 SHALL NOT 包含 `providers`,存储中的 Provider SHALL 保持不变
 
 ### Requirement: Markdown 阅读偏好持久化
 

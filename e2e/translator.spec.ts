@@ -651,6 +651,40 @@ test('the Markdown preference persists and survives saving other settings', asyn
     expect(await requests(page)).toHaveLength(requestCount)
 })
 
+test('the Markdown toggle and model switch keep settings saved by another window', async ({ page }) => {
+    const provider = { ...CONFIG.providers[0], modelOptions: ['test-model', 'model-b'] }
+    const configFile = await openTranslator(page, { config: { ...CONFIG, providers: [provider] } })
+    const editor = page.locator('textarea')
+    await editor.fill('**Keep newer**')
+    await editor.press('Enter')
+    await expect(page.getByText('Translated: **Keep newer**', { exact: true })).toBeVisible()
+
+    // Another window saves a new API key and font size while this translator holds the old settings.
+    const newerProvider = { ...provider, apiKey: 'newer-key' }
+    configFile.write({ ...configFile.read(), providers: [newerProvider], fontSize: 18 })
+
+    await markdownToggle(page).click()
+    await expect
+        .poll(() => configFile.read())
+        .toMatchObject({
+            providers: [newerProvider],
+            fontSize: 18,
+            renderMarkdown: true,
+        })
+
+    await page.getByText('test-model', { exact: true }).click()
+    await page.getByRole('option', { name: 'model-b' }).click()
+    await expect
+        .poll(() => configFile.read())
+        .toMatchObject({
+            providers: [newerProvider],
+            defaultProviderId: 'test',
+            defaultModel: { providerId: 'test', model: 'model-b' },
+            fontSize: 18,
+            renderMarkdown: true,
+        })
+})
+
 test('settings toggles persist their new value on click', async ({ page }) => {
     const configFile = await openTranslator(page)
     await page.locator('button:has(svg path[d^="M262.29 192.31a64"])').click()

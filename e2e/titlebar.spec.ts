@@ -9,15 +9,20 @@ test.describe('titlebar', () => {
         await openTranslatorWithSelectedText(page)
     })
 
-    test('pin/unpin should work', async ({ page }) => {
+    test('pin/unpin should work', async ({ page, context }) => {
         const pinBtn = page.getByTestId('titlebar-pin-btn')
+        // Clicking outside reads `pinned` from storage, so wait for the toggle's write to land.
+        const storedPinned = () =>
+            context.serviceWorkers()[0].evaluate(async () => (await chrome.storage.sync.get('pinned')).pinned)
         // pin
         await pinBtn.click()
+        await expect.poll(storedPinned).toBe(true)
         await page.mouse.click(0, 0)
         await expect(page.locator(`#${popupCardInnerContainerId}`)).toBeVisible()
 
         // unpin
         await pinBtn.click()
+        await expect.poll(storedPinned).toBe(false)
         await page.mouse.click(0, 0)
         await expect(page.locator(`#${popupCardInnerContainerId}`)).not.toBeVisible()
     })

@@ -292,6 +292,21 @@ These toggles SHALL be persisted to the matching ProviderModelOutputControls rec
 -   **THEN** 翻译请求 SHALL NOT 启用结构化输出
 -   **AND** 设置面板 SHALL NOT 把该旧全局字段显示为当前 Provider + Model 已启用
 
+### Requirement: 部分设置写入
+
+只修改部分字段的设置写入(如主界面 Markdown 开关、主界面模型切换、浮窗固定、OpenAI TTS 回退)SHALL 只持久化被修改的字段,存储中的其它字段 SHALL 保持原值。写入值 SHALL 在当前已存储设置的基础上校验:`providers`、`defaultProviderId` 与 `defaultModel` SHALL 作为一组写入,仅当写入包含其中任一字段时才写入;依赖 Provider 的字段 SHALL 以已存储的 `providers` 校验。设置面板的完整保存 SHALL 保持现有行为。
+
+#### Scenario: 其它界面保存后再切换 Markdown
+
+-   **WHEN** 翻译界面保持打开期间,另一个界面保存了新的 Provider 与字号,随后用户在翻译界面切换 Markdown
+-   **THEN** 存储中的 `renderMarkdown` SHALL 为新值
+-   **AND** 另一个界面保存的 Provider 与字号 SHALL 保持不变
+
+#### Scenario: 部分写入不清空 Provider
+
+-   **WHEN** 一次写入只包含 `renderMarkdown` 或 `pinned`
+-   **THEN** 存储中的 `providers`、`defaultProviderId` 与 `defaultModel` SHALL 保持不变
+
 ### Requirement: Markdown 阅读偏好持久化
 
 Markdown 渲染 SHALL 是独立于 Provider、模型和结构化输出控制的布尔阅读偏好，默认关闭；仅保存值为布尔 `true` 时 SHALL 开启。该偏好 SHALL 通过现有设置设施保存，重新打开翻译界面或重启应用后 SHALL 读取保存值；切换模型、重试、清空译文或恢复历史 SHALL NOT 重置偏好。

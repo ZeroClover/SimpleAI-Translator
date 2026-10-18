@@ -372,21 +372,25 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
     } as ISettings
 }
 
-export function sanitizeSettingsForStorage(settings: RawSettings): Partial<ISettings> {
-    const normalized = normalizeSettings(settings)
-    const hasLegacyDefaultTargetLanguage = Object.prototype.hasOwnProperty.call(settings, 'defaultTargetLanguage')
-    const sanitized: Record<string, unknown> = {
-        providers: normalized.providers,
-        defaultProviderId: normalized.defaultProviderId,
-        defaultModel: normalized.defaultModel,
-    }
+// Normalizes `settings` on top of the currently stored settings and returns only the keys the
+// caller wrote, so a partial write never replaces fields saved elsewhere. The Provider trio is
+// written together because defaultProviderId and defaultModel are validated against providers.
+export function sanitizeSettingsForStorage(settings: RawSettings, storedSettings: RawSettings): Partial<ISettings> {
+    const normalized = normalizeSettings({ ...storedSettings, ...settings })
+    const has = (key: string) => Object.prototype.hasOwnProperty.call(settings, key)
+    const hasLegacyDefaultTargetLanguage = has('defaultTargetLanguage')
+    const writesProviders = has('providers') || has('defaultProviderId') || has('defaultModel')
+    const sanitized: Record<string, unknown> = {}
 
     for (const key of Object.keys(settingKeys) as Array<keyof typeof settingKeys>) {
         if (key === 'providers' || key === 'defaultProviderId' || key === 'defaultModel') {
+            if (writesProviders) {
+                sanitized[key] = normalized[key]
+            }
             continue
         }
         if (
-            Object.prototype.hasOwnProperty.call(settings, key) ||
+            has(key) ||
             (hasLegacyDefaultTargetLanguage && (key === 'nativeLanguage' || key === 'translationTargetLanguage'))
         ) {
             sanitized[key] = normalized[key]
@@ -403,9 +407,11 @@ export async function getSettings(): Promise<ISettings> {
     return normalizeSettings(items)
 }
 
+// Persists only the fields in `settings`; fields it omits keep their stored values.
 export async function setSettings(settings: Partial<ISettings>) {
     const browser = await getBrowser()
-    const normalized = sanitizeSettingsForStorage(settings)
+    const storedSettings = await browser.storage.sync.get(Object.keys(storageSettingKeys))
+    const normalized = sanitizeSettingsForStorage(settings, storedSettings)
     await browser.storage.sync.set(normalized)
     await browser.storage.sync.remove?.([
         ...legacySettingKeys.filter(
@@ -416,7 +422,8 @@ export async function setSettings(settings: Partial<ISettings>) {
     if (settings.tts?.provider === 'openai' && normalized.tts?.provider === 'edge') {
         // Loaded lazily so the background service worker never initializes i18n.
         const { default: i18n } = await import('./i18n')
-        const linkedProvider = normalized.providers?.find((item) => item.id === settings.tts?.openai?.providerId)
+        const providers = normalized.providers ?? normalizeSettings(storedSettings).providers
+        const linkedProvider = providers.find((item) => item.id === settings.tts?.openai?.providerId)
         toast(
             i18n.t(
                 linkedProvider

@@ -28,9 +28,9 @@ describe('settings schema normalization', () => {
     })
 
     it('writes the Markdown rendering preference in both states', () => {
-        expect(sanitizeSettingsForStorage({ renderMarkdown: true }).renderMarkdown).toBe(true)
-        expect(sanitizeSettingsForStorage({ renderMarkdown: false }).renderMarkdown).toBe(false)
-        expect(sanitizeSettingsForStorage({})).not.toHaveProperty('renderMarkdown')
+        expect(sanitizeSettingsForStorage({ renderMarkdown: true }, {}).renderMarkdown).toBe(true)
+        expect(sanitizeSettingsForStorage({ renderMarkdown: false }, {}).renderMarkdown).toBe(false)
+        expect(sanitizeSettingsForStorage({}, {})).not.toHaveProperty('renderMarkdown')
     })
 
     it('migrates the old default target language to native language', () => {
@@ -208,7 +208,7 @@ describe('settings schema normalization', () => {
         }
 
         expect(normalizeSettings(raw).defaultModel).toBeNull()
-        expect(sanitizeSettingsForStorage(raw)).toMatchObject({
+        expect(sanitizeSettingsForStorage(raw, {})).toMatchObject({
             defaultProviderId: withoutModel.id,
             defaultModel: null,
         })
@@ -375,22 +375,25 @@ describe('settings schema normalization', () => {
             apiKey: 'sk-ant',
             model: 'claude-sonnet-4-5',
         }
-        const sanitized = sanitizeSettingsForStorage({
-            providers: [provider],
-            defaultProviderId: provider.id,
-            providerModelOutputControls: [
-                {
-                    providerId: provider.id,
-                    model: provider.model,
-                    useStructuredOutput: true,
-                    useStrictSchema: true,
-                },
-            ],
-            provider: 'Azure',
-            apiKeys: 'sk-legacy',
-            azureAPIKeys: 'azure-key',
-            defaultTranslateMode: 'legacy-mode',
-        })
+        const sanitized = sanitizeSettingsForStorage(
+            {
+                providers: [provider],
+                defaultProviderId: provider.id,
+                providerModelOutputControls: [
+                    {
+                        providerId: provider.id,
+                        model: provider.model,
+                        useStructuredOutput: true,
+                        useStrictSchema: true,
+                    },
+                ],
+                provider: 'Azure',
+                apiKeys: 'sk-legacy',
+                azureAPIKeys: 'azure-key',
+                defaultTranslateMode: 'legacy-mode',
+            },
+            {}
+        )
 
         expect(sanitized).toEqual({
             providers: [{ ...provider, modelOptions: [] }],
@@ -410,15 +413,66 @@ describe('settings schema normalization', () => {
         })
     })
 
-    it('sanitizes legacy default target language writes to the new language settings', () => {
-        const sanitized = sanitizeSettingsForStorage({
-            defaultTargetLanguage: 'en',
+    it('writes only the given fields on top of stored settings', () => {
+        const provider = {
+            id: 'provider-1',
+            name: 'Primary',
+            protocol: 'openai-chat' as const,
+            apiKey: 'sk-test',
+            model: 'gpt-4o-mini',
+        }
+        const stored = {
+            providers: [provider],
+            defaultProviderId: provider.id,
+            defaultModel: { providerId: provider.id, model: provider.model },
+            fontSize: 18,
+        }
+
+        expect(sanitizeSettingsForStorage({ renderMarkdown: true }, stored)).toEqual({ renderMarkdown: true })
+    })
+
+    it('validates a model switch against the stored providers', () => {
+        const first = {
+            id: 'provider-1',
+            name: 'Primary',
+            protocol: 'openai-chat' as const,
+            apiKey: 'sk-test',
+            model: 'gpt-4o-mini',
+            modelOptions: [],
+        }
+        const second = { ...first, id: 'provider-2', name: 'Secondary', model: 'gpt-5' }
+        const stored = { providers: [first, second], defaultProviderId: first.id }
+
+        expect(
+            sanitizeSettingsForStorage(
+                { defaultProviderId: second.id, defaultModel: { providerId: second.id, model: 'gpt-5.5' } },
+                stored
+            )
+        ).toEqual({
+            providers: [first, second],
+            defaultProviderId: second.id,
+            defaultModel: { providerId: second.id, model: 'gpt-5.5' },
         })
+        expect(
+            sanitizeSettingsForStorage(
+                { defaultProviderId: 'deleted', defaultModel: { providerId: 'deleted', model: 'gpt-4o' } },
+                stored
+            )
+        ).toMatchObject({
+            defaultProviderId: first.id,
+            defaultModel: { providerId: first.id, model: first.model },
+        })
+    })
+
+    it('sanitizes legacy default target language writes to the new language settings', () => {
+        const sanitized = sanitizeSettingsForStorage(
+            {
+                defaultTargetLanguage: 'en',
+            },
+            {}
+        )
 
         expect(sanitized).toEqual({
-            providers: [],
-            defaultProviderId: null,
-            defaultModel: null,
             nativeLanguage: 'en',
             translationTargetLanguage: 'zh-Hans',
         })
@@ -435,18 +489,21 @@ describe('settings schema normalization', () => {
     })
 
     it('falls OpenAI TTS back to edge when the referenced provider is missing', () => {
-        const sanitized = sanitizeSettingsForStorage({
-            providers: [],
-            defaultProviderId: null,
-            tts: {
-                provider: 'openai',
-                openai: {
-                    providerId: 'missing-provider',
-                    model: 'gpt-4o-mini-tts',
-                    voice: 'alloy',
+        const sanitized = sanitizeSettingsForStorage(
+            {
+                providers: [],
+                defaultProviderId: null,
+                tts: {
+                    provider: 'openai',
+                    openai: {
+                        providerId: 'missing-provider',
+                        model: 'gpt-4o-mini-tts',
+                        voice: 'alloy',
+                    },
                 },
             },
-        })
+            {}
+        )
 
         expect(sanitized.tts?.provider).toBe('edge')
         expect(sanitized.tts?.openai?.providerId).toBe('missing-provider')

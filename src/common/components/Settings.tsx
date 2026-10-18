@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import _ from 'underscore'
+import { dequal } from 'dequal'
 import { Tabs, Tab, StyledTabList, StyledTabPanel } from 'baseui-sd/tabs-motion'
 import { Modal, ModalBody, ModalHeader } from 'baseui-sd/modal'
 import icon from '../assets/images/icon-large.png'
@@ -1634,7 +1634,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
     )
 
     const onBlur = useCallback(async () => {
-        if (!_.isEqual(valuesRef.current, prevValues)) {
+        if (!dequal(valuesRef.current, prevValues)) {
             await persistSettings(valuesRef.current)
         }
     }, [persistSettings, prevValues])

@@ -9,11 +9,6 @@ export interface IModel {
     description?: string
 }
 
-export interface IMessage {
-    role: string
-    content: string
-}
-
 export type StructuredOutputMode = 'word' | 'short-phrase-to-chinese' | 'sentence'
 
 export interface StructuredOutputRequest {

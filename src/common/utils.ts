@@ -462,60 +462,7 @@ export const isDesktopApp = () => {
     return isTauri()
 }
 
-export const isDarkMode = async () => {
-    const settings = await getSettings()
-    if (settings.themeType === 'followTheSystem') {
-        return window.matchMedia('(prefers-color-scheme: dark)').matches
-    }
-    return settings.themeType === 'dark'
-}
-
 export const isFirefox = () => /firefox/i.test(navigator.userAgent)
-
-// js to csv
-export async function exportToCsv<T extends Record<string, string | number>>(filename: string, rows: T[]) {
-    if (!rows.length) return
-    filename += '.csv'
-    const columns = Object.keys(rows[0])
-    let csvFile = ''
-    for (const key of columns) {
-        csvFile += key + ','
-    }
-    csvFile += '\r\n'
-    const processRow = function (row: T) {
-        let s = ''
-        for (const key of columns) {
-            if (key === 'updatedAt') {
-                s += '\t' + `${row[key]}` + ','
-            } else {
-                s += '"' + `${row[key]}` + '"' + ','
-            }
-        }
-        return s + '\r\n'
-    }
-
-    for (let i = 0; i < rows.length; i++) {
-        csvFile += processRow(rows[i])
-    }
-
-    if (isDesktopApp()) {
-        const { BaseDirectory, writeTextFile } = await import('@tauri-apps/plugin-fs')
-        try {
-            return await writeTextFile(filename, csvFile, { baseDir: BaseDirectory.Desktop })
-        } catch (e) {
-            console.error(e)
-        }
-    } else {
-        const link = document.createElement('a')
-        if (link.download !== undefined) {
-            link.setAttribute('href', 'data:text/csv;charset=utf-8,ufeff' + encodeURIComponent(csvFile))
-            link.setAttribute('download', filename)
-            document.body.appendChild(link)
-            link.click()
-            document.body.removeChild(link)
-        }
-    }
-}
 
 interface FetchSSEOptions extends RequestInit {
     onMessage(data: string): Promise<void>

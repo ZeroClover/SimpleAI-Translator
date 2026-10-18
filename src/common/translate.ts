@@ -20,13 +20,6 @@ export interface TranslateQuery {
     signal: AbortSignal
 }
 
-export interface TranslateResult {
-    text?: string
-    from?: string
-    to?: string
-    error?: string
-}
-
 export interface TranslationCacheKeyInput {
     providerId?: string
     model?: string

@@ -42,9 +42,8 @@ import { CopyButton } from './CopyButton'
 import { historyService } from '../services/history'
 import { TranslationHistory } from './TranslationHistory'
 import { IoIosRocket } from 'react-icons/io'
-import _ from 'underscore'
+import debounce from 'lodash.debounce'
 import { GlobalSuspense } from './GlobalSuspense'
-import { useLazyEffect } from '../hooks/useLazyEffect'
 import LogoWithText, { type LogoWithTextRef } from './LogoWithText'
 import Toaster from './Toaster'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
@@ -312,12 +311,6 @@ const useStyles = createUseStyles({
         '-ms-user-select': 'none',
         '-webkit-user-select': 'none',
         'user-select': 'none',
-    }),
-    'tokenCount': (props: IThemedStyleProps) => ({
-        color: props.theme.colors.contentTertiary,
-        fontSize: '12px',
-        fontFamily: 'monospace',
-        opacity: 0.7,
     }),
     'actionStr': (props: IThemedStyleProps) => ({
         position: 'absolute',
@@ -778,7 +771,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     })
     const [isLoading, setIsLoading] = useState(false)
     const [editableText, setEditableText] = useState('')
-    const [tokenCount, setTokenCount] = useState(0)
     const [translatedText, setTranslatedText] = useState('')
     const translatedLines = useMemo(() => translatedText.split('\n'), [translatedText])
     const [translateDeps, setTranslateDeps] = useState<{
@@ -889,18 +881,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         setEditableText(translateDeps.text)
     }, [translateDeps.text])
 
-    useLazyEffect(
-        () => {
-            ;(async () => {
-                // use dynamic import to reduce bundle size
-                const { countTokens } = await import('../token')
-                setTokenCount(countTokens(editableText, selectedModel?.model))
-            })()
-        },
-        [editableText],
-        500
-    )
-
     const [errorMessage, setErrorMessage] = useState('')
     const startLoading = useCallback(() => {
         setIsLoading(true)
@@ -972,7 +952,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             return maxHeight - headerHeight - editorHeight - actionButtonsHeight - paddingVertical
         }
 
-        const resizeHandle: ResizeObserverCallback = _.debounce(() => {
+        const resizeHandle: ResizeObserverCallback = debounce(() => {
             // Listen for element height changes
             const $translatedContent = translatedContentRef.current
             if ($translatedContent) {
@@ -1736,7 +1716,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                         overflow: 'hidden',
                                     }}
                                 >
-                                    <div className={styles.tokenCount}> {tokenCount} </div>
                                     <div className={styles.flexPlaceHolder} />
                                     <div
                                         style={{

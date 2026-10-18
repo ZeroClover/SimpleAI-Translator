@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getUniversalFetch } from '../universal-fetch'
 import { getSettings } from '../utils'
-import { bingDetectLang, detectLang } from '.'
+import { bingDetectLang, detectLang, googleDetectLang } from '.'
 
 vi.mock('../universal-fetch', () => ({ getUniversalFetch: vi.fn() }))
 vi.mock('../utils', async () => {
@@ -50,6 +50,48 @@ describe('language detection', () => {
         mockBingDetection(bingCode)
 
         await expect(bingDetectLang('text')).resolves.toBe(langCode)
+    })
+
+    it('sends the Google detection query parameters', async () => {
+        const urls: string[] = []
+        vi.mocked(getUniversalFetch).mockReturnValue(
+            vi.fn(async (url: string) => {
+                urls.push(url)
+                return new Response(JSON.stringify([null, null, 'ja']))
+            })
+        )
+
+        await expect(googleDetectLang('a b&c')).resolves.toBe('ja')
+
+        const url = new URL(urls[0])
+        expect(url.origin + url.pathname).toBe('https://translate.google.com/translate_a/single')
+        expect(Array.from(url.searchParams.entries())).toEqual([
+            ...['at', 'bd', 'ex', 'ld', 'md', 'qca', 'rw', 'rm', 'ss', 't'].map((dt) => ['dt', dt]),
+            ['client', 'gtx'],
+            ['sl', 'auto'],
+            ['tl', 'zh-CN'],
+            ['hl', 'zh-CN'],
+            ['ie', 'UTF-8'],
+            ['oe', 'UTF-8'],
+            ['otf', '1'],
+            ['ssel', '0'],
+            ['tsel', '0'],
+            ['kc', '7'],
+            ['q', 'a b&c'],
+        ])
+    })
+
+    it('sends the Bing detection query parameters', async () => {
+        const fetcher = vi.fn(async (url: string) =>
+            url.includes('/translate/auth') ? new Response('token') : new Response(JSON.stringify([{ language: 'ja' }]))
+        )
+        vi.mocked(getUniversalFetch).mockReturnValue(fetcher)
+
+        await expect(bingDetectLang('text')).resolves.toBe('ja')
+
+        const url = new URL(fetcher.mock.calls[1][0])
+        expect(url.origin + url.pathname).toBe('https://api-edge.cognitive.microsofttranslator.com/detect')
+        expect(Array.from(url.searchParams.entries())).toEqual([['api-version', '3.0']])
     })
 
     it('reports unsupported Bing languages as unknown', async () => {

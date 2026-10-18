@@ -1,12 +1,11 @@
 import { defineConfig, normalizePath } from 'vite'
 import react from '@vitejs/plugin-react'
 import tsconfigPaths from 'vite-tsconfig-paths'
-import svgr from 'vite-plugin-svgr'
 import { fileURLToPath, URL } from 'url'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-    plugins: [tsconfigPaths(), react(), svgr()],
+    plugins: [tsconfigPaths(), react()],
     resolve: {
         alias: [{ find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) }],
     },

@@ -76,10 +76,32 @@ fn init_tokio_runtime() {
 #[tauri::command]
 #[specta::specta]
 fn get_update_result() -> (bool, Option<UpdateResult>) {
-    if UPDATE_RESULT.lock().is_none() {
-        return (false, None);
+    match &*UPDATE_RESULT.lock() {
+        Some(result) => (true, result.clone()),
+        None => (false, None),
     }
-    return (true, UPDATE_RESULT.lock().clone().unwrap());
+}
+
+/// Checks for an update, records the result and refreshes the tray menu when its update entry
+/// changes. A failed check records nothing.
+pub async fn check_update(
+    handle: &AppHandle,
+) -> Result<Option<UpdateResult>, tauri_plugin_updater::Error> {
+    let result = handle.updater()?.check().await?.map(|update| UpdateResult {
+        version: update.version,
+        current_version: update.current_version,
+        body: update.body,
+    });
+    let refresh_tray = {
+        let mut stored = UPDATE_RESULT.lock();
+        let refresh_tray = result.is_some() || matches!(*stored, Some(Some(_)));
+        *stored = Some(result.clone());
+        refresh_tray
+    };
+    if refresh_tray {
+        tray::create_tray(handle).unwrap();
+    }
+    Ok(result)
 }
 #[inline]
 fn launch_ipc_server(server: &Server) {
@@ -223,30 +245,7 @@ fn main() {
             tauri::async_runtime::spawn(async move {
                 loop {
                     tokio::time::sleep(std::time::Duration::from_secs(60 * 10)).await;
-                    let builder = handle.updater_builder();
-                    let updater = builder.build().unwrap();
-
-                    match updater.check().await {
-                        Ok(Some(update)) => {
-                            *UPDATE_RESULT.lock() = Some(Some(UpdateResult {
-                                version: update.version,
-                                current_version: update.current_version,
-                                body: update.body,
-                            }));
-                            tray::create_tray(&handle).unwrap();
-                        }
-                        Ok(None) => {
-                            if UPDATE_RESULT.lock().is_some() {
-                                if let Some(Some(_)) = *UPDATE_RESULT.lock() {
-                                    *UPDATE_RESULT.lock() = Some(None);
-                                    tray::create_tray(&handle).unwrap();
-                                }
-                            } else {
-                                *UPDATE_RESULT.lock() = Some(None);
-                            }
-                        }
-                        Err(_) => {}
-                    }
+                    let _ = check_update(&handle).await;
                 }
             });
             let handle = app_handle.clone();
@@ -275,36 +274,14 @@ fn main() {
         tauri::RunEvent::Ready => {
             let handle = app.clone();
             tauri::async_runtime::spawn(async move {
-                let builder = handle.updater_builder();
-                let updater = builder.build().unwrap();
-
-                match updater.check().await {
-                    Ok(Some(update)) => {
-                        *UPDATE_RESULT.lock() = Some(Some(UpdateResult {
-                            version: update.version,
-                            current_version: update.current_version,
-                            body: update.body,
-                        }));
-                        tray::create_tray(&handle).unwrap();
-                        let config = get_config().unwrap_or_default();
-                        if config.automatic_check_for_updates.is_none()
-                            || config.automatic_check_for_updates.is_some_and(|x| x)
-                        {
-                            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-                            show_updater_window();
-                        }
+                if let Ok(Some(_)) = check_update(&handle).await {
+                    let config = get_config().unwrap_or_default();
+                    if config.automatic_check_for_updates.is_none()
+                        || config.automatic_check_for_updates.is_some_and(|x| x)
+                    {
+                        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                        show_updater_window();
                     }
-                    Ok(None) => {
-                        if UPDATE_RESULT.lock().is_some() {
-                            if let Some(Some(_)) = *UPDATE_RESULT.lock() {
-                                *UPDATE_RESULT.lock() = Some(None);
-                                tray::create_tray(&handle).unwrap();
-                            }
-                        } else {
-                            *UPDATE_RESULT.lock() = Some(None);
-                        }
-                    }
-                    Err(_) => {}
                 }
             });
         }

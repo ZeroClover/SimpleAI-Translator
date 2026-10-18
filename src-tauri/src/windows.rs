@@ -1,14 +1,13 @@
 use crate::config;
-use crate::UpdateResult;
 use crate::ALWAYS_ON_TOP;
 use crate::APP_HANDLE;
+use crate::{check_update, UpdateResult};
 #[cfg(target_os = "macos")]
 use cocoa::appkit::NSWindow;
 use debug_print::debug_println;
 use mouse_position::mouse_position::Mouse;
 use std::sync::atomic::Ordering;
 use tauri::{Listener, LogicalPosition, Manager, PhysicalPosition};
-use tauri_plugin_updater::UpdaterExt;
 use tauri_specta::Event;
 
 pub const TRANSLATOR_WIN_NAME: &str = "translator";
@@ -316,83 +315,40 @@ pub fn get_translator_window(to_mouse_position: bool, set_focus: bool) -> tauri:
 #[tauri::command]
 #[specta::specta]
 pub async fn show_history_window() {
-    let window = get_history_window();
+    let window = get_or_create_window(
+        HISTORY_WIN_NAME,
+        "SimpleAI Translator History",
+        (760.0, 720.0),
+        (660.0, 600.0),
+    );
     window.center().unwrap();
     window.show().unwrap();
-}
-
-pub fn get_history_window() -> tauri::WebviewWindow {
-    let handle = APP_HANDLE.get().unwrap();
-    let window = match handle.get_webview_window(HISTORY_WIN_NAME) {
-        Some(window) => {
-            window.unminimize().unwrap();
-            window.set_focus().unwrap();
-            window
-        }
-        None => {
-            let builder = tauri::WebviewWindowBuilder::new(
-                handle,
-                HISTORY_WIN_NAME,
-                tauri::WebviewUrl::App("src/tauri/index.html".into()),
-            )
-            .title("SimpleAI Translator History")
-            .fullscreen(false)
-            .inner_size(760.0, 720.0)
-            .min_inner_size(660.0, 600.0)
-            .resizable(true)
-            .skip_taskbar(true)
-            .focused(true);
-
-            return build_window(builder);
-        }
-    };
-
-    window
 }
 
 pub fn show_settings_window() {
-    let window = get_settings_window();
+    let window = get_or_create_window(
+        SETTINGS_WIN_NAME,
+        "SimpleAI Translator Settings",
+        (660.0, 800.0),
+        (660.0, 600.0),
+    );
     window.center().unwrap();
     window.show().unwrap();
 }
 
-pub fn get_settings_window() -> tauri::WebviewWindow {
-    let handle = APP_HANDLE.get().unwrap();
-    let window = match handle.get_webview_window(SETTINGS_WIN_NAME) {
-        Some(window) => {
-            window.unminimize().unwrap();
-            window.set_focus().unwrap();
-            window
-        }
-        None => {
-            let builder = tauri::WebviewWindowBuilder::new(
-                handle,
-                SETTINGS_WIN_NAME,
-                tauri::WebviewUrl::App("src/tauri/index.html".into()),
-            )
-            .title("SimpleAI Translator Settings")
-            .fullscreen(false)
-            .inner_size(660.0, 800.0)
-            .min_inner_size(660.0, 600.0)
-            .resizable(true)
-            .skip_taskbar(true)
-            .focused(true);
-
-            return build_window(builder);
-        }
-    };
-
-    window
-}
-
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type, tauri_specta::Event)]
-pub struct CheckUpdateResultEvent(UpdateResult);
+pub struct CheckUpdateResultEvent(Option<UpdateResult>);
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type, tauri_specta::Event)]
 pub struct CheckUpdateEvent;
 
 pub fn show_updater_window() {
-    let window = get_updater_window();
+    let window = get_or_create_window(
+        UPDATER_WIN_NAME,
+        "SimpleAI Translator Updater",
+        (500.0, 500.0),
+        (200.0, 200.0),
+    );
     window.center().unwrap();
     window.show().unwrap();
 
@@ -400,48 +356,40 @@ pub fn show_updater_window() {
     CheckUpdateEvent::listen(handle, move |event| {
         let window_clone = window.clone();
         tauri::async_runtime::spawn(async move {
-            let builder = handle.updater_builder();
-            let updater = builder.build().unwrap();
-
-            if let Ok(Some(update)) = updater.check().await {
-                CheckUpdateResultEvent(UpdateResult {
-                    version: update.version,
-                    current_version: update.current_version,
-                    body: update.body,
-                })
-                .emit(handle)
-                .unwrap();
+            // A failed check sends nothing: the window would show `None` as "up to date".
+            if let Ok(result) = check_update(handle).await {
+                CheckUpdateResultEvent(result).emit(handle).unwrap();
             }
             window_clone.unlisten(event.id)
         });
     });
 }
 
-pub fn get_updater_window() -> tauri::WebviewWindow {
+/// Returns the window with `label`, focusing it, or creates it hidden.
+fn get_or_create_window(
+    label: &str,
+    title: &str,
+    (width, height): (f64, f64),
+    (min_width, min_height): (f64, f64),
+) -> tauri::WebviewWindow {
     let handle = APP_HANDLE.get().unwrap();
-    let window = match handle.get_webview_window(UPDATER_WIN_NAME) {
-        Some(window) => {
-            window.unminimize().unwrap();
-            window.set_focus().unwrap();
-            window
-        }
-        None => {
-            let builder = tauri::WebviewWindowBuilder::new(
-                handle,
-                UPDATER_WIN_NAME,
-                tauri::WebviewUrl::App("src/tauri/index.html".into()),
-            )
-            .title("SimpleAI Translator Updater")
-            .fullscreen(false)
-            .inner_size(500.0, 500.0)
-            .min_inner_size(200.0, 200.0)
-            .resizable(true)
-            .skip_taskbar(true)
-            .focused(true);
-
-            return build_window(builder);
-        }
-    };
-
-    window
+    if let Some(window) = handle.get_webview_window(label) {
+        window.unminimize().unwrap();
+        window.set_focus().unwrap();
+        return window;
+    }
+    build_window(
+        tauri::WebviewWindowBuilder::new(
+            handle,
+            label,
+            tauri::WebviewUrl::App("src/tauri/index.html".into()),
+        )
+        .title(title)
+        .fullscreen(false)
+        .inner_size(width, height)
+        .min_inner_size(min_width, min_height)
+        .resizable(true)
+        .skip_taskbar(true)
+        .focused(true),
+    )
 }

@@ -13,7 +13,7 @@ use std::fmt;
 use std::future::Future;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use time::{Month, OffsetDateTime, Weekday};
+use time::{macros::format_description, OffsetDateTime};
 use url::Url;
 use uuid::Uuid;
 
@@ -700,46 +700,14 @@ fn ssml(request: &EdgeTtsSynthesizeRequest, escaped_text: &str) -> String {
 }
 
 fn edge_timestamp() -> String {
-    let now = OffsetDateTime::now_utc();
-    format!(
-        "{} {} {:02} {} {:02}:{:02}:{:02} GMT+0000 (Coordinated Universal Time)",
-        weekday_abbr(now.weekday()),
-        month_abbr(now.month()),
-        now.day(),
-        now.year(),
-        now.hour(),
-        now.minute(),
-        now.second()
-    )
+    format_edge_timestamp(OffsetDateTime::now_utc())
 }
 
-fn weekday_abbr(weekday: Weekday) -> &'static str {
-    match weekday {
-        Weekday::Monday => "Mon",
-        Weekday::Tuesday => "Tue",
-        Weekday::Wednesday => "Wed",
-        Weekday::Thursday => "Thu",
-        Weekday::Friday => "Fri",
-        Weekday::Saturday => "Sat",
-        Weekday::Sunday => "Sun",
-    }
-}
-
-fn month_abbr(month: Month) -> &'static str {
-    match month {
-        Month::January => "Jan",
-        Month::February => "Feb",
-        Month::March => "Mar",
-        Month::April => "Apr",
-        Month::May => "May",
-        Month::June => "Jun",
-        Month::July => "Jul",
-        Month::August => "Aug",
-        Month::September => "Sep",
-        Month::October => "Oct",
-        Month::November => "Nov",
-        Month::December => "Dec",
-    }
+fn format_edge_timestamp(time: OffsetDateTime) -> String {
+    time.format(format_description!(
+        "[weekday repr:short] [month repr:short] [day] [year] [hour]:[minute]:[second] GMT+0000 (Coordinated Universal Time)"
+    ))
+    .expect("the timestamp format has only valid components")
 }
 
 fn parse_text_frame(text: &str) -> Result<TextFrame, EdgeTtsError> {
@@ -839,6 +807,14 @@ fn parse_header_text(header_text: &str) -> Result<HashMap<String, String>, EdgeT
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn formats_the_edge_timestamp() {
+        assert_eq!(
+            format_edge_timestamp(time::macros::datetime!(2026-10-05 07:08:09 UTC)),
+            "Mon Oct 05 2026 07:08:09 GMT+0000 (Coordinated Universal Time)"
+        );
+    }
     use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
     use std::sync::Mutex as StdMutex;
 

@@ -2,7 +2,10 @@ import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
-async function openUpdater(page: Page, body: string | null) {
+// `body` is the release notes of an available update, null when there is none, or undefined
+// when no check has run yet: the window then checks itself and the native side answers with
+// `checkResult`.
+async function openUpdater(page: Page, body: string | null | undefined, checkResult: unknown = null) {
     // Exercise the real desktop renderer; only the native IPC boundary is mocked.
     await page.route(/\/src\/tauri\/index\.tsx$/, (route) =>
         route.fulfill({
@@ -16,11 +19,17 @@ async function openUpdater(page: Page, body: string | null) {
                         return JSON.stringify({ i18n: 'zh-Hans', themeType: 'light' });
                     }
                     if (cmd === 'get_update_result') {
-                        return [true, ${JSON.stringify(
-                            body === null ? null : { currentVersion: '1.3.0', version: '1.4.0', body }
-                        )}];
+                        return ${JSON.stringify(
+                            body === undefined
+                                ? [false, null]
+                                : [true, body === null ? null : { currentVersion: '1.3.0', version: '1.4.0', body }]
+                        )};
                     }
                 }, { shouldMockEvents: true });
+                const { emit, listen } = await import('/node_modules/@tauri-apps/api/event.js');
+                await listen('check-update-event', () => emit('check-update-result-event', ${JSON.stringify(
+                    checkResult
+                )}));
                 await import('/src/tauri/index.tsx?actual');
             `,
         })
@@ -77,6 +86,13 @@ test.describe('updater', () => {
         }
         await expect(items.first()).toBeInViewport({ ratio: 1 })
         await expect(items.last()).toBeInViewport({ ratio: 1 })
+    })
+
+    test('a fresh check that finds no update ends the checking state', async ({ page }) => {
+        await page.setViewportSize({ width: 500, height: 500 })
+        await openUpdater(page, undefined)
+        await expect(page.getByText(/恭喜/)).toBeInViewport({ ratio: 1 })
+        await expect(page.getByRole('button', { name: '更新', exact: true })).toHaveCount(0)
     })
 
     test('no update still shows the current-version message', async ({ page }) => {

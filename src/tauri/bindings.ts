@@ -93,7 +93,7 @@ export const events = __makeEvents__<{
 
 export type BasicAuth = { username: string | null; password: string | null }
 export type CheckUpdateEvent = null
-export type CheckUpdateResultEvent = UpdateResult
+export type CheckUpdateResultEvent = UpdateResult | null
 export type ConfigUpdatedEvent = null
 export type EdgeTtsSynthesizeRequest = {
     text: string

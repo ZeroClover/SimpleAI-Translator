@@ -11,8 +11,8 @@ async function getSettings(): Promise<Record<string, any>> {
 
 // The native side merges each update into config.json under one lock, so saves from different
 // windows never overwrite each other's keys.
-async function updateSettings(items: Record<string, any>, removedKeys: string[]): Promise<void> {
-    const result = await commands.updateConfig(JSON.stringify(items), removedKeys)
+async function updateSettings(items: Record<string, any>): Promise<void> {
+    const result = await commands.updateConfig(JSON.stringify(items))
     if (result.status === 'error') {
         throw new Error(result.error)
     }
@@ -31,11 +31,7 @@ class BrowserStorageSync {
 
     // JSON serialization drops undefined values, so they leave stored keys untouched.
     async set(items: Record<string, any>): Promise<void> {
-        await updateSettings(items, [])
-    }
-
-    async remove(keys: string[]): Promise<void> {
-        await updateSettings({}, keys)
+        await updateSettings(items)
     }
 }
 

@@ -20,19 +20,17 @@ const CONFIG = {
 }
 
 // The desktop config file lives on the test side, so it survives page reloads. Like the native
-// update_config command, an update merges the set keys into the file and then deletes the removed ones.
+// update_config command, an update merges the set keys into the file.
 async function mockConfigFile(page: Page, config: Record<string, unknown>) {
-    const file = { content: JSON.stringify(config) }
+    const file = { content: JSON.stringify(config), writes: 0 }
     await page.exposeFunction('readConfigFile', () => file.content)
-    await page.exposeFunction('updateConfigFile', (setJson: string, remove: string[]) => {
-        const next = { ...JSON.parse(file.content), ...JSON.parse(setJson) }
-        for (const key of remove) {
-            delete next[key]
-        }
-        file.content = JSON.stringify(next)
+    await page.exposeFunction('updateConfigFile', (setJson: string) => {
+        file.writes++
+        file.content = JSON.stringify({ ...JSON.parse(file.content), ...JSON.parse(setJson) })
     })
     return {
         read: () => JSON.parse(file.content) as Record<string, unknown>,
+        writes: () => file.writes,
         write: (next: Record<string, unknown>) => {
             file.content = JSON.stringify(next)
         },
@@ -41,7 +39,7 @@ async function mockConfigFile(page: Page, config: Record<string, unknown>) {
 
 const CONFIG_FILE_IPC = `
     if (cmd === 'get_config_content') return window.readConfigFile();
-    if (cmd === 'update_config') return window.updateConfigFile(args.setJson, args.remove).then(() => null);
+    if (cmd === 'update_config') return window.updateConfigFile(args.setJson).then(() => null);
 `
 
 async function openTranslator(page: Page, { controlled = false, config = CONFIG as Record<string, unknown> } = {}) {
@@ -639,12 +637,15 @@ test('the Markdown preference persists and survives saving other settings', asyn
     await page.getByRole('button', { name: 'Save' }).click()
     await expect.poll(() => configFile.read()).toMatchObject({ fontSize: 18, renderMarkdown: false })
 
-    // The blur-save path keeps the stored value too.
+    // The blur-save path keeps the stored value too, and the new theme applies at once.
+    const labelColor = () => page.getByText('Font size', { exact: true }).evaluate((el) => getComputedStyle(el).color)
+    const lightColor = await labelColor()
     configFile.write({ ...configFile.read(), renderMarkdown: true })
     await page.getByText('Follow the System', { exact: true }).click()
     await page.getByRole('option', { name: 'Dark' }).click()
     await page.getByText('Font size', { exact: true }).click()
     await expect.poll(() => configFile.read()).toMatchObject({ themeType: 'dark', renderMarkdown: true })
+    await expect.poll(labelColor).not.toBe(lightColor)
 
     await page.getByText('Go back', { exact: true }).click()
     await expect(markdownToggle(page)).toHaveAttribute('aria-pressed', 'true')
@@ -683,6 +684,83 @@ test('the Markdown toggle and model switch keep settings saved by another window
             fontSize: 18,
             renderMarkdown: true,
         })
+})
+
+function openSettings(page: Page) {
+    return page.locator('button:has(svg path[d^="M262.29 192.31a64"])').click()
+}
+
+test('the settings panel saves only the fields it changed', async ({ page }) => {
+    const provider = { ...CONFIG.providers[0], modelOptions: ['test-model', 'model-b'] }
+    const configFile = await openTranslator(page, { config: { ...CONFIG, providers: [provider] } })
+    await openSettings(page)
+    await expect(page.getByText('Font size', { exact: true })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Save' }).click()
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible()
+    expect(configFile.writes()).toBe(0)
+
+    // The translator window switches the model while this settings form holds the old selection.
+    configFile.write({ ...configFile.read(), defaultModel: { providerId: 'test', model: 'model-b' } })
+    await page.locator('input[value="15"]').fill('18')
+    await page.getByRole('button', { name: 'Save' }).click()
+    await expect
+        .poll(() => configFile.read())
+        .toMatchObject({ fontSize: 18, defaultModel: { providerId: 'test', model: 'model-b' } })
+    expect(configFile.writes()).toBe(1)
+})
+
+const SPEECH_PROVIDER = { id: 'speech', name: 'Speech', protocol: 'openai-chat', apiKey: 'speech', model: 'gpt-5' }
+const OPENAI_TTS = { provider: 'openai', openai: { providerId: 'speech', model: 'gpt-4o-mini-tts', voice: 'coral' } }
+
+function providerRow(page: Page, name: string) {
+    return page.getByText(name, { exact: true }).locator('xpath=ancestor::div[.//button][1]')
+}
+
+test('deleting the Provider linked to OpenAI TTS switches TTS to Edge in the same save', async ({ page }) => {
+    const configFile = await openTranslator(page, {
+        config: { ...CONFIG, providers: [...CONFIG.providers, SPEECH_PROVIDER], tts: OPENAI_TTS },
+    })
+    await openSettings(page)
+    await providerRow(page, 'Speech').getByRole('button').last().click()
+
+    await expect(page.getByText('The Provider linked to OpenAI TTS was deleted. Switched to Edge TTS.')).toBeVisible()
+    await expect.poll(() => configFile.read().tts).toEqual({ ...OPENAI_TTS, provider: 'edge' })
+    expect(configFile.read().providers).toEqual([{ ...CONFIG.providers[0], modelOptions: [] }])
+    expect(configFile.writes()).toBe(1)
+})
+
+test('switching the Provider linked to OpenAI TTS to Anthropic switches TTS to Edge', async ({ page }) => {
+    const configFile = await openTranslator(page, {
+        config: { ...CONFIG, providers: [...CONFIG.providers, SPEECH_PROVIDER], tts: OPENAI_TTS },
+    })
+    await openSettings(page)
+    await providerRow(page, 'Speech').getByRole('button', { name: 'Edit' }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByText('OpenAI Chat Completions', { exact: true }).click()
+    await page.getByRole('option', { name: 'Anthropic Messages' }).click()
+    await dialog.getByRole('button', { name: 'Save' }).click()
+
+    await expect(
+        page.getByText(
+            'The Provider linked to OpenAI TTS uses the Anthropic protocol, which does not support speech. Switched to Edge TTS.'
+        )
+    ).toBeVisible()
+    await expect.poll(() => configFile.read().tts).toEqual({ ...OPENAI_TTS, provider: 'edge' })
+})
+
+test('deleting a Provider keeps TTS settings saved by another window', async ({ page }) => {
+    const configFile = await openTranslator(page, {
+        config: { ...CONFIG, providers: [...CONFIG.providers, SPEECH_PROVIDER], tts: OPENAI_TTS },
+    })
+    await openSettings(page)
+    // Another window switches to system TTS while this settings form still links OpenAI TTS to Speech.
+    configFile.write({ ...configFile.read(), tts: { provider: 'system' } })
+    await providerRow(page, 'Speech').getByRole('button').last().click()
+
+    await expect.poll(() => (configFile.read().providers as unknown[]).length).toBe(1)
+    expect(configFile.read().tts).toEqual({ provider: 'system' })
+    await expect(page.getByText(/Switched to Edge TTS/)).toHaveCount(0)
 })
 
 test('settings toggles persist their new value on click', async ({ page }) => {

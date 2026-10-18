@@ -9,7 +9,6 @@ import {
     ReasoningEffort,
 } from './types'
 import { getUniversalFetch } from './universal-fetch'
-import toast from 'react-hot-toast'
 
 export const defaultNativeLanguage = 'zh-Hans'
 export const defaultTranslationTargetLanguage = 'en'
@@ -23,7 +22,6 @@ const settingKeys = {
     defaultProviderId: 1,
     defaultModel: 1,
     providerModelOutputControls: 1,
-    enableMica: 1,
     enableBackgroundBlur: 1,
     nativeLanguage: 1,
     translationTargetLanguage: 1,
@@ -38,72 +36,6 @@ const settingKeys = {
     fontSize: 1,
     renderMarkdown: 1,
 } satisfies Partial<Record<keyof ISettings, number>>
-
-const legacySettingKeys = [
-    'defaultTargetLanguage',
-    'apiKeys',
-    'apiURL',
-    'apiURLPath',
-    'apiModel',
-    'provider',
-    'chatgptModel',
-    'azureAPIKeys',
-    'azureAPIURL',
-    'azureAPIURLPath',
-    'azureAPIModel',
-    'azMaxWords',
-    'miniMaxGroupID',
-    'miniMaxAPIKey',
-    'miniMaxAPIModel',
-    'geminiAPIURL',
-    'geminiAPIKey',
-    'geminiAPIModel',
-    'moonshotAPIKey',
-    'moonshotAPIModel',
-    'deepSeekAPIKey',
-    'deepSeekAPIModel',
-    'defaultTranslateMode',
-    'writingTargetLanguage',
-    'writingHotkey',
-    'writingNewlineHotkey',
-    'ocrHotkey',
-    'autoCollect',
-    'customModelName',
-    'ollamaAPIURL',
-    'ollamaAPIModel',
-    'ollamaCustomModelName',
-    'ollamaModelLifetimeInMemory',
-    'groqAPIURL',
-    'groqAPIURLPath',
-    'groqAPIModel',
-    'groqAPIKey',
-    'groqCustomModelName',
-    'claudeAPIURL',
-    'claudeAPIURLPath',
-    'claudeAPIModel',
-    'claudeAPIKey',
-    'claudeCustomModelName',
-    'kimiAccessToken',
-    'kimiRefreshToken',
-    'chatglmAccessToken',
-    'chatglmRefreshToken',
-    'cohereAPIKey',
-    'cohereAPIModel',
-    'cerebrasAPIKey',
-    'cerebrasAPIModel',
-    'noModelsAPISupport',
-    'claudeThinking',
-    'claudeThinkingLevel',
-] as const
-
-const migrationSettingKeys = {
-    defaultTargetLanguage: 1,
-}
-
-const storageSettingKeys = {
-    ...settingKeys,
-    ...migrationSettingKeys,
-}
 
 function getStringSetting(value: unknown): string | undefined {
     return typeof value === 'string' && value.trim() ? value : undefined
@@ -279,12 +211,17 @@ export function resolveProviderModelOutputControls(
     }
 }
 
+// Only OpenAI-compatible Providers offer the speech endpoint used by OpenAI TTS.
+export function canProvideTTS(provider: ProviderConfig): boolean {
+    return provider.protocol === 'openai-chat' || provider.protocol === 'openai-responses'
+}
+
 function hasDanglingOpenAITTSProvider(tts: ISettings['tts'] | undefined, providers: ProviderConfig[]): boolean {
     if (tts?.provider !== 'openai' || typeof tts.openai?.providerId !== 'string') {
         return false
     }
     const provider = providers.find((item) => item.id === tts.openai?.providerId)
-    return !provider || provider.protocol === 'anthropic'
+    return !provider || !canProvideTTS(provider)
 }
 
 function normalizeTTSSettings(tts: unknown, providers: ProviderConfig[]): ISettings['tts'] {
@@ -320,10 +257,7 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
         providers.some((provider) => provider.id === rawSettings.defaultProviderId)
             ? rawSettings.defaultProviderId
             : providers[0]?.id ?? null
-    const nativeLanguage =
-        getStringSetting(rawSettings.nativeLanguage) ??
-        getStringSetting(rawSettings.defaultTargetLanguage) ??
-        defaultNativeLanguage
+    const nativeLanguage = getStringSetting(rawSettings.nativeLanguage) ?? defaultNativeLanguage
     const translationTargetLanguage =
         getStringSetting(rawSettings.translationTargetLanguage) ?? getDefaultTranslationTargetLanguage(nativeLanguage)
 
@@ -339,11 +273,7 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
             rawSettings.providerModelOutputControls,
             providers
         ),
-        enableMica: rawSettings.enableMica ?? false,
-        enableBackgroundBlur:
-            rawSettings.enableBackgroundBlur === undefined || rawSettings.enableBackgroundBlur === null
-                ? rawSettings.enableMica ?? false
-                : rawSettings.enableBackgroundBlur,
+        enableBackgroundBlur: rawSettings.enableBackgroundBlur ?? false,
         nativeLanguage,
         translationTargetLanguage,
         themeType: rawSettings.themeType || 'followTheSystem',
@@ -372,19 +302,25 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
 // Normalizes `settings` on top of the currently stored settings and returns only the keys the
 // caller wrote, so a partial write never replaces fields saved elsewhere. A write that touches
 // providers or the selection also writes the normalized selection, which is validated against
-// providers; providers themselves are written only when the caller supplies them.
+// providers; providers themselves are written only when the caller supplies them. When new
+// providers leave the stored OpenAI TTS settings without a usable Provider, the stored TTS
+// settings fall back to Edge TTS in the same write.
 export function sanitizeSettingsForStorage(settings: RawSettings, storedSettings: RawSettings): Partial<ISettings> {
     const normalized = normalizeSettings({ ...storedSettings, ...settings })
     const has = (key: string) => Object.prototype.hasOwnProperty.call(settings, key)
-    const hasLegacyDefaultTargetLanguage = has('defaultTargetLanguage')
     const writesProviderSelection = has('providers') || has('defaultProviderId') || has('defaultModel')
+    const ttsFallsBack =
+        has('providers') &&
+        !has('tts') &&
+        normalizeSettings(storedSettings).tts?.provider === 'openai' &&
+        normalized.tts?.provider === 'edge'
     const sanitized: Record<string, unknown> = {}
 
     for (const key of Object.keys(settingKeys) as Array<keyof typeof settingKeys>) {
         if (
             has(key) ||
             (writesProviderSelection && (key === 'defaultProviderId' || key === 'defaultModel')) ||
-            (hasLegacyDefaultTargetLanguage && (key === 'nativeLanguage' || key === 'translationTargetLanguage'))
+            (ttsFallsBack && key === 'tts')
         ) {
             sanitized[key] = normalized[key]
         }
@@ -395,36 +331,19 @@ export function sanitizeSettingsForStorage(settings: RawSettings, storedSettings
 
 export async function getSettings(): Promise<ISettings> {
     const browser = await getBrowser()
-    const items = await browser.storage.sync.get(Object.keys(storageSettingKeys))
+    const items = await browser.storage.sync.get(Object.keys(settingKeys))
 
     return normalizeSettings(items)
 }
 
-// Persists only the fields in `settings`; fields it omits keep their stored values.
-export async function setSettings(settings: Partial<ISettings>) {
+// Persists only the fields in `settings` with one storage write; fields it omits keep their stored
+// values. Returns the fields as written.
+export async function setSettings(settings: Partial<ISettings>): Promise<Partial<ISettings>> {
     const browser = await getBrowser()
-    const storedSettings = await browser.storage.sync.get(Object.keys(storageSettingKeys))
-    const normalized = sanitizeSettingsForStorage(settings, storedSettings)
-    await browser.storage.sync.set(normalized)
-    await browser.storage.sync.remove?.([
-        ...legacySettingKeys.filter(
-            (key) =>
-                key !== 'defaultTargetLanguage' || Object.prototype.hasOwnProperty.call(normalized, 'nativeLanguage')
-        ),
-    ])
-    if (settings.tts?.provider === 'openai' && normalized.tts?.provider === 'edge') {
-        // Loaded lazily so the background service worker never initializes i18n.
-        const { default: i18n } = await import('./i18n')
-        const providers = normalized.providers ?? normalizeSettings(storedSettings).providers
-        const linkedProvider = providers.find((item) => item.id === settings.tts?.openai?.providerId)
-        toast(
-            i18n.t(
-                linkedProvider
-                    ? 'The Provider linked to OpenAI TTS uses the Anthropic protocol, which does not support speech. Switched to Edge TTS.'
-                    : 'The Provider linked to OpenAI TTS was deleted. Switched to Edge TTS.'
-            )
-        )
-    }
+    const storedSettings = await browser.storage.sync.get(Object.keys(settingKeys))
+    const sanitized = sanitizeSettingsForStorage(settings, storedSettings)
+    await browser.storage.sync.set(sanitized)
+    return sanitized
 }
 
 export async function getBrowser(): Promise<IBrowser> {

@@ -1,11 +1,18 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import browser from 'webextension-polyfill'
 import {
     normalizeSettings,
     resolveProviderModelOutputControls,
     resolveAutomaticTargetLanguage,
     resolveTargetLanguageForSource,
     sanitizeSettingsForStorage,
+    setSettings,
 } from './utils'
+import { ISettings, ProviderConfig } from './types'
+
+vi.mock('webextension-polyfill', () => ({
+    default: { storage: { sync: { get: vi.fn(), set: vi.fn(async () => {}) } } },
+}))
 
 describe('settings schema normalization', () => {
     it('initializes a fresh install with empty providers', () => {
@@ -33,12 +40,12 @@ describe('settings schema normalization', () => {
         expect(sanitizeSettingsForStorage({}, {})).not.toHaveProperty('renderMarkdown')
     })
 
-    it('migrates the old default target language to native language', () => {
+    it('does not migrate the old default target language', () => {
         const settings = normalizeSettings({
             defaultTargetLanguage: 'ja',
         })
 
-        expect(settings.nativeLanguage).toBe('ja')
+        expect(settings.nativeLanguage).toBe('zh-Hans')
         expect(settings.translationTargetLanguage).toBe('en')
         expect(settings).not.toHaveProperty('defaultTargetLanguage')
     })
@@ -463,18 +470,8 @@ describe('settings schema normalization', () => {
         })
     })
 
-    it('sanitizes legacy default target language writes to the new language settings', () => {
-        const sanitized = sanitizeSettingsForStorage(
-            {
-                defaultTargetLanguage: 'en',
-            },
-            {}
-        )
-
-        expect(sanitized).toEqual({
-            nativeLanguage: 'en',
-            translationTargetLanguage: 'zh-Hans',
-        })
+    it('ignores a legacy default target language write', () => {
+        expect(sanitizeSettingsForStorage({ defaultTargetLanguage: 'en' }, {})).toEqual({})
     })
 
     it('normalizes legacy TTS provider enum values', () => {
@@ -531,5 +528,58 @@ describe('settings schema normalization', () => {
         })
 
         expect(settings.tts?.provider).toBe('edge')
+    })
+})
+
+describe('OpenAI TTS fallback when providers change', () => {
+    const p1: ProviderConfig = { id: 'p1', name: 'Speech', protocol: 'openai-chat', apiKey: 'k1', model: 'gpt-5' }
+    const p2: ProviderConfig = { id: 'p2', name: 'Other', protocol: 'openai-responses', apiKey: 'k2', model: 'gpt-5' }
+    const openAITTS = (providerId: string): ISettings['tts'] => ({
+        provider: 'openai',
+        rate: 12,
+        openai: { providerId, model: 'gpt-4o-mini-tts', voice: 'coral' },
+    })
+
+    it('falls the stored TTS settings back to Edge TTS when the linked Provider is deleted', () => {
+        const stored = { providers: [p1, p2], tts: openAITTS('p1') }
+
+        expect(sanitizeSettingsForStorage({ providers: [p2] }, stored).tts).toEqual({
+            ...openAITTS('p1'),
+            provider: 'edge',
+        })
+    })
+
+    it('falls back when the linked Provider switches to the Anthropic protocol', () => {
+        const stored = { providers: [p1, p2], tts: openAITTS('p1') }
+
+        expect(
+            sanitizeSettingsForStorage({ providers: [{ ...p1, protocol: 'anthropic' }, p2] }, stored).tts?.provider
+        ).toBe('edge')
+    })
+
+    it('does not write TTS settings when an unlinked Provider is deleted', () => {
+        const stored = { providers: [p1, p2], tts: openAITTS('p1') }
+
+        expect(sanitizeSettingsForStorage({ providers: [p1] }, stored)).not.toHaveProperty('tts')
+    })
+
+    it.each([
+        ['system TTS', { provider: 'system' as const }],
+        ['OpenAI TTS on a remaining Provider', openAITTS('p2')],
+    ])('keeps TTS settings saved elsewhere as %s', (_name, tts) => {
+        const stored = { providers: [p1, p2], tts }
+
+        expect(sanitizeSettingsForStorage({ providers: [p2] }, stored)).not.toHaveProperty('tts')
+    })
+})
+
+describe('settings writes', () => {
+    it('reads once and writes once, without deleting legacy keys', async () => {
+        vi.mocked(browser.storage.sync.get).mockResolvedValueOnce({ fontSize: 15, apiKeys: 'sk-legacy' })
+
+        await expect(setSettings({ fontSize: 18 })).resolves.toEqual({ fontSize: 18 })
+        expect(browser.storage.sync.get).toHaveBeenCalledOnce()
+        expect(browser.storage.sync.set).toHaveBeenCalledOnce()
+        expect(browser.storage.sync.set).toHaveBeenCalledWith({ fontSize: 18 })
     })
 })

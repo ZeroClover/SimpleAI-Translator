@@ -26,7 +26,7 @@ use tauri_specta::Event;
 use tray::{PinnedFromTrayEvent, PinnedFromWindowEvent};
 use windows::{get_translator_window, CheckUpdateEvent, CheckUpdateResultEvent};
 
-use crate::config::{clear_config_cache, get_config_content, update_config, ConfigUpdatedEvent};
+use crate::config::{get_config_content, update_config, ConfigUpdatedEvent};
 use crate::edge_tts::{edge_tts_list_voices, edge_tts_synthesize};
 use crate::fetch::{fetch, fetch_cancel};
 use crate::windows::{
@@ -258,7 +258,6 @@ fn main() {
 
             let handle = app_handle.clone();
             ConfigUpdatedEvent::listen_any(app_handle, move |_event| {
-                clear_config_cache();
                 tray::create_tray(&handle).unwrap();
             });
             Ok(())

@@ -111,14 +111,14 @@ pub fn get_config_content() -> String {
     }
 }
 
-/// Merges `set_json` (a JSON object) into config.json and then deletes `remove`, as one atomic
-/// update, so concurrent saves from different windows never overwrite each other's keys.
+/// Merges `set_json` (a JSON object) into config.json as one atomic update, so concurrent saves
+/// from different windows never overwrite each other's keys.
 #[tauri::command]
 #[specta::specta]
-pub fn update_config(set_json: String, remove: Vec<String>) -> Result<(), String> {
+pub fn update_config(set_json: String) -> Result<(), String> {
     let app = APP_HANDLE.get().ok_or("App is not initialized")?;
     let set = serde_json::from_str(&set_json).map_err(|e| e.to_string())?;
-    update_config_file(&config_path_by_app(app)?, set, &remove)?;
+    update_config_file(&config_path_by_app(app)?, set)?;
     clear_config_cache();
     Ok(())
 }
@@ -138,15 +138,11 @@ fn config_path_by_app(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 fn update_config_file(
     path: &std::path::Path,
     set: serde_json::Map<String, serde_json::Value>,
-    remove: &[String],
 ) -> Result<(), String> {
     let _guard = CONFIG_FILE.lock();
     let mut config: serde_json::Map<String, serde_json::Value> =
         serde_json::from_str(&read_config_file(path)?).map_err(|e| e.to_string())?;
     config.extend(set);
-    for key in remove {
-        config.remove(key);
-    }
     let content = serde_json::to_string(&config).map_err(|e| e.to_string())?;
     let temporary_path = path.with_file_name(format!("config.{}.tmp", uuid::Uuid::new_v4()));
     let result = std::fs::write(&temporary_path, content)
@@ -242,25 +238,23 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("simpleai-config-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("config.json");
-        std::fs::write(&path, "{\"fontSize\":15,\"apiKeys\":\"legacy\"}").unwrap();
+        std::fs::write(&path, "{\"fontSize\":15}").unwrap();
         let writers: Vec<_> = (0..16)
             .map(|index| {
                 let path = path.clone();
                 std::thread::spawn(move || {
                     let set = serde_json::json!({ format!("key{index}"): index });
-                    update_config_file(&path, set.as_object().unwrap().clone(), &[]).unwrap();
+                    update_config_file(&path, set.as_object().unwrap().clone()).unwrap();
                 })
             })
             .collect();
         for writer in writers {
             writer.join().unwrap();
         }
-        update_config_file(&path, serde_json::Map::new(), &["apiKeys".to_string()]).unwrap();
 
         let config: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(config["fontSize"], 15);
-        assert!(!config.contains_key("apiKeys"));
         for index in 0..16 {
             assert_eq!(config[&format!("key{index}")], index);
         }

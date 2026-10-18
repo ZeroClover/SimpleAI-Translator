@@ -24,12 +24,7 @@ beforeEach(() => {
 describe('desktop settings writes', () => {
     it('sends only the changed keys to the native merge', async () => {
         await tauriBrowser.storage.sync.set({ fontSize: 20, skipped: undefined })
-        expect(commands.updateConfig).toHaveBeenCalledWith('{"fontSize":20}', [])
-    })
-
-    it('deletes keys through the same native update', async () => {
-        await tauriBrowser.storage.sync.remove?.(['themeType'])
-        expect(commands.updateConfig).toHaveBeenCalledWith('{}', ['themeType'])
+        expect(commands.updateConfig).toHaveBeenCalledWith('{"fontSize":20}')
     })
 
     it('passes native write failures to the caller', async () => {

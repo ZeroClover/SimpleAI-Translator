@@ -6,7 +6,6 @@ import { LangCode } from './lang'
 interface ISync {
     get(keys: string[]): Promise<Record<string, any>>
     set(items: Record<string, any>): Promise<void>
-    remove?(keys: string[]): Promise<void>
 }
 
 interface IStorage {
@@ -87,7 +86,6 @@ export interface ISettings {
     defaultModel: ModelSelection | null
     providerModelOutputControls?: ProviderModelOutputControls[]
     enableBackgroundBlur: boolean
-    enableMica: boolean // deprecated, please use enableBackgroundBlur
     nativeLanguage: string
     translationTargetLanguage: string
     themeType?: ThemeType

@@ -27,7 +27,6 @@ import {
     resolveAutomaticTargetLanguage,
     resolveProviderModelOutputControls,
     resolveTargetLanguageForSource,
-    setSettings as persistSettings,
 } from '../utils'
 import { InnerSettings } from './Settings'
 import { containerID, popupCardInnerContainerId } from '../../browser-extension/content_script/consts'
@@ -604,7 +603,7 @@ export interface IInnerTranslatorProps {
     containerStyle?: React.CSSProperties
     editorRows?: number
     showLogo?: boolean
-    onSettingsSave?: (oldSettings: ISettings) => void
+    onSettingsSave?: () => void
     onSettingsShow?: (isShow: boolean) => void
 }
 
@@ -659,7 +658,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
 
     const editorRef = useRef<HTMLTextAreaElement>(null)
     const { t, i18n } = useTranslation()
-    const { settings, setSettings } = useSettings()
+    const { settings, updateSettings } = useSettings()
     const [selectedModel, setSelectedModel] = useState<ModelSelection | null>(() => resolveModelSelection(settings))
     const selectedProvider = useMemo(
         () => settings.providers.find((provider) => provider.id === selectedModel?.providerId),
@@ -825,19 +824,15 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const changeSelectedModel = useCallback(
         (model: ModelSelection) => {
             setSelectedModel(model)
-            const change = { defaultProviderId: model.providerId, defaultModel: model }
-            setSettings({ ...settings, ...change })
-            // Persist only the change: `settings` may predate a save from another window.
-            void persistSettings(change)
+            // Write only the change: `settings` may predate a save from another window.
+            void updateSettings({ defaultProviderId: model.providerId, defaultModel: model })
         },
-        [setSettings, settings]
+        [updateSettings]
     )
 
     const toggleRenderMarkdown = useCallback(() => {
-        const change = { renderMarkdown: !settings.renderMarkdown }
-        setSettings({ ...settings, ...change })
-        void persistSettings(change)
-    }, [setSettings, settings])
+        void updateSettings({ renderMarkdown: !settings.renderMarkdown })
+    }, [settings.renderMarkdown, updateSettings])
 
     const getTranslateDeps = useCallback(
         async function (text: string): Promise<typeof translateDeps> {
@@ -1403,13 +1398,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 paddingBottom: showSettings || settings.enableBackgroundBlur || isDesktopApp() ? '0px' : '42px',
             }}
         >
-            {showSettings && (
-                <InnerSettings
-                    onSave={(oldSettings) => {
-                        props.onSettingsSave?.(oldSettings)
-                    }}
-                />
-            )}
+            {showSettings && <InnerSettings onSave={props.onSettingsSave} />}
             <div
                 style={{
                     display: !showSettings ? 'block' : 'none',

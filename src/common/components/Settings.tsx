@@ -38,7 +38,6 @@ import { IoIosSave, IoMdAdd } from 'react-icons/io'
 import { OpenAITTSFormat, OpenAITTSSettings, TTSProvider } from '../tts/types'
 import { fetchEdgeVoices } from '../tts/edge-tts'
 import { getOpenAITTSVoices } from '../tts/openai-tts'
-import { useThemeType } from '../hooks/useThemeType'
 import { Slider } from 'baseui-sd/slider'
 import { GlobalSuspense } from './GlobalSuspense'
 import { TbCloudNetwork } from 'react-icons/tb'
@@ -287,13 +286,7 @@ function TTSVoicesSettings({ value, providers, onChange, onBlur }: ITTSVoicesSet
         () => ttsProviderOptions.map((option) => ({ id: option.id, label: t(option.labelKey) })),
         [t]
     )
-    const openAIProviders = useMemo(
-        () =>
-            providers.filter(
-                (provider) => provider.protocol === 'openai-chat' || provider.protocol === 'openai-responses'
-            ),
-        [providers]
-    )
+    const openAIProviders = useMemo(() => providers.filter(utils.canProvideTTS), [providers])
     const openAIConfig = value?.openai
     const openAIProviderId = openAIConfig?.providerId ?? openAIProviders[0]?.id ?? ''
     const openAIModel = openAIConfig?.model ?? ''
@@ -1496,7 +1489,7 @@ const { Form, FormItem, useForm } = createForm<ISettings>()
 
 interface IInnerSettingsProps {
     showFooter?: boolean
-    onSave?: (oldSettings: ISettings) => void
+    onSave?: () => void
 }
 
 interface ISettingsProps extends IInnerSettingsProps {
@@ -1520,15 +1513,14 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
     const isTauri = utils.isTauri()
     const { theme, themeType } = useTheme()
 
-    const { refreshThemeType } = useThemeType()
-
     const { t } = useTranslation()
 
     const [loading, setLoading] = useState(false)
-    const { settings, setSettings } = useSettings()
+    const { settings, updateSettings } = useSettings()
     const [values, setValues] = useState<ISettings>(settings)
-    const [prevValues, setPrevValues] = useState<ISettings>(values)
     const valuesRef = useRef(values)
+    // The values as last loaded or saved; saves write only the fields that differ from them.
+    const savedValuesRef = useRef(values)
 
     const [form] = useForm()
 
@@ -1544,8 +1536,8 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                     settings.runAtStartup = await autostartIsEnabled()
                 }
                 valuesRef.current = settings
+                savedValuesRef.current = settings
                 setValues(settings)
-                setPrevValues(settings)
             })()
         }
     }, [isTauri, settings])
@@ -1570,7 +1562,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
     )
 
     const syncAutostart = useCallback(
-        async (nextSettings: ISettings) => {
+        async (nextSettings: Partial<ISettings>) => {
             if (!isTauri) {
                 return
             }
@@ -1593,51 +1585,60 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
         [isTauri]
     )
 
+    const persistSettings = useCallback(
+        async (nextValues: ISettings) => {
+            const savedValues = savedValuesRef.current
+            // A field the form holds no value for (undefined) has nothing to write.
+            const changes: Partial<ISettings> = Object.fromEntries(
+                Object.entries(nextValues).filter(
+                    ([key, value]) => value !== undefined && !dequal(value, savedValues[key as keyof ISettings])
+                )
+            )
+            if (Object.keys(changes).length === 0) {
+                return
+            }
+            if ('runAtStartup' in changes) {
+                await syncAutostart(changes)
+            }
+            const written = await updateSettings(changes)
+            savedValuesRef.current = utils.normalizeSettings({ ...savedValues, ...written })
+
+            // A save that leaves OpenAI TTS without a usable Provider switches it to Edge TTS.
+            const writesLinkedTTS = changes.tts ? changes.tts.provider === 'openai' : 'providers' in changes
+            if (writesLinkedTTS && written.tts?.provider === 'edge') {
+                const providers = written.providers ?? savedValues.providers
+                const linkedProvider = providers.find((provider) => provider.id === written.tts?.openai?.providerId)
+                toast(
+                    t(
+                        linkedProvider
+                            ? 'The Provider linked to OpenAI TTS uses the Anthropic protocol, which does not support speech. Switched to Edge TTS.'
+                            : 'The Provider linked to OpenAI TTS was deleted. Switched to Edge TTS.'
+                    )
+                )
+            }
+        },
+        [syncAutostart, t, updateSettings]
+    )
+
     const onSubmit = useCallback(
         async (data: ISettings) => {
             setLoading(true)
-            const formSettings = mergeFormValues(valuesRef.current, data)
-            const oldSettings = await utils.getSettings()
-            // The Markdown preference is toggled in the translator, so the stored value wins over this form's snapshot.
-            const nextSettings = { ...formSettings, renderMarkdown: oldSettings.renderMarkdown }
-            await syncAutostart(nextSettings)
-            await utils.setSettings(nextSettings)
-
-            if (nextSettings.themeType) {
-                refreshThemeType()
-            }
-
+            const nextValues = mergeFormValues(valuesRef.current, data)
+            valuesRef.current = nextValues
+            await persistSettings(nextValues)
             toast(t('Saved'), {
                 icon: '👍',
                 duration: 3000,
             })
             setLoading(false)
-            valuesRef.current = nextSettings
-            setPrevValues(nextSettings)
-            setSettings(nextSettings)
-            onSave?.(oldSettings)
+            onSave?.()
         },
-        [syncAutostart, onSave, setSettings, refreshThemeType, t, mergeFormValues]
-    )
-
-    const persistSettings = useCallback(
-        async (values_: ISettings) => {
-            const { renderMarkdown } = await utils.getSettings()
-            const nextValues = { ...values_, renderMarkdown }
-            await syncAutostart(nextValues)
-            await utils.setSettings(nextValues)
-            valuesRef.current = nextValues
-            setPrevValues(nextValues)
-            setSettings(nextValues)
-        },
-        [setSettings, syncAutostart]
+        [mergeFormValues, onSave, persistSettings, t]
     )
 
     const onBlur = useCallback(async () => {
-        if (!dequal(valuesRef.current, prevValues)) {
-            await persistSettings(valuesRef.current)
-        }
-    }, [persistSettings, prevValues])
+        await persistSettings(valuesRef.current)
+    }, [persistSettings])
 
     const handleLLMProvidersChange = useCallback(
         (

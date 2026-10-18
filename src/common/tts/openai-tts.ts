@@ -3,7 +3,7 @@ import i18n from '../i18n'
 import { OPENAI_AUDIO_SPEECH_API_PATH, normalizeAPIEndpoint } from '../openai-api-path'
 import { ProviderConfig } from '../types'
 import { getUniversalFetch } from '../universal-fetch'
-import { getSettings, setSettings } from '../utils'
+import { canProvideTTS, getSettings, setSettings } from '../utils'
 import { SpeakOptions } from './types'
 
 const DEFAULT_ENDPOINT = 'https://api.openai.com/v1'
@@ -57,7 +57,7 @@ function getConfigErrorMessage(providerId: string | undefined, providerConfig: P
     if (!providerConfig) {
         return i18n.t('The Provider linked to OpenAI TTS was deleted. Switched to Edge TTS.')
     }
-    if (providerConfig.protocol === 'anthropic') {
+    if (!canProvideTTS(providerConfig)) {
         return i18n.t(
             'The Provider linked to OpenAI TTS uses the Anthropic protocol, which does not support speech. Switched to Edge TTS.'
         )
@@ -228,7 +228,7 @@ export async function speak(options: OpenAISpeakOptions): Promise<void> {
     const openAIConfig = settings.tts?.openai
     const providerConfig = settings.providers.find((provider) => provider.id === openAIConfig?.providerId)
 
-    if (!openAIConfig?.model || !providerConfig || providerConfig.protocol === 'anthropic') {
+    if (!openAIConfig?.model || !providerConfig || !canProvideTTS(providerConfig)) {
         await setSettings({
             tts: {
                 ...settings.tts,

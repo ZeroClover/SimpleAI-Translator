@@ -7,12 +7,12 @@ export const commands = {
         return await TAURI_INVOKE('get_config_content')
     },
     /**
-     * Merges `set_json` (a JSON object) into config.json and then deletes `remove`, as one atomic
-     * update, so concurrent saves from different windows never overwrite each other's keys.
+     * Merges `set_json` (a JSON object) into config.json as one atomic update, so concurrent saves
+     * from different windows never overwrite each other's keys.
      */
-    async updateConfig(setJson: string, remove: string[]): Promise<Result<null, string>> {
+    async updateConfig(setJson: string): Promise<Result<null, string>> {
         try {
-            return { status: 'ok', data: await TAURI_INVOKE('update_config', { setJson, remove }) }
+            return { status: 'ok', data: await TAURI_INVOKE('update_config', { setJson }) }
         } catch (e) {
             if (e instanceof Error) throw e
             else return { status: 'error', error: e as any }

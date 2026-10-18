@@ -35,6 +35,14 @@ test('options page should be opened', async ({ page, extensionId }) => {
     await expect(page.getByTestId('settings-container')).toBeVisible()
 })
 
+test('saving on the options page shows one toast', async ({ page, extensionId }) => {
+    await page.goto(getOptionsPageUrl(extensionId))
+    await page.locator('input[value="15"]').fill('18')
+    await page.getByRole('button', { name: 'Save' }).click()
+
+    await expect(page.locator('[role=status] [role=status]', { hasText: 'Saved' })).toHaveCount(1)
+})
+
 // Counts `chrome.storage.sync.get` calls made by the content script, which runs in an isolated
 // world that page scripts cannot see.
 async function countContentScriptStorageReads(page: Page) {

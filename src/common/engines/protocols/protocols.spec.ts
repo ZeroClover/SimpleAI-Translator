@@ -922,6 +922,30 @@ describe('protocol engines', () => {
         ['OpenAI Chat', () => new OpenAIChatEngine(providerConfig)],
         ['OpenAI Responses', () => new OpenAIResponsesEngine({ ...providerConfig, protocol: 'openai-responses' })],
         ['Anthropic', () => new AnthropicEngine({ ...providerConfig, protocol: 'anthropic' })],
+    ])('reads error messages in the shared order for %s', async (_name, createEngine) => {
+        const report = async (body: unknown) => {
+            const { req, onError } = createRequest()
+            vi.mocked(fetchSSE).mockImplementationOnce(async (_input: string, options: MockFetchSSEOptions) => {
+                options.onStatusCode?.(400)
+                options.onError(body)
+            })
+            await createEngine().sendMessage(req)
+            return onError.mock.calls[0]?.[0]
+        }
+
+        await expect(report({ detail: 'Bad model' })).resolves.toBe('Bad model')
+        await expect(report({ message: 'Top level', detail: 'Bad model' })).resolves.toBe('Top level')
+        await expect(report({ error: { message: 'Nested' }, message: 'Top level' })).resolves.toBe('Nested')
+        await expect(
+            report({ response: { error: { message: 'Response error' } }, error: { message: 'Nested' } })
+        ).resolves.toBe('Response error')
+        await expect(report({})).resolves.toBe('Unknown error')
+    })
+
+    it.each([
+        ['OpenAI Chat', () => new OpenAIChatEngine(providerConfig)],
+        ['OpenAI Responses', () => new OpenAIResponsesEngine({ ...providerConfig, protocol: 'openai-responses' })],
+        ['Anthropic', () => new AnthropicEngine({ ...providerConfig, protocol: 'anthropic' })],
     ])('reports 5xx errors for %s', async (_name, createEngine) => {
         const { req, onError, onFinished, onStatusCode } = createRequest()
 

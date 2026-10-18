@@ -235,6 +235,26 @@ export function isStreamingUnsupportedError(error: unknown): boolean {
 
 const STREAMING_REJECTION_STATUSES = new Set([400, 422, 501])
 
+// Reads an error message from a thrown value, an upstream response body or an error event.
+export function getErrorMessage(error: unknown, fallback = 'Unknown error'): string {
+    if (error instanceof Error) {
+        return error.message
+    }
+    if (typeof error === 'string') {
+        return error
+    }
+    if (typeof error === 'object' && error !== null) {
+        const err = error as {
+            response?: { error?: { message?: string } }
+            error?: { message?: string }
+            message?: string
+            detail?: string
+        }
+        return err.response?.error?.message ?? err.error?.message ?? err.message ?? err.detail ?? fallback
+    }
+    return fallback
+}
+
 function getThrownMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error)
 }
@@ -249,10 +269,7 @@ export class EngineSession {
     private readonly thinkingFilter = new ThinkingFilter()
     private readonly structured?: StructuredOutputBuffer
 
-    constructor(
-        readonly req: IMessageRequest,
-        private readonly getErrorMessage: (error: unknown) => string
-    ) {
+    constructor(readonly req: IMessageRequest) {
         if (req.structuredOutput) {
             this.structured = new StructuredOutputBuffer(req.structuredOutput.mode)
         }
@@ -342,7 +359,7 @@ export class EngineSession {
     }
 
     failWith(error: unknown) {
-        this.fail(this.getErrorMessage(error))
+        this.fail(getErrorMessage(error))
     }
 
     abort() {

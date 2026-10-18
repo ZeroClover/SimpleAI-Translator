@@ -280,7 +280,6 @@ function getPlainOutputClause(): string {
 
 export async function translate(query: TranslateQuery) {
     let rolePrompt = ''
-    let isWordMode = false
 
     const sourceLangCode = query.detectFrom
     const targetLangCode = query.detectTo
@@ -289,7 +288,7 @@ export async function translate(query: TranslateQuery) {
     const toChinese = chineseLangCodes.indexOf(targetLangCode) >= 0
     const targetLangConfig = getLangConfig(targetLangCode)
     const sourceLangConfig = getLangConfig(sourceLangCode)
-    let structuredOutputMode = getStructuredOutputMode(sourceLangCode, targetLangCode, query.text)
+    const mode = getStructuredOutputMode(sourceLangCode, targetLangCode, query.text)
 
     // Default sentence path: role + task instruction only. The source text is never
     // concatenated into the instruction; it travels separately as untrusted data.
@@ -299,8 +298,7 @@ export async function translate(query: TranslateQuery) {
         ${targetLangConfig.genCommandPrompt(sourceLangConfig)}
     `
 
-    if (query.text.length < 5 && toChinese) {
-        structuredOutputMode = 'short-phrase-to-chinese'
+    if (mode === 'short-phrase-to-chinese') {
         // 中文短词组（≤5 字）：展示多种翻译结果并阐述适用语境。结构性指令用英文，输出标签保留中文。
         rolePrompt = codeBlock`
             ${oneLine`
@@ -313,9 +311,7 @@ export async function translate(query: TranslateQuery) {
                 例句：<例句>(例句翻译)
         `
     }
-    if (isAWord(sourceLangCode, query.text.trim())) {
-        isWordMode = true
-        structuredOutputMode = 'word'
+    if (mode === 'word') {
         if (toChinese) {
             // 单词模式：音标、词性、含义、双语示例。结构性指令用英文，输出标签保留中文。
             rolePrompt = codeBlock`
@@ -387,7 +383,7 @@ Etymology:
     }
     const outputControls = resolveProviderModelOutputControls(settings, providerConfig.id, model)
     const structuredOutput = outputControls.useStructuredOutput
-        ? getStructuredOutputRequest(structuredOutputMode, outputControls.useStrictSchema)
+        ? getStructuredOutputRequest(mode, outputControls.useStrictSchema)
         : undefined
     // Assemble the system-channel instruction. Every cross-request stable part
     // comes first and the only per-request part (the boundary clause, which embeds
@@ -400,7 +396,7 @@ Etymology:
     instructionParts.push(getTranslationQualityClause(targetLangName))
     instructionParts.push(getWhitespaceClause(targetLangName))
     // Word and short-phrase prompts define their own labelled output format.
-    if (!structuredOutput && !isWordMode && structuredOutputMode !== 'short-phrase-to-chinese') {
+    if (!structuredOutput && mode === 'sentence') {
         instructionParts.push(getPlainOutputClause())
     }
     if (structuredOutput) {
@@ -424,7 +420,7 @@ Etymology:
             commandPrompt,
             structuredOutput,
             onMessage: async (message) => {
-                await query.onMessage({ ...message, isWordMode })
+                await query.onMessage({ ...message, isWordMode: mode === 'word' })
             },
             onFinished: (reason) => {
                 query.onFinish(reason)

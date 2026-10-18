@@ -14,7 +14,6 @@ const CHAT_MODEL_BLOCKLIST = [
     /(^|[-/])image($|-)/i,
 ]
 
-const TTS_MODEL_ALLOWLIST = [/^tts-1(-hd)?$/i, /^gpt-4o-mini-tts(?:-[0-9]{4}-[0-9]{2}-[0-9]{2})?$/i]
 const MODEL_ID_COLLATOR = new Intl.Collator('en', { numeric: true, sensitivity: 'base' })
 
 export function sortModelIds(ids: string[]): string[] {
@@ -25,6 +24,14 @@ export function filterChatModels(ids: string[]): string[] {
     return ids.filter((id) => !CHAT_MODEL_BLOCKLIST.some((pattern) => pattern.test(id)))
 }
 
+export function isTTS1Model(id: string): boolean {
+    return /^tts-1(-hd)?$/i.test(id)
+}
+
+export function isGPT4oMiniTTSModel(id: string): boolean {
+    return /^gpt-4o-mini-tts(?:-[0-9]{4}-[0-9]{2}-[0-9]{2})?$/i.test(id)
+}
+
 export function filterTTSModels(ids: string[]): string[] {
-    return ids.filter((id) => TTS_MODEL_ALLOWLIST.some((pattern) => pattern.test(id)))
+    return ids.filter((id) => isTTS1Model(id) || isGPT4oMiniTTSModel(id))
 }

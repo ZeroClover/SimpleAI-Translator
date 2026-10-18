@@ -1,6 +1,11 @@
-import { ProviderConfig, ReasoningEffort, ThinkingControl } from '../../types'
+import { ProviderConfig, ReasoningEffort } from '../../types'
 import { getUniversalFetch } from '../../universal-fetch'
-import { normalizeAPIEndpoint, OPENAI_CHAT_COMPLETIONS_API_PATH } from '../../openai-api-path'
+import {
+    DEFAULT_ENDPOINT_BY_PROTOCOL,
+    normalizeAPIEndpoint,
+    OPENAI_CHAT_COMPLETIONS_API_PATH,
+} from '../../openai-api-path'
+import type { EngineProviderConfig } from '..'
 import {
     EngineSession,
     IEngine,
@@ -12,11 +17,10 @@ import {
 
 /* eslint-disable camelcase */
 
-const DEFAULT_ENDPOINT = 'https://api.openai.com/v1'
+const DEFAULT_ENDPOINT = DEFAULT_ENDPOINT_BY_PROTOCOL['openai-chat']
 const MODELS_PATH = '/v1/models'
-type EngineProviderConfig = ProviderConfig & ThinkingControl
 
-function getHeaders(providerConfig: ProviderConfig): Record<string, string> {
+export function getHeaders(providerConfig: ProviderConfig): Record<string, string> {
     return {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${providerConfig.apiKey}`,
@@ -32,20 +36,6 @@ function getMessages(req: IMessageRequest): Array<{ role: string; content: strin
     }
     messages.push({ role: 'user', content: req.commandPrompt })
     return messages
-}
-
-function getErrorMessage(error: unknown): string {
-    if (error instanceof Error) {
-        return error.message
-    }
-    if (typeof error === 'string') {
-        return error
-    }
-    if (typeof error === 'object' && error !== null) {
-        const err = error as { error?: { message?: string }; message?: string; detail?: string }
-        return err.error?.message ?? err.message ?? err.detail ?? 'Unknown error'
-    }
-    return 'Unknown error'
 }
 
 function getResponseFormat(structuredOutput: StructuredOutputRequest | undefined) {
@@ -129,7 +119,7 @@ export class OpenAIChatEngine implements IEngine {
     }
 
     async sendMessage(req: IMessageRequest): Promise<void> {
-        const session = new EngineSession(req, getErrorMessage)
+        const session = new EngineSession(req)
         // Refusals stream as `delta.refusal` fragments; report the whole text once the stream ends.
         let refused = false
         let refusal = ''

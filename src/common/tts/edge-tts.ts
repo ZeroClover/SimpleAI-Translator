@@ -169,28 +169,11 @@ export async function speak({
     const volumeStr = volume >= 100 ? `+${Math.round(volume - 100)}%` : `-${Math.round(100 - volume)}%`
 
     try {
-        if (isTauri()) {
-            await speakDesktopEdge({
-                text,
-                voice: selectedVoice,
-                rate: rateStr,
-                volume: volumeStr,
-                signal,
-                onFinish,
-                onStartSpeaking,
-            })
-            return
-        }
-
-        await speakBrowserEdge({
-            text,
-            voice: selectedVoice,
-            rate: rateStr,
-            volume: volumeStr,
-            signal,
-            onFinish,
-            onStartSpeaking,
-        })
+        const request = { text, voice: selectedVoice, rate: rateStr, volume: volumeStr }
+        await playEdgeAudio(
+            (isStopped) => (isTauri() ? synthesizeDesktopEdge(request, isStopped) : synthesizeBrowserEdge(request)),
+            { signal, onFinish, onStartSpeaking }
+        )
     } catch (error) {
         if (signal.aborted) {
             return
@@ -207,24 +190,24 @@ function getEdgeTTSErrorMessage(error: unknown): string {
     return message.startsWith('Edge TTS') ? message : `Edge TTS: ${message}`
 }
 
-type EdgePlaybackOptions = {
+interface EdgeSynthesisRequest {
     text: string
     voice: string
     rate: string
     volume: string
-    signal: AbortSignal
-    onFinish?: () => void
-    onStartSpeaking?: () => void
 }
 
-async function speakDesktopEdge({ text, voice, rate, volume, signal, onFinish, onStartSpeaking }: EdgePlaybackOptions) {
-    if (signal.aborted) {
-        return
-    }
-
+// Plays the synthesized segments in order through one AudioContext. `synthesize` returns
+// undefined when playback was stopped while it ran. Stopping releases the AudioContext and
+// prevents later segments from starting; onFinish runs once after the last segment ends.
+async function playEdgeAudio(
+    synthesize: (isStopped: () => boolean) => Promise<ArrayBuffer[] | undefined>,
+    { signal, onFinish, onStartSpeaking }: Pick<SpeakOptions, 'signal' | 'onFinish' | 'onStartSpeaking'>
+) {
     const audioContext = new AudioContext()
     let audioBufferSource: AudioBufferSourceNode | null = null
     let stopped = false
+    const isStopped = () => stopped || signal.aborted
 
     const stopPlayback = () => {
         signal.removeEventListener('abort', stopPlayback)
@@ -232,60 +215,27 @@ async function speakDesktopEdge({ text, voice, rate, volume, signal, onFinish, o
         if (audioBufferSource) {
             try {
                 audioBufferSource.stop()
-            } catch (e) {
-                // ignore
+            } catch {
+                // The source may already have ended.
             }
         }
         void audioContext.close().catch(() => {})
     }
-
     signal.addEventListener('abort', stopPlayback, { once: true })
 
     try {
-        const { commands } = await import('../../tauri/bindings')
-        const result = await commands
-            .edgeTtsSynthesize({
-                text,
-                voice,
-                rate,
-                volume,
-                pitch: '+0Hz',
-            })
-            .catch((error) => {
-                if (stopped || signal.aborted) {
-                    return null
-                }
-                throw error
-            })
-
-        if (!result || stopped || signal.aborted) {
+        const segments = await synthesize(isStopped)
+        if (!segments || isStopped()) {
             return
         }
 
-        if (result.status === 'error') {
-            throw new Error(`Edge TTS: ${result.error}`)
-        }
-
-        if (result.data.mimeType !== EDGE_AUDIO_MIME_TYPE) {
-            throw new Error(`Edge TTS: unsupported audio type ${result.data.mimeType}`)
-        }
-
-        if (!result.data.audioSegments.length) {
-            throw new Error('Edge TTS: no audio received')
-        }
-
         const audioBuffers: AudioBuffer[] = []
-        for (const segment of result.data.audioSegments) {
-            if (stopped || signal.aborted) {
+        for (const segment of segments) {
+            if (isStopped()) {
                 return
             }
-
-            const audioArrayBuffer = base64ToArrayBuffer(segment)
-            if (!audioArrayBuffer.byteLength) {
-                throw new Error('Edge TTS: empty audio segment')
-            }
-            const audioBuffer = await audioContext.decodeAudioData(audioArrayBuffer).catch((error) => {
-                if (stopped || signal.aborted) {
+            const audioBuffer = await audioContext.decodeAudioData(segment).catch((error) => {
+                if (isStopped()) {
                     return null
                 }
                 throw error
@@ -296,16 +246,12 @@ async function speakDesktopEdge({ text, voice, rate, volume, signal, onFinish, o
             audioBuffers.push(audioBuffer)
         }
 
-        if (stopped || signal.aborted) {
+        if (isStopped()) {
             return
         }
 
         let segmentIndex = 0
         const playCurrentSegment = () => {
-            if (stopped || signal.aborted) {
-                return
-            }
-
             const source = audioContext.createBufferSource()
             audioBufferSource = source
             source.buffer = audioBuffers[segmentIndex]
@@ -313,7 +259,7 @@ async function speakDesktopEdge({ text, voice, rate, volume, signal, onFinish, o
             source.addEventListener(
                 'ended',
                 () => {
-                    if (stopped || signal.aborted) {
+                    if (isStopped()) {
                         return
                     }
 
@@ -343,81 +289,65 @@ async function speakDesktopEdge({ text, voice, rate, volume, signal, onFinish, o
     }
 }
 
-async function speakBrowserEdge({ text, voice, rate, volume, signal, onFinish, onStartSpeaking }: EdgePlaybackOptions) {
-    const audioContext = new AudioContext()
-    let audioBufferSource: AudioBufferSourceNode | null = null
-    let stopped = false
-
-    const stopPlayback = () => {
-        signal.removeEventListener('abort', stopPlayback)
-        stopped = true
-        if (audioBufferSource) {
-            try {
-                audioBufferSource.stop()
-            } catch {
-                // The source may already have ended.
-            }
+// The native command synthesizes each text segment and returns its MP3 audio as base64.
+async function synthesizeDesktopEdge(
+    { text, voice, rate, volume }: EdgeSynthesisRequest,
+    isStopped: () => boolean
+): Promise<ArrayBuffer[] | undefined> {
+    const { commands } = await import('../../tauri/bindings')
+    const result = await commands.edgeTtsSynthesize({ text, voice, rate, volume, pitch: '+0Hz' }).catch((error) => {
+        if (isStopped()) {
+            return null
         }
-        void audioContext.close().catch(() => {})
-    }
-    signal.addEventListener('abort', stopPlayback, { once: true })
-
-    try {
-        const { EdgeTTS } = await import('edge-tts-universal')
-        const tts = new EdgeTTS(text, voice, {
-            rate,
-            volume,
-            pitch: '+0Hz',
-        })
-
-        console.debug('Edge TTS: synthesizing...', { voice, rate, volume })
-        let timeout: ReturnType<typeof setTimeout> | undefined
-        const result = await Promise.race([
-            tts.synthesize(),
-            new Promise<never>((_, reject) => {
-                timeout = setTimeout(() => reject(new Error('Edge TTS: synthesis timeout')), 15000)
-            }),
-        ]).finally(() => clearTimeout(timeout))
-        console.debug('Edge TTS: synthesize done', { hasAudio: !!result?.audio })
-
-        if (stopped) {
-            return
-        }
-
-        if (!result || !result.audio) {
-            throw new Error('Edge TTS: no audio received')
-        }
-
-        const audioArrayBuffer = await result.audio.arrayBuffer()
-
-        if (stopped) {
-            return
-        }
-
-        if (!audioArrayBuffer || audioArrayBuffer.byteLength === 0) {
-            throw new Error('Edge TTS: empty audio data')
-        }
-
-        const buffer = await audioContext.decodeAudioData(audioArrayBuffer)
-        audioBufferSource = audioContext.createBufferSource()
-        audioBufferSource.buffer = buffer
-        audioBufferSource.connect(audioContext.destination)
-
-        onStartSpeaking?.()
-        audioBufferSource.start()
-
-        audioBufferSource.addEventListener('ended', () => {
-            if (stopped) {
-                return
-            }
-            signal.removeEventListener('abort', stopPlayback)
-            onFinish?.()
-            void audioContext.close().catch(() => {})
-        })
-    } catch (error) {
-        if (!stopped) stopPlayback()
         throw error
+    })
+
+    if (!result || isStopped()) {
+        return undefined
     }
+    if (result.status === 'error') {
+        throw new Error(`Edge TTS: ${result.error}`)
+    }
+    if (result.data.mimeType !== EDGE_AUDIO_MIME_TYPE) {
+        throw new Error(`Edge TTS: unsupported audio type ${result.data.mimeType}`)
+    }
+    if (!result.data.audioSegments.length) {
+        throw new Error('Edge TTS: no audio received')
+    }
+    return result.data.audioSegments.map((segment) => {
+        const audio = base64ToArrayBuffer(segment)
+        if (!audio.byteLength) {
+            throw new Error('Edge TTS: empty audio segment')
+        }
+        return audio
+    })
+}
+
+// The browser synthesizes the whole text as one segment.
+async function synthesizeBrowserEdge({ text, voice, rate, volume }: EdgeSynthesisRequest): Promise<ArrayBuffer[]> {
+    const { EdgeTTS } = await import('edge-tts-universal')
+    const tts = new EdgeTTS(text, voice, {
+        rate,
+        volume,
+        pitch: '+0Hz',
+    })
+
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    const result = await Promise.race([
+        tts.synthesize(),
+        new Promise<never>((_, reject) => {
+            timeout = setTimeout(() => reject(new Error('Edge TTS: synthesis timeout')), 15000)
+        }),
+    ]).finally(() => clearTimeout(timeout))
+
+    if (!result || !result.audio) {
+        throw new Error('Edge TTS: no audio received')
+    }
+    const audio = await result.audio.arrayBuffer()
+    if (!audio || audio.byteLength === 0) {
+        throw new Error('Edge TTS: empty audio data')
+    }
+    return [audio]
 }
 
 function base64ToArrayBuffer(base64: string): ArrayBuffer {

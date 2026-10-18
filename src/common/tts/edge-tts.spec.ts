@@ -11,13 +11,7 @@ const edgeTtsUniversalImportMock = vi.hoisted(() => vi.fn())
 const browserEdgeTtsMock = vi.hoisted(() => vi.fn())
 const browserListVoicesMock = vi.hoisted(() => vi.fn())
 
-vi.mock('../utils', async () => {
-    const actual = await vi.importActual<typeof import('../utils')>('../utils')
-    return {
-        ...actual,
-        isTauri: isTauriMock,
-    }
-})
+vi.mock('../utils', () => ({ isTauri: isTauriMock }))
 
 vi.mock('../../tauri/bindings', () => ({
     commands: {

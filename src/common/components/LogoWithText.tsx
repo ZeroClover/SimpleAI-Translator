@@ -2,7 +2,7 @@ import { createUseStyles } from 'react-jss'
 import { IThemedStyleProps } from '../types'
 import { useTheme } from '../hooks/useTheme'
 import { getAssetUrl } from '../utils'
-import icon from '@/common/assets/images/icon.png'
+import icon from '@/common/assets/images/icon.png?no-inline'
 
 const useStyles = createUseStyles({
     iconContainer: {

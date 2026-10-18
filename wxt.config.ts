@@ -1,14 +1,8 @@
 /* eslint-disable camelcase */
-import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'wxt'
-
-// The popup card UI is built as an ES module next to the popup and options pages, so the content
-// script that runs in every frame stays small and imports it only when the card opens.
-const POPUP_CARD_ENTRY = 'content-card'
 
 export default defineConfig({
     srcDir: 'src',
-    entrypointsDir: 'browser-extension/entrypoints',
     publicDir: 'public',
     outDir: 'dist/browser-extension',
     outDirTemplate: '{{browser}}',
@@ -19,20 +13,20 @@ export default defineConfig({
         artifactTemplate: '{{browser}}.zip',
         zipSources: false,
     },
-    vite: ({ browser }) => ({
-        // Relative asset URLs resolve against the module that references them, so the popup card
-        // loads its images from the extension rather than from the page it is shown on.
-        base: './',
+    vite: () => ({
         build: {
             target: 'chrome105',
-            // Preload links would be added to the host page when the card runs in a content script.
-            modulePreload: false,
-            assetsInlineLimit: browser === 'firefox' ? 1024 * 1024 : undefined,
+            rolldownOptions: {
+                // Chromium refuses a content script that contains a Unicode noncharacter such as
+                // U+FFFF, which the minifier otherwise writes out from `String.fromCharCode(65535)`.
+                output: { charset: 'ascii' },
+            },
         },
     }),
     manifest: ({ browser }) => ({
         name: 'SimpleAI Translator',
         description: 'Translate text with OpenAI-compatible and Anthropic-compatible LLM providers.',
+        // WXT only discovers icons whose file names carry a size.
         icons: {
             '16': 'icon.png',
             '32': 'icon.png',
@@ -53,9 +47,11 @@ export default defineConfig({
             'https://translate.google.com/*',
         ],
         optional_host_permissions: ['http://*/*', 'https://*/*'],
+        // Images the popup card shows inside web pages. WXT names the content script's assets
+        // after the entrypoint, so these are the logo and the settings background.
         web_accessible_resources: [
             {
-                resources: [`${POPUP_CARD_ENTRY}.js`, 'chunks/*', 'assets/*'],
+                resources: ['assets/content.png', 'assets/content.jpg'],
                 matches: ['<all_urls>'],
             },
         ],
@@ -69,17 +65,4 @@ export default defineConfig({
               }
             : {}),
     }),
-    hooks: {
-        'vite:build:extendConfig': (entrypoints, config) => {
-            const rollupOptions = config.build?.rollupOptions
-            const input = rollupOptions?.input
-            if (entrypoints.some((entrypoint) => entrypoint.name === 'popup') && input && !Array.isArray(input)) {
-                ;(input as Record<string, string>)[POPUP_CARD_ENTRY] = fileURLToPath(
-                    new URL('./src/browser-extension/content_script/card.tsx', import.meta.url)
-                )
-                // HTML builds drop entry exports; the content script imports the card's exports.
-                rollupOptions.preserveEntrySignatures = 'exports-only'
-            }
-        },
-    },
 })

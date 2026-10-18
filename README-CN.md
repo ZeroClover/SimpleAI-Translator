@@ -102,7 +102,7 @@ https://github.com/nextai-translator/nextai-translator/tree/v-pre-slim
 
 ## 开发
 
-安装依赖：
+开发需要 Node.js 24（当前的 Active LTS）或更高版本。安装依赖：
 
 ```sh
 pnpm install

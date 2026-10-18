@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `src/browser-extension/entrypoints/` holds the WXT extension entrypoints (background, content script, popup, options); the content script only registers listeners and imports the popup card UI in `src/browser-extension/content_script/` when the card opens. `wxt.config.ts` defines the manifest.
+- `src/entrypoints/` holds the thin WXT entrypoints (background, content script, popup, options); their implementations live in `src/browser-extension/` (the popup card UI in `content_script/`). The content script registers its listeners in `main(ctx)` and mounts the card with `createShadowRootUi`. `wxt.config.ts` defines the manifest; extension images are served through `chrome.runtime.getURL` (`utils.getAssetUrl`) and listed in `web_accessible_resources`.
 - `src/tauri/` contains the React renderer for desktop windows, while `src/common/` keeps shared hooks, stores, and translator logic consumed by both targets.
 - `src-tauri/` is the Rust/Tauri backend for native commands, updates, and packaging; platform assets live in `src-tauri/resources` and `src-tauri/icons`.
 - Supporting content sits in `public/` (static assets), `scripts/` (build helpers), `docs/` (release docs and notes), and `e2e/` (Playwright specs). Build outputs land in `dist/` (WXT writes `dist/browser-extension/{chromium,firefox}` and their zips) and long-lived bundles in `release/`.
@@ -34,7 +34,7 @@
 - Remote promotion banners, promotion storage keys, and promotion analytics have been removed.
 
 ## Build, Test, and Development Commands
-Install dependencies with `pnpm install` (package manager is pinned in `package.json`).
+Use Node.js 24 (the Active LTS; `engines.node` in `package.json`) and install dependencies with `pnpm install` (package manager is pinned in `package.json`).
 - `pnpm dev-chromium` / `pnpm dev-firefox` run `wxt` for that browser with HMR; `pnpm dev-tauri` boots the desktop shell with Tauri devtools.
 - `pnpm build-browser-extension`, and `pnpm build-tauri` (or `pnpm build-tauri-no-updater`) produce distributable bundles; use `pnpm clean` to reset `dist/` before packaging.
 - `pnpm test` runs Vitest suites and `pnpm test:e2e` executes Playwright specs in `e2e/`.

@@ -2,18 +2,17 @@ import browser from 'webextension-polyfill'
 import { defineContentScript } from 'wxt/utils/define-content-script'
 import type { ContentScriptContext } from 'wxt/utils/content-script-context'
 import { createShadowRootUi, type ShadowRootContentScriptUi } from 'wxt/utils/content-script-ui/shadow-root'
-import { PREFIX } from '@/common/constants'
+import type { ReferenceElement } from '@floating-ui/dom'
 import { getClientX, getClientY, type UserEventType } from '@/common/user-event'
-import { containerID, popupCardOffset, zIndex } from '../content_script/consts'
+import { containerID, popupCardOffset, zIndex } from '@/browser-extension/content_script/consts'
 
-type PopupCardModule = typeof import('../content_script/card')
-
-// Runs in every frame of every page, so it only registers listeners. The popup card UI and its
-// dependencies are loaded when the user opens the card.
+// WXT imports this module in Node to read the options above `main`, so everything that touches
+// the browser (i18n, React, the card itself) is loaded inside `main`.
 export default defineContentScript({
     matches: ['<all_urls>'],
     allFrames: true,
     matchAboutBlank: true,
+    cssInjectionMode: 'ui',
     main(ctx) {
         let lastMouseEvent: UserEventType | undefined
         const rememberMouseEvent = (event: UserEventType) => {
@@ -37,7 +36,7 @@ export default defineContentScript({
         })
 
         // A click outside the card closes it unless it is pinned; clicks inside the card do not
-        // reach the page (see `isolateEvents`).
+        // reach the page (see `isolateEvents`). Without a card there is nothing to read or close.
         const closeUnlessPinned = async () => {
             if (popupCard && !(await isPinned())) {
                 closePopupCard()
@@ -48,6 +47,8 @@ export default defineContentScript({
     },
 })
 
+type PopupCardModule = typeof import('@/browser-extension/content_script/card')
+
 let popupCard: { ui: ShadowRootContentScriptUi<() => void>; module: PopupCardModule } | undefined
 
 async function isPinned() {
@@ -55,34 +56,24 @@ async function isPinned() {
     return pinned === true
 }
 
-function loadPopupCardModule(): Promise<PopupCardModule> {
-    if (import.meta.env.DEV) {
-        return import('../content_script/card')
-    }
-    return import(/* @vite-ignore */ browser.runtime.getURL('/content-card.js'))
-}
-
-async function openPopupCard(
-    ctx: ContentScriptContext,
-    reference: Parameters<PopupCardModule['mountPopupCard']>[1]['reference'],
-    text: string
-) {
+async function openPopupCard(ctx: ContentScriptContext, reference: ReferenceElement, text: string) {
     const pinned = await isPinned()
     if (popupCard && pinned) {
         popupCard.module.setExternalOriginalText(text)
         return
     }
     closePopupCard()
-    const module = await loadPopupCardModule()
+    const module = await import('@/browser-extension/content_script/card')
     const ui = await createShadowRootUi(ctx, {
-        name: PREFIX.replace(/^_+/, ''),
+        name: 'zeroclover-simpleai-translator',
         position: 'inline',
         anchor: 'html',
         append: 'last',
         inheritStyles: true,
         isolateEvents: ['mousedown', 'mouseup', 'touchstart', 'touchend'],
         onMount: (container, _shadow, shadowHost) => {
-            shadowHost.id = containerID
+            // The custom element name cannot carry the `__` prefix; the DOM ids inside it do.
+            container.id = containerID
             shadowHost.style.zIndex = zIndex
             return module.mountPopupCard(container, { reference, text, pinned, onClose: closePopupCard })
         },

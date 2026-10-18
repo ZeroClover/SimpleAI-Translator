@@ -20,6 +20,9 @@ test('popup card should be visible after explicit open', async ({ page }) => {
     const popupCard = container.locator(`#${popupCardID}`)
     await expect(popupCard).toBeAttached()
     await expect(page.locator(`#${popupCardInnerContainerId}`)).toBeVisible()
+    // The logo is served from the extension through web_accessible_resources.
+    const logo = popupCard.locator('img').first()
+    await expect.poll(() => logo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
 })
 
 test('popup page should be opened', async ({ page, extensionId }) => {
@@ -62,6 +65,7 @@ test('clicking a page without an open card does not read settings', async ({ pag
     await page.mouse.click(5, 5)
     await page.mouse.click(10, 10)
     expect(await storageReads()).toBe(0)
+    await expect(page.locator('zeroclover-simpleai-translator')).toHaveCount(0)
 
     await openTranslatorWithSelectedText(page)
     await expect(page.locator(`#${popupCardInnerContainerId}`)).toBeVisible()

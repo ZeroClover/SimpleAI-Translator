@@ -3,6 +3,9 @@
   "version": "1.6.0",
   "description": "SimpleAI Translator",
   "packageManager": "pnpm@9.1.3",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "prepare": "pnpm exec simple-git-hooks",
     "build-tauri-renderer": "tsc && vite build -c vite.config.tauri.ts",

@@ -1,11 +1,10 @@
 /* eslint-disable no-case-declarations */
 import browser from 'webextension-polyfill'
-import { defineBackground } from 'wxt/utils/define-background'
 import { BackgroundEventNames } from '../../common/background/eventnames'
 import { BackgroundFetchRequestMessage, BackgroundFetchResponseMessage } from '../../common/background/fetch'
 import { historyInternalService } from '../../common/internal-services/history'
 
-export default defineBackground(() => {
+export function startBackground() {
     browser.contextMenus?.create(
         {
             id: 'open-translator',
@@ -139,4 +138,4 @@ export default defineBackground(() => {
                 return
         }
     })
-})
+}

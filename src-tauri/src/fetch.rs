@@ -297,6 +297,37 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn cancelling_while_waiting_for_the_response_head_closes_the_connection() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/", listener.local_addr().unwrap());
+        let (closed_sender, closed) = mpsc::channel();
+        std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            read_request(&mut stream);
+            // Never answer, like a server that is still thinking.
+            let mut buffer = [0; 64];
+            while matches!(stream.read(&mut buffer), Ok(n) if n > 0) {}
+            let _ = closed_sender.send(());
+        });
+        let (channel, _messages) = collecting_channel();
+
+        let request = tokio::spawn(fetch(request("head", url), channel));
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        fetch_cancel("head".to_string());
+
+        let error = tokio::time::timeout(Duration::from_secs(2), request)
+            .await
+            .expect("the command keeps waiting after cancelling")
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(error, ABORTED_ERROR);
+        closed
+            .recv_timeout(Duration::from_secs(2))
+            .expect("the connection stays open after cancelling");
+        assert!(CANCELLATIONS.lock().get("head").is_none());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn cancelling_before_the_request_starts_sends_nothing() {
         fetch_cancel("early".to_string());
         let (channel, _messages) = collecting_channel();

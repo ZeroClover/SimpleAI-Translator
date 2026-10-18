@@ -477,21 +477,23 @@ export async function fetchSSE(input: string, options: FetchSSEOptions) {
             onJSONResponse,
         })
         reader = resp.body?.getReader()
+        // An abort during `fetcher` fired before there was a reader to cancel.
+        if (signal?.aborted) {
+            throw abortError()
+        }
         if (reader) {
             const decode = createUTF8Decoder()
 
             while (true) {
+                const { done, value } = await reader.read()
+                // A cancelled reader ends with `done`; an aborted request must not flush or finish.
                 if (signal?.aborted) {
                     throw abortError()
                 }
-                const { done, value } = await reader.read()
                 if (done) {
                     break
                 }
                 await consumer.push(decode(value))
-            }
-            if (signal?.aborted) {
-                throw abortError()
             }
             await consumer.push(decode())
         }
@@ -505,8 +507,10 @@ export async function fetchSSE(input: string, options: FetchSSEOptions) {
     }
 }
 
+// In the extension (including content scripts, whose page is a web page) assets are served from the
+// extension origin; the desktop app serves them next to its pages.
 export function getAssetUrl(asset: string) {
-    return new URL(asset, import.meta.url).href
+    return isTauri() ? asset : chrome.runtime.getURL(asset)
 }
 export const isMacOS = navigator.userAgent.includes('Mac OS X')
 export const isWindows = navigator.userAgent.includes('Windows')

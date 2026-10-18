@@ -85,6 +85,20 @@ describe('desktop fetch', () => {
         expect(commands.fetchCancel).not.toHaveBeenCalled()
     })
 
+    it('keeps body chunks that arrive before the response head', async () => {
+        vi.mocked(commands.fetch).mockImplementationOnce(async (_request, onBody) => {
+            const channel = onBody as unknown as BodyChannel
+            channel.onmessage(encode('early '))
+            channel.onmessage(encode('body'))
+            channel.onmessage({ done: true })
+            return { status: 'ok', data: { status: 200, statusText: 'OK', headers: [] } }
+        })
+
+        const response = await tauriFetch('https://api.example.test')
+
+        await expect(response.text()).resolves.toBe('early body')
+    })
+
     it('keeps a binary body intact', async () => {
         const channel = nativeResponse()
         const response = await tauriFetch('https://api.example.test/audio')

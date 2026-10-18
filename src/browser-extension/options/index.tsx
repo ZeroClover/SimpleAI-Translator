@@ -1,13 +1,13 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
-import { Settings } from '../../../common/components/Settings'
-import Toaster from '../../../common/components/Toaster'
+import { Settings } from '../../common/components/Settings'
+import Toaster from '../../common/components/Toaster'
 import { Client as Styletron } from 'styletron-engine-atomic'
-import '../../../common/i18n'
+import '../../common/i18n'
 import './index.css'
 import { createUseStyles } from 'react-jss'
-import { IThemedStyleProps } from '../../../common/types'
-import { useTheme } from '../../../common/hooks/useTheme'
+import { IThemedStyleProps } from '../../common/types'
+import { useTheme } from '../../common/hooks/useTheme'
 
 const engine = new Styletron()
 

@@ -1,10 +1,10 @@
 import { createRoot } from 'react-dom/client'
-import { Translator } from '../../../common/components/Translator'
+import { Translator } from '../../common/components/Translator'
 import { Client as Styletron } from 'styletron-engine-atomic'
-import '../../../common/i18n'
+import '../../common/i18n'
 import './index.css'
-import { PREFIX } from '../../../common/constants'
-import { useTheme } from '../../../common/hooks/useTheme'
+import { PREFIX } from '../../common/constants'
+import { useTheme } from '../../common/hooks/useTheme'
 
 const engine = new Styletron({
     prefix: `${PREFIX}-styletron-`,

@@ -102,7 +102,7 @@ For details, see [Desktop Clip Extension](./CLIP-EXTENSIONS.md).
 
 ## Development
 
-Install dependencies with:
+Development requires Node.js 24 (the current Active LTS) or newer. Install dependencies with:
 
 ```sh
 pnpm install

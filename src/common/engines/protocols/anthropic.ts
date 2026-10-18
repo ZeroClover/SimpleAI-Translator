@@ -1,9 +1,14 @@
 import { ProviderConfig, ReasoningEffort, ThinkingControl } from '../../types'
 import { getUniversalFetch } from '../../universal-fetch'
 import { ANTHROPIC_MESSAGES_API_PATH, normalizeAPIEndpoint } from '../../openai-api-path'
-import { fetchSSE } from '../../utils'
-import { formatStructuredOutput, IEngine, IMessageRequest, IModel, StructuredOutputRequest } from '../interfaces'
-import { ThinkingFilter } from '../thinking-filter'
+import {
+    EngineSession,
+    IEngine,
+    IMessageRequest,
+    IModel,
+    sendProtocolRequest,
+    StructuredOutputRequest,
+} from '../interfaces'
 
 /* eslint-disable camelcase */
 
@@ -40,12 +45,8 @@ function getErrorMessage(error: unknown): string {
     return 'Unknown error'
 }
 
-function isAbort(req: IMessageRequest, error: unknown): boolean {
-    return req.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')
-}
-
 // Anthropic structured outputs reject array-size constraints; item counts are
-// enforced client-side by formatStructuredOutput instead.
+// enforced client-side by the structured output formatter instead.
 function stripArrayConstraints(schema: unknown): unknown {
     if (Array.isArray(schema)) {
         return schema.map(stripArrayConstraints)
@@ -192,161 +193,89 @@ export class AnthropicEngine implements IEngine {
     }
 
     async sendMessage(req: IMessageRequest): Promise<void> {
-        const url = normalizeAPIEndpoint(this.providerConfig.endpoint, ANTHROPIC_MESSAGES_API_PATH, DEFAULT_ENDPOINT)
-        let finished = false
-        let hasError = false
-        let structuredContent = ''
-        let structuredContentEmitted = false
+        const session = new EngineSession(req, getErrorMessage)
         let lastStopReason: string | null = null
-        const thinkingFilter = new ThinkingFilter()
 
-        const emitStructuredContent = async (): Promise<boolean> => {
-            if (!req.structuredOutput || structuredContentEmitted) {
-                return true
-            }
-            structuredContentEmitted = true
-            structuredContent += thinkingFilter.finish()
-            let content: string
-            try {
-                content = formatStructuredOutput(req.structuredOutput.mode, structuredContent)
-            } catch (error) {
-                hasError = true
-                finished = true
-                req.onError(getErrorMessage(error))
-                req.onFinished('error')
-                return false
-            }
-            await req.onMessage({
-                content,
-                role: 'assistant',
-                isFullText: true,
-            })
-            return true
-        }
+        const outputConfig = getOutputConfig(req.structuredOutput)
+        const thinkingRequest = getThinkingRequest(this.providerConfig)
+        await sendProtocolRequest(session, {
+            url: normalizeAPIEndpoint(this.providerConfig.endpoint, ANTHROPIC_MESSAGES_API_PATH, DEFAULT_ENDPOINT),
+            headers: getHeaders(this.providerConfig),
+            body: {
+                model: this.providerConfig.model,
+                ['max_tokens']: thinkingRequest.maxTokens,
+                ...(req.rolePrompt ? { system: req.rolePrompt } : {}),
+                messages: [{ role: 'user', content: req.commandPrompt }],
+                ...(thinkingRequest.thinking ? { thinking: thinkingRequest.thinking } : {}),
+                ...(outputConfig || thinkingRequest.outputEffort
+                    ? {
+                          output_config: {
+                              ...outputConfig,
+                              ...(thinkingRequest.outputEffort ? { effort: thinkingRequest.outputEffort } : {}),
+                          },
+                      }
+                    : {}),
+            },
+            onEvent: async (message) => {
+                const resp = JSON.parse(message)
+                const type = resp?.type
+                if (type === 'error') {
+                    session.streamFailed(resp)
+                    return
+                }
+                if (type === 'content_block_start' || type === 'content_block_delta') {
+                    session.markContent()
+                }
+                const stopReason = resp?.delta?.stop_reason ?? resp?.message?.stop_reason ?? resp?.stop_reason
+                if (stopReason) {
+                    lastStopReason = stopReason
+                }
+                if (stopReason === 'refusal') {
+                    session.fail(getRefusalMessage(resp))
+                    return
+                }
 
-        const emitText = async (content: string) => {
-            const filtered = thinkingFilter.push(content)
-            if (filtered) {
-                await req.onMessage({ content: filtered, role: 'assistant' })
-            }
-        }
-
-        const emitRemainingText = async () => {
-            if (req.structuredOutput) {
-                return
-            }
-            const content = thinkingFilter.finish()
-            if (content) {
-                await req.onMessage({ content, role: 'assistant' })
-            }
-        }
-
-        const finish = async () => {
-            if (!(await emitStructuredContent())) {
-                return
-            }
-            await emitRemainingText()
-            finished = true
-            req.onFinished(lastStopReason === 'max_tokens' ? 'max_tokens' : 'stop')
-        }
-
-        try {
-            const outputConfig = getOutputConfig(req.structuredOutput)
-            const thinkingRequest = getThinkingRequest(this.providerConfig)
-            await fetchSSE(url, {
-                method: 'POST',
-                headers: getHeaders(this.providerConfig),
-                body: JSON.stringify({
-                    model: this.providerConfig.model,
-                    ['max_tokens']: thinkingRequest.maxTokens,
-                    ...(req.rolePrompt ? { system: req.rolePrompt } : {}),
-                    messages: [{ role: 'user', content: req.commandPrompt }],
-                    ...(thinkingRequest.thinking ? { thinking: thinkingRequest.thinking } : {}),
-                    ...(outputConfig || thinkingRequest.outputEffort
-                        ? {
-                              output_config: {
-                                  ...outputConfig,
-                                  ...(thinkingRequest.outputEffort ? { effort: thinkingRequest.outputEffort } : {}),
-                              },
-                          }
-                        : {}),
-                    stream: true,
-                }),
-                signal: req.signal,
-                onMessage: async (message) => {
-                    if (finished) return
-                    const resp = JSON.parse(message)
-                    const type = resp?.type
-                    const stopReason = resp?.delta?.stop_reason ?? resp?.message?.stop_reason ?? resp?.stop_reason
-                    if (stopReason) {
-                        lastStopReason = stopReason
+                if (type === 'content_block_delta' && resp?.delta?.type === 'text_delta') {
+                    const text = resp?.delta?.text
+                    if (text) {
+                        await session.text(text)
                     }
-                    if (stopReason === 'refusal') {
-                        hasError = true
-                        finished = true
-                        req.onError(getRefusalMessage(resp))
-                        req.onFinished('error')
-                        return
-                    }
-
-                    if (type === 'content_block_delta' && resp?.delta?.type === 'text_delta') {
-                        const text = resp?.delta?.text
-                        if (text) {
-                            if (req.structuredOutput) {
-                                structuredContent += thinkingFilter.push(text)
-                                return
-                            }
-                            await emitText(text)
-                        }
-                        return
-                    }
-                    if (
-                        type === 'content_block_delta' &&
-                        (resp?.delta?.type === 'thinking_delta' || resp?.delta?.type === 'signature_delta')
-                    ) {
-                        return
-                    }
-                    if (
-                        (type === 'content_block_start' || type === 'content_block_stop') &&
-                        resp?.content_block?.type === 'thinking'
-                    ) {
-                        return
-                    }
-                    if (type === 'message_stop') {
-                        await finish()
-                        return
-                    }
-                    if (type === 'error') {
-                        hasError = true
-                        finished = true
-                        req.onError(getErrorMessage(resp))
-                        req.onFinished('error')
-                    }
-                },
-                onError: (error) => {
-                    hasError = true
-                    req.onError(getErrorMessage(error))
-                },
-                onStatusCode: req.onStatusCode,
-            })
-        } catch (error) {
-            if (isAbort(req, error)) {
-                finished = true
-                req.onFinished('aborted')
-                return
-            }
-            hasError = true
-            req.onError(getErrorMessage(error))
-        }
-
-        if (finished) {
-            return
-        }
-        if (hasError) {
-            req.onFinished('error')
-            return
-        }
-        // Some compatible endpoints close the stream without message_stop.
-        await finish()
+                    return
+                }
+                // thinking_delta, signature_delta, thinking block boundaries, ping and unknown
+                // events carry no translation text.
+                if (type === 'message_stop') {
+                    await session.complete(lastStopReason === 'max_tokens' ? 'max_tokens' : 'stop')
+                }
+            },
+            onResponse: async (data) => {
+                const resp = data as {
+                    type?: unknown
+                    error?: unknown
+                    content?: unknown
+                    stop_reason?: unknown
+                    stop_details?: unknown
+                }
+                if (resp?.type === 'error' || resp?.error) {
+                    session.failWith(resp)
+                    return
+                }
+                if (!Array.isArray(resp?.content)) {
+                    session.fail('The response does not contain Anthropic message content.')
+                    return
+                }
+                if (resp.stop_reason === 'refusal') {
+                    session.fail(getRefusalMessage({ message: resp }))
+                    return
+                }
+                const text = (resp.content as Array<{ type?: unknown; text?: unknown }>)
+                    .filter((block) => block?.type === 'text' && typeof block.text === 'string')
+                    .map((block) => block.text)
+                    .join('')
+                await session.completeResponse(text, resp.stop_reason === 'max_tokens' ? 'max_tokens' : 'stop')
+            },
+            // Some compatible endpoints close the stream without message_stop.
+            onEnd: () => session.complete(lastStopReason === 'max_tokens' ? 'max_tokens' : 'stop'),
+        })
     }
 }

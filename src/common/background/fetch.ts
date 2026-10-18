@@ -11,6 +11,7 @@ export interface BackgroundFetchResponseMessage
     extends Pick<Response, 'ok' | 'status' | 'statusText' | 'redirected' | 'type' | 'url'> {
     error?: { message: string; name: string }
     status: number
+    headers?: [string, string][]
     data?: number[]
 }
 
@@ -75,6 +76,7 @@ function createResponse(stream: ReadableStream, init: BackgroundFetchResponseMes
     return new Response(stream, {
         status: init.status,
         statusText: init.statusText,
+        headers: init.headers,
     })
 }
 

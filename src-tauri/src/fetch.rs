@@ -29,14 +29,49 @@ pub(crate) struct StreamChunk {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct StreamStatusCode {
     id: String,
     status: u16,
+    content_type: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct AbortEventPayload {
     id: String,
+}
+
+const INVALID_UTF8_ERROR: &str = "failed to decode response body: invalid UTF-8";
+
+/// Decodes a byte stream as UTF-8, keeping a character split across chunks until its
+/// remaining bytes arrive.
+#[derive(Default)]
+struct Utf8StreamDecoder {
+    pending: Vec<u8>,
+}
+
+impl Utf8StreamDecoder {
+    fn push(&mut self, chunk: &[u8]) -> Result<String, String> {
+        self.pending.extend_from_slice(chunk);
+        let valid_len = match std::str::from_utf8(&self.pending) {
+            Ok(_) => self.pending.len(),
+            // An incomplete sequence at the end may still be completed by the next chunk.
+            Err(err) if err.error_len().is_none() => err.valid_up_to(),
+            Err(_) => return Err(INVALID_UTF8_ERROR.to_string()),
+        };
+        let rest = self.pending.split_off(valid_len);
+        let text = String::from_utf8(std::mem::replace(&mut self.pending, rest))
+            .map_err(|_| INVALID_UTF8_ERROR.to_string())?;
+        Ok(text)
+    }
+
+    fn finish(&self) -> Result<(), String> {
+        if self.pending.is_empty() {
+            Ok(())
+        } else {
+            Err(INVALID_UTF8_ERROR.to_string())
+        }
+    }
 }
 
 #[tauri::command]
@@ -103,6 +138,11 @@ pub async fn fetch_stream(id: String, url: String, options_str: String) -> Resul
         .map_err(|err| format!("failed to call API: {}", err))?;
 
     let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string);
 
     let app_handle = APP_HANDLE.get().unwrap();
     app_handle
@@ -111,6 +151,7 @@ pub async fn fetch_stream(id: String, url: String, options_str: String) -> Resul
             StreamStatusCode {
                 id: id.clone(),
                 status: status.as_u16(),
+                content_type,
             },
         )
         .unwrap();
@@ -130,24 +171,32 @@ pub async fn fetch_stream(id: String, url: String, options_str: String) -> Resul
     });
 
     let mut stream = Abortable::new(stream, abort_registration);
+    let mut decoder = Utf8StreamDecoder::default();
 
-    while let Some(item) = stream.next().await {
-        // debug_println!("chunk item: {:#?}", item);
-        let chunk = item.map_err(|err| format!("failed to read response chunk: {}", err))?;
-        let chunk_str = String::from_utf8_lossy(&chunk);
-        // debug_println!("chunk: {}", chunk_str);
-        app_handle
-            .emit(
-                "fetch-stream-chunk",
-                StreamChunk {
-                    id: id.clone(),
-                    data: chunk_str.to_string(),
-                    done: false,
-                    status: status.as_u16(),
-                },
-            )
-            .unwrap();
+    let result = async {
+        while let Some(item) = stream.next().await {
+            let chunk = item.map_err(|err| format!("failed to read response chunk: {}", err))?;
+            let data = decoder.push(&chunk)?;
+            if data.is_empty() {
+                continue;
+            }
+            app_handle
+                .emit(
+                    "fetch-stream-chunk",
+                    StreamChunk {
+                        id: id.clone(),
+                        data,
+                        done: false,
+                        status: status.as_u16(),
+                    },
+                )
+                .unwrap();
+        }
+        decoder.finish()
     }
+    .await;
+    app_handle.unlisten(listen_id);
+    result?;
 
     debug_println!("chunk done!");
     app_handle
@@ -162,7 +211,49 @@ pub async fn fetch_stream(id: String, url: String, options_str: String) -> Resul
         )
         .unwrap();
 
-    app_handle.unlisten(listen_id);
-
     Ok("".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Utf8StreamDecoder;
+
+    #[test]
+    fn joins_characters_split_across_chunks() {
+        let text = "你好😀";
+        let bytes = text.as_bytes();
+        for split in 0..=bytes.len() {
+            let mut decoder = Utf8StreamDecoder::default();
+            let mut decoded = decoder.push(&bytes[..split]).unwrap();
+            decoded.push_str(&decoder.push(&bytes[split..]).unwrap());
+            decoder.finish().unwrap();
+            assert_eq!(decoded, text);
+        }
+    }
+
+    #[test]
+    fn decodes_one_byte_at_a_time() {
+        let text = "{\"translatedText\":\"中文😀\"}";
+        let mut decoder = Utf8StreamDecoder::default();
+        let decoded: String = text
+            .as_bytes()
+            .iter()
+            .map(|byte| decoder.push(&[*byte]).unwrap())
+            .collect();
+        decoder.finish().unwrap();
+        assert_eq!(decoded, text);
+    }
+
+    #[test]
+    fn rejects_invalid_bytes() {
+        let mut decoder = Utf8StreamDecoder::default();
+        assert!(decoder.push(&[b'a', 0xff, b'b']).is_err());
+    }
+
+    #[test]
+    fn rejects_a_truncated_character_at_the_end() {
+        let mut decoder = Utf8StreamDecoder::default();
+        assert_eq!(decoder.push(&"你".as_bytes()[..2]).unwrap(), "");
+        assert!(decoder.finish().is_err());
+    }
 }

@@ -1,8 +1,13 @@
 import { ProviderConfig, ThinkingControl } from '../../types'
 import { normalizeAPIEndpoint, OPENAI_RESPONSES_API_PATH } from '../../openai-api-path'
-import { fetchSSE } from '../../utils'
-import { formatStructuredOutput, IEngine, IMessageRequest, IModel, StructuredOutputRequest } from '../interfaces'
-import { ThinkingFilter } from '../thinking-filter'
+import {
+    EngineSession,
+    IEngine,
+    IMessageRequest,
+    IModel,
+    sendProtocolRequest,
+    StructuredOutputRequest,
+} from '../interfaces'
 import { getReasoningEffort, listModels as listOpenAIModels } from './openai-chat'
 
 const DEFAULT_ENDPOINT = 'https://api.openai.com/v1'
@@ -34,10 +39,6 @@ function getErrorMessage(error: unknown): string {
     return 'Unknown error'
 }
 
-function isAbort(req: IMessageRequest, error: unknown): boolean {
-    return req.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')
-}
-
 function getTextFormat(structuredOutput: StructuredOutputRequest | undefined) {
     if (!structuredOutput) {
         return undefined
@@ -53,22 +54,36 @@ function getTextFormat(structuredOutput: StructuredOutputRequest | undefined) {
     }
 }
 
-function getCompletedRefusal(resp: unknown): string | null {
-    const data = resp as {
-        response?: {
-            output?: Array<{
-                content?: Array<{ type?: string; refusal?: unknown; text?: unknown }>
-            }>
-        }
-    }
-    for (const output of data.response?.output ?? []) {
-        for (const content of output.content ?? []) {
-            if (content.type === 'refusal' && typeof content.refusal === 'string') {
-                return content.refusal
-            }
+interface ResponsesOutputItem {
+    type?: unknown
+    content?: Array<{ type?: unknown; refusal?: unknown; text?: unknown }>
+}
+
+function getOutputContents(output: unknown) {
+    return (Array.isArray(output) ? (output as ResponsesOutputItem[]) : []).flatMap((item) =>
+        Array.isArray(item?.content) ? item.content : []
+    )
+}
+
+// Refusal text from a completed response, or null when the model did not refuse.
+function getCompletedRefusal(response: unknown): string | null {
+    const output = (response as { output?: unknown } | undefined)?.output
+    for (const content of getOutputContents(output)) {
+        if (content?.type === 'refusal') {
+            return typeof content.refusal === 'string' ? content.refusal : ''
         }
     }
     return null
+}
+
+// Only `output_text` parts of message items are translation text.
+function getOutputText(output: unknown[]): string {
+    return (output as ResponsesOutputItem[])
+        .filter((item) => item?.type === 'message' && Array.isArray(item.content))
+        .flatMap((item) => item.content ?? [])
+        .filter((content) => content?.type === 'output_text' && typeof content.text === 'string')
+        .map((content) => content.text)
+        .join('')
 }
 
 export async function listModels(providerConfig: ProviderConfig): Promise<string[]> {
@@ -83,151 +98,114 @@ export class OpenAIResponsesEngine implements IEngine {
     }
 
     async sendMessage(req: IMessageRequest): Promise<void> {
-        const url = normalizeAPIEndpoint(this.providerConfig.endpoint, OPENAI_RESPONSES_API_PATH, DEFAULT_ENDPOINT)
-        let finished = false
-        let hasError = false
-        let structuredContent = ''
+        const session = new EngineSession(req, getErrorMessage)
         let refusalContent = ''
-        let structuredContentEmitted = false
-        const thinkingFilter = new ThinkingFilter()
 
-        const emitStructuredContent = async (): Promise<boolean> => {
-            if (!req.structuredOutput || structuredContentEmitted) {
-                return true
-            }
-            structuredContentEmitted = true
-            structuredContent += thinkingFilter.finish()
-            let content: string
-            try {
-                content = formatStructuredOutput(req.structuredOutput.mode, structuredContent)
-            } catch (error) {
-                hasError = true
-                finished = true
-                req.onError(getErrorMessage(error))
-                req.onFinished('error')
-                return false
-            }
-            await req.onMessage({
-                content,
-                role: 'assistant',
-                isFullText: true,
-            })
-            return true
-        }
-
-        const emitText = async (content: string) => {
-            const filtered = thinkingFilter.push(content)
-            if (filtered) {
-                await req.onMessage({ content: filtered, role: 'assistant' })
-            }
-        }
-
-        const emitRemainingText = async () => {
-            if (req.structuredOutput) {
-                return
-            }
-            const content = thinkingFilter.finish()
-            if (content) {
-                await req.onMessage({ content, role: 'assistant' })
-            }
-        }
-
-        const finish = async (reason: string) => {
-            if (!(await emitStructuredContent())) {
-                return
-            }
-            await emitRemainingText()
-            finished = true
-            req.onFinished(reason)
-        }
-
-        try {
-            const textFormat = getTextFormat(req.structuredOutput)
-            const reasoningEffort = getReasoningEffort(this.providerConfig)
-            await fetchSSE(url, {
-                method: 'POST',
-                headers: getHeaders(this.providerConfig),
-                body: JSON.stringify({
-                    model: this.providerConfig.model,
-                    input: req.commandPrompt,
-                    instructions: req.rolePrompt || undefined,
-                    ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
-                    ...(textFormat ? { text: { format: textFormat } } : {}),
-                    // Translations are one-shot; do not keep them in OpenAI's response store.
-                    store: false,
-                    stream: true,
-                }),
-                signal: req.signal,
-                onMessage: async (message) => {
-                    if (finished) return
-                    const resp = JSON.parse(message)
-                    const type = resp?.type
-                    if (type === 'response.refusal.delta') {
-                        refusalContent += typeof resp.delta === 'string' ? resp.delta : ''
+        const textFormat = getTextFormat(req.structuredOutput)
+        const reasoningEffort = getReasoningEffort(this.providerConfig)
+        await sendProtocolRequest(session, {
+            url: normalizeAPIEndpoint(this.providerConfig.endpoint, OPENAI_RESPONSES_API_PATH, DEFAULT_ENDPOINT),
+            headers: getHeaders(this.providerConfig),
+            body: {
+                model: this.providerConfig.model,
+                input: req.commandPrompt,
+                instructions: req.rolePrompt || undefined,
+                ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
+                ...(textFormat ? { text: { format: textFormat } } : {}),
+                // Translations are one-shot; do not keep them in OpenAI's response store.
+                store: false,
+            },
+            onEvent: async (message) => {
+                // Some gateways append [DONE] after the terminal event.
+                if (message.trim() === '[DONE]') {
+                    return
+                }
+                const resp = JSON.parse(message)
+                const type = resp?.type
+                if (
+                    typeof type === 'string' &&
+                    /^response\.(?:output_item|content_part|output_text|refusal|reasoning)/.test(type)
+                ) {
+                    session.markContent()
+                }
+                if (type === 'error' || type === 'response.failed') {
+                    session.streamFailed(resp)
+                    return
+                }
+                if (type === 'response.refusal.delta') {
+                    refusalContent += typeof resp.delta === 'string' ? resp.delta : ''
+                    return
+                }
+                if (type === 'response.output_text.delta') {
+                    const delta = resp?.delta
+                    if (delta) {
+                        await session.text(delta)
+                    }
+                    return
+                }
+                if (type === 'response.completed') {
+                    const refusal = refusalContent || getCompletedRefusal(resp?.response)
+                    if (refusal) {
+                        session.fail(refusal)
                         return
                     }
-
-                    if (type === 'response.output_text.delta') {
-                        const delta = resp?.delta
-                        if (delta) {
-                            if (req.structuredOutput) {
-                                structuredContent += thinkingFilter.push(delta)
-                                return
-                            }
-                            await emitText(delta)
-                        }
-                        return
+                    await session.complete('stop')
+                    return
+                }
+                if (type === 'response.incomplete') {
+                    if (refusalContent) {
+                        session.fail(refusalContent)
+                    } else if (resp?.response?.incomplete_details?.reason === 'max_output_tokens') {
+                        await session.complete('max_tokens')
+                    } else {
+                        session.failWith(resp)
                     }
-                    if (type === 'response.completed') {
-                        const refusal = refusalContent || getCompletedRefusal(resp)
-                        if (refusal) {
-                            hasError = true
-                            finished = true
-                            req.onError(refusal)
-                            req.onFinished('error')
-                            return
-                        }
-                        await finish('stop')
-                        return
-                    }
-                    if (
-                        type === 'response.incomplete' &&
-                        resp?.response?.incomplete_details?.reason === 'max_output_tokens'
-                    ) {
-                        await finish('max_tokens')
-                        return
-                    }
-                    if (type === 'response.failed' || type === 'response.incomplete' || type === 'error') {
-                        hasError = true
-                        finished = true
-                        req.onError(getErrorMessage(resp))
-                        req.onFinished('error')
-                    }
-                },
-                onError: (error) => {
-                    hasError = true
-                    req.onError(getErrorMessage(error))
-                },
-                onStatusCode: req.onStatusCode,
-            })
-        } catch (error) {
-            if (isAbort(req, error)) {
-                finished = true
-                req.onFinished('aborted')
-                return
-            }
-            hasError = true
-            req.onError(getErrorMessage(error))
-        }
-
-        if (finished) {
-            return
-        }
-        if (hasError) {
-            req.onFinished('error')
-            return
-        }
-        // Some compatible endpoints close the stream without a terminal event.
-        await finish('stop')
+                }
+            },
+            onResponse: async (data) => {
+                const resp = data as {
+                    status?: unknown
+                    error?: unknown
+                    incomplete_details?: { reason?: unknown } | null
+                    output?: unknown
+                }
+                if (resp?.error) {
+                    session.failWith(resp)
+                    return
+                }
+                if (!Array.isArray(resp?.output)) {
+                    session.fail('The response does not contain Responses output.')
+                    return
+                }
+                const refusal = getCompletedRefusal(resp)
+                if (refusal !== null) {
+                    session.fail(refusal || 'The model refused to answer.')
+                    return
+                }
+                const text = getOutputText(resp.output)
+                if (resp.status === 'completed') {
+                    await session.completeResponse(text, 'stop')
+                    return
+                }
+                const reason = resp.incomplete_details?.reason
+                if (resp.status === 'incomplete' && reason === 'max_output_tokens') {
+                    await session.completeResponse(text, 'max_tokens')
+                    return
+                }
+                session.fail(
+                    resp.status === 'incomplete' && typeof reason === 'string'
+                        ? `The response is incomplete (${reason}).`
+                        : `The response finished with status: ${String(resp.status ?? 'unknown')}.`
+                )
+            },
+            // Some compatible endpoints close the stream without a terminal event.
+            onEnd: async () => {
+                if (refusalContent) {
+                    session.fail(refusalContent)
+                    return
+                }
+                await session.complete('stop')
+            },
+        })
     }
 }

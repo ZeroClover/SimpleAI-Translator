@@ -76,54 +76,75 @@ class Browser implements IBrowser {
 
 export const userscriptBrowser = new Browser()
 
-async function getStreamText(stream: ReadableStream) {
-    const reader = stream.getReader()
-    const { value } = await reader.read()
-    const str = new TextDecoder().decode(value)
-    reader.releaseLock()
-    return str
+function parseResponseHeaders(rawHeaders: string): Headers {
+    const headers = new Headers()
+    for (const line of rawHeaders.split(/\r?\n/)) {
+        const separator = line.indexOf(':')
+        if (separator <= 0) {
+            continue
+        }
+        try {
+            headers.append(line.slice(0, separator).trim(), line.slice(separator + 1).trim())
+        } catch {
+            // Skip header lines the Headers API rejects.
+        }
+    }
+    return headers
 }
 
 export async function userscriptFetch(url: string, { body, headers, method, signal }: RequestInit): Promise<Response> {
     // eslint-disable-next-line camelcase
     const isSupportStreaming = (GM_xmlhttpRequest as any)?.RESPONSE_TYPE_STREAM === 'stream' ? true : false
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(new DOMException('Aborted', 'AbortError'))
+            return
+        }
+        let settled = false
+        const settle = (r: Tampermonkey.Response<any>, responseBody: BodyInit | null) => {
+            if (settled) {
+                return
+            }
+            settled = true
+            try {
+                resolve(
+                    new Response(responseBody, {
+                        status: r.status,
+                        statusText: r.statusText,
+                        headers: parseResponseHeaders(r.responseHeaders ?? ''),
+                    })
+                )
+            } catch (error) {
+                reject(error)
+            }
+        }
+        const fail = (error: Error) => {
+            if (!settled) {
+                settled = true
+                reject(error)
+            }
+        }
         const handle = GM_xmlhttpRequest({
             url,
             data: body as string,
             headers: headers as any,
             method: method as any,
             responseType: (isSupportStreaming ? 'stream' : 'text') as any,
-            onreadystatechange: async (r) => {
-                Object.assign(r, { status: r.status })
+            onreadystatechange: (r) => {
                 if (isSupportStreaming) {
                     if (r.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
-                        resolve({
-                            ...r,
-                            body: r.response,
-                            json: async () => JSON.parse(await getStreamText(r.response)),
-                            text: async () => await getStreamText(r.response),
-                        } as any as Response)
+                        settle(r, r.response as ReadableStream<Uint8Array>)
                     }
-                } else {
-                    if (r.readyState === XMLHttpRequest.DONE) {
-                        resolve({
-                            ...r,
-                            body: new ReadableStream({
-                                start(controller) {
-                                    const str = new TextEncoder().encode(r.response)
-                                    controller.enqueue(str)
-                                },
-                            }),
-                            text: () => r.response,
-                            json: () => JSON.parse(r.response),
-                        } as any as Response)
-                    }
+                } else if (r.readyState === XMLHttpRequest.DONE) {
+                    settle(r, r.responseText ?? r.response)
                 }
             },
+            onerror: () => fail(new Error('The userscript request failed.')),
+            onabort: () => fail(new DOMException('Aborted', 'AbortError')),
         })
         signal?.addEventListener('abort', () => {
             handle.abort()
+            fail(new DOMException('Aborted', 'AbortError'))
         })
     })
 }

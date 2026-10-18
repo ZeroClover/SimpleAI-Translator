@@ -11,7 +11,6 @@ import {
 import { getUniversalFetch } from './universal-fetch'
 import { v4 as uuidv4 } from 'uuid'
 import { listen, Event, emit } from '@tauri-apps/api/event'
-import { parse as bestEffortJSONParse } from 'best-effort-json-parser'
 import { commands } from '@/tauri/bindings'
 import toast from 'react-hot-toast'
 
@@ -523,67 +522,86 @@ export async function exportToCsv<T extends Record<string, string | number>>(fil
 
 interface FetchSSEOptions extends RequestInit {
     onMessage(data: string): Promise<void>
+    // Receives the complete error body of a non-200 response, parsed as JSON when possible.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError(error: any): void
     onStatusCode?: (statusCode: number) => void
+    // When set, a successful response with a JSON media type is read whole and passed here
+    // instead of being parsed as SSE.
+    onJSONResponse?: (data: unknown) => Promise<void>
     fetcher?: (input: string, options: RequestInit) => Promise<Response>
-    usePartialArrayJSONParser?: boolean
-    isJSONStream?: boolean
+}
+
+function isJSONMediaType(contentType: string | null | undefined): boolean {
+    const mediaType = contentType?.split(';')[0].trim()
+    return !!mediaType && /^application\/(?:[^\s/]+\+)?json$/i.test(mediaType)
+}
+
+function createUTF8Decoder() {
+    const decoder = new TextDecoder('utf-8', { fatal: true })
+    return (chunk?: Uint8Array) => {
+        try {
+            return chunk ? decoder.decode(chunk, { stream: true }) : decoder.decode()
+        } catch {
+            throw new Error('The response body is not valid UTF-8.')
+        }
+    }
+}
+
+// Consumes one decoded response body. SSE events are delivered one at a time: each push
+// resolves only after every event it completed has been handled.
+function createResponseConsumer(
+    status: number,
+    contentType: string | null | undefined,
+    { onMessage, onError, onJSONResponse }: Pick<FetchSSEOptions, 'onMessage' | 'onError' | 'onJSONResponse'>
+) {
+    const mode = status !== 200 ? 'error' : onJSONResponse && isJSONMediaType(contentType) ? 'json' : 'sse'
+    const events: string[] = []
+    const sseParser = createParser((event) => {
+        if (event.type === 'event') {
+            events.push(event.data)
+        }
+    })
+    let body = ''
+    return {
+        async push(text: string) {
+            if (mode !== 'sse') {
+                body += text
+                return
+            }
+            sseParser.feed(text)
+            for (const data of events.splice(0)) {
+                await onMessage(data)
+            }
+        },
+        async end() {
+            if (mode === 'error') {
+                // An empty body leaves the engine's "Unknown error" fallback to report.
+                let error: unknown = body.trim() || undefined
+                try {
+                    error = JSON.parse(body)
+                } catch {
+                    // Not a JSON error body; report the text.
+                }
+                onError(error)
+                return
+            }
+            if (mode === 'json' && onJSONResponse) {
+                let data: unknown
+                try {
+                    data = JSON.parse(body)
+                } catch {
+                    throw new Error('The response is not valid JSON.')
+                }
+                await onJSONResponse(data)
+            }
+        },
+    }
 }
 
 export async function fetchSSE(input: string, options: FetchSSEOptions) {
-    const {
-        onMessage,
-        onError,
-        onStatusCode,
-        usePartialArrayJSONParser = false,
-        isJSONStream = false,
-        fetcher = getUniversalFetch(),
-        ...fetchOptions
-    } = options
-
-    let prevArrayJSONPartial = ''
-    let prevArrayJSONPartialIndex = 0
-    const partialArrayJSONParser = async ({ value, done }: { value: string; done: boolean }) => {
-        if (done && !value) {
-            return
-        }
-
-        try {
-            const parsedResponse = bestEffortJSONParse(prevArrayJSONPartial + value)
-            prevArrayJSONPartial += value
-            parsedResponse.slice(prevArrayJSONPartialIndex).forEach((data: string) => {
-                onMessage(JSON.stringify(data))
-            })
-            prevArrayJSONPartialIndex = parsedResponse.length
-        } catch (e) {
-            console.error('streaming json parser error', e)
-            console.error('streaming json parser value', value)
-            return
-        }
-    }
-
-    let prevJSONPartial = ''
-    const partialJSONParser = async ({ value, done }: { value: string; done: boolean }) => {
-        if (done && !value) {
-            return
-        }
-
-        try {
-            const parsedResponse = JSON.parse(prevJSONPartial + value)
-            prevJSONPartial = ''
-            onMessage(JSON.stringify(parsedResponse))
-        } catch (e) {
-            prevJSONPartial += value
-            return
-        }
-    }
-
-    const sseParser = createParser(async (event) => {
-        if (event.type === 'event') {
-            await onMessage(event.data)
-        }
-    })
+    const { onMessage, onError, onStatusCode, onJSONResponse, fetcher = getUniversalFetch(), ...fetchOptions } = options
+    const handlers = { onMessage, onError, onJSONResponse }
 
     if (isTauri()) {
         const id = uuidv4()
@@ -601,56 +619,83 @@ export async function fetchSSE(input: string, options: FetchSSEOptions) {
                 unlistens.push(unlisten)
             }
         }
-        let rejectAbort: (error: DOMException) => void = () => {}
-        const aborted = new Promise<never>((_resolve, reject) => {
-            rejectAbort = reject
+        let rejectRun: (error: unknown) => void = () => {}
+        const interrupted = new Promise<never>((_resolve, reject) => {
+            rejectRun = reject
         })
         const handleAbort = () => {
-            rejectAbort(abortError())
+            rejectRun(abortError())
             void emit('abort-fetch-stream', { id }).catch(() => {})
         }
         signal?.addEventListener('abort', handleAbort, { once: true })
+        let consumer: ReturnType<typeof createResponseConsumer> | undefined
+        const getConsumer = (status: number, contentType?: string | null) => {
+            consumer ??= createResponseConsumer(status, contentType, handlers)
+            return consumer
+        }
+        // Native events arrive without waiting for the consumer, so they are queued and
+        // handled in order. A failed consumer stops the request.
+        let queue = Promise.resolve()
+        let failed = false
+        const enqueue = (task: () => Promise<void>) => {
+            queue = queue
+                .then(async () => {
+                    if (!failed && !cleanedUp && !signal?.aborted) {
+                        await task()
+                    }
+                })
+                .catch((error) => {
+                    failed = true
+                    rejectRun(error)
+                    void emit('abort-fetch-stream', { id }).catch(() => {})
+                })
+        }
+        let resolveEnd: () => void = () => {}
+        const ended = new Promise<void>((resolve) => {
+            resolveEnd = resolve
+        })
+        const isCurrent = (eventId: string) => !cleanedUp && !signal?.aborted && eventId === id
         const run = async () => {
             await Promise.all([
-                listen('fetch-stream-status-code', (event: Event<{ id: string; status: number }>) => {
-                    if (!cleanedUp && !signal?.aborted && event.payload.id === id) {
-                        onStatusCode?.(event.payload.status)
+                listen(
+                    'fetch-stream-status-code',
+                    (event: Event<{ id: string; status: number; contentType?: string | null }>) => {
+                        if (isCurrent(event.payload.id)) {
+                            getConsumer(event.payload.status, event.payload.contentType)
+                            onStatusCode?.(event.payload.status)
+                        }
                     }
-                }).then(track),
+                ).then(track),
                 listen(
                     'fetch-stream-chunk',
                     (event: Event<{ id: string; data: string; done: boolean; status: number }>) => {
                         const payload = event.payload
-                        if (cleanedUp || signal?.aborted || payload.id !== id || payload.done) {
+                        if (!isCurrent(payload.id)) {
                             return
                         }
-                        if (payload.status !== 200) {
-                            try {
-                                onError(JSON.parse(payload.data))
-                            } catch {
-                                onError(payload.data)
-                            }
-                            return
-                        }
-                        if (isJSONStream) {
-                            void partialJSONParser({ value: payload.data, done: payload.done })
-                        } else if (usePartialArrayJSONParser) {
-                            void partialArrayJSONParser({ value: payload.data, done: payload.done })
+                        if (payload.done) {
+                            enqueue(async () => {
+                                await getConsumer(payload.status).end()
+                                resolveEnd()
+                            })
                         } else {
-                            sseParser.feed(payload.data)
+                            enqueue(() => getConsumer(payload.status).push(payload.data))
                         }
                     }
                 ).then(track),
             ])
-            if (!cleanedUp && !signal?.aborted) {
-                const result = await commands.fetchStream(id, input, JSON.stringify(fetchOptions))
-                if (result.status === 'error') {
-                    throw new Error(result.error)
-                }
+            if (cleanedUp || signal?.aborted) {
+                return
             }
+            const result = await commands.fetchStream(id, input, JSON.stringify(fetchOptions))
+            if (result.status === 'error') {
+                throw new Error(result.error)
+            }
+            // The command returns after emitting the final chunk; wait until it is consumed.
+            await ended
         }
         try {
-            await Promise.race([run(), aborted])
+            await Promise.race([run(), interrupted])
         } finally {
             cleanedUp = true
             signal?.removeEventListener('abort', handleAbort)
@@ -661,33 +706,28 @@ export async function fetchSSE(input: string, options: FetchSSEOptions) {
 
     const resp = await fetcher(input, fetchOptions)
     onStatusCode?.(resp.status)
-    if (resp.status !== 200) {
-        onError(await resp.json())
-        return
-    }
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const reader = resp.body!.getReader()
-    try {
-        // eslint-disable-next-line no-constant-condition
-        while (true) {
-            const { done, value } = await reader.read()
-            if (done) {
-                break
-            }
-            const str = new TextDecoder().decode(value)
-            if (isJSONStream) {
-                partialJSONParser({ value: str, done })
-            } else {
-                if (usePartialArrayJSONParser) {
-                    partialArrayJSONParser({ value: str, done })
-                } else {
-                    sseParser.feed(str)
+    const consumer = createResponseConsumer(resp.status, resp.headers.get('content-type'), handlers)
+    const reader = resp.body?.getReader()
+    if (reader) {
+        const decode = createUTF8Decoder()
+        try {
+            // eslint-disable-next-line no-constant-condition
+            while (true) {
+                const { done, value } = await reader.read()
+                if (done) {
+                    break
                 }
+                await consumer.push(decode(value))
             }
+            await consumer.push(decode())
+        } catch (error) {
+            await reader.cancel().catch(() => {})
+            throw error
+        } finally {
+            reader.releaseLock()
         }
-    } finally {
-        reader.releaseLock()
     }
+    await consumer.end()
 }
 
 export function getAssetUrl(asset: string) {

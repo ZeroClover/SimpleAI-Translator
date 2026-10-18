@@ -42,7 +42,7 @@ import { TranslationHistory } from './TranslationHistory'
 import { IoIosRocket } from 'react-icons/io'
 import debounce from 'lodash.debounce'
 import { GlobalSuspense } from './GlobalSuspense'
-import LogoWithText, { type LogoWithTextRef } from './LogoWithText'
+import LogoWithText from './LogoWithText'
 import Toaster from './Toaster'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useDeepCompareCallback, useDeepCompareEffect } from 'use-deep-compare'
@@ -153,12 +153,6 @@ const useStyles = createUseStyles({
         alignItems: 'center',
         gap: '4px',
     }),
-    'brand': {
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: '3px',
-    },
     'popupCardHeaderContainer': (props: IThemedStyleProps) =>
         props.isTauri
             ? {
@@ -205,44 +199,6 @@ const useStyles = createUseStyles({
         '-webkit-user-select': 'text',
         'user-select': 'text',
     },
-    'popupCardHeaderButtonGroup': (props: IThemedStyleProps) => ({
-        'display': 'flex',
-        'flexDirection': 'row',
-        'alignItems': 'center',
-        'gap': '4px',
-        'marginLeft': '10px',
-        '@media screen and (max-width: 460px)': {
-            marginLeft: props.isTauri ? '5px' : undefined,
-        },
-    }),
-    'popupCardHeaderMoreActionsContainer': () => ({
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginLeft: 5,
-    }),
-    'popupCardHeaderMoreActionsBtn': (props: IThemedStyleProps) => ({
-        'cursor': 'pointer',
-        'display': 'flex',
-        'alignItems': 'center',
-        'justifyContent': 'center',
-        'padding': '5px',
-        'borderRadius': '8px',
-        'transition': 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-        '& *': {
-            fill: props.theme.colors.contentPrimary,
-            color: props.theme.colors.contentPrimary,
-            stroke: props.theme.colors.contentPrimary,
-            transition: 'all 0.2s ease',
-        },
-        '&:hover': {
-            background: props.themeType === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
-            transform: 'scale(1.05)',
-        },
-        '&:active': {
-            transform: 'scale(0.95)',
-        },
-    }),
     'popupCardHeaderActionsContainer': (props: IThemedStyleProps) => ({
         'box-sizing': 'border-box',
         'display': 'flex',
@@ -289,13 +245,6 @@ const useStyles = createUseStyles({
     'popupCardContentContainer': {
         display: 'flex',
         flexDirection: 'column',
-    },
-    'loadingContainer': {
-        margin: '0 auto',
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: '10px',
     },
     'popupCardEditorContainer': {
         display: 'flex',
@@ -497,16 +446,6 @@ const useStyles = createUseStyles({
             },
         }
     },
-    'actionButtonDisabled': (props: IThemedStyleProps) => ({
-        color: props.theme.colors.buttonDisabledText,
-        cursor: 'default',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '6px',
-        borderRadius: '8px',
-        opacity: 0.4,
-    }),
     'enterHint': (props: IThemedStyleProps) => ({
         color: props.theme.colors.contentTertiary,
         fontSize: '11px',
@@ -526,27 +465,6 @@ const useStyles = createUseStyles({
             marginBottom: '-3px',
         },
     },
-    'dropZone': (props: IThemedStyleProps) => ({
-        'display': 'flex',
-        'flexDirection': 'column',
-        'alignItems': 'center',
-        'justifyContent': 'center',
-        'padding-left': '3px',
-        'padding-right': '3px',
-        'borderRadius': '12px',
-        'cursor': 'pointer',
-        'transition': 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-        '-ms-user-select': 'none',
-        '-webkit-user-select': 'none',
-        'user-select': 'none',
-        'border': `1.5px dashed ${props.themeType === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)'}`,
-        'background': props.themeType === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-        'color': props.theme.colors.contentSecondary,
-        '&:hover': {
-            background: props.themeType === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-            borderColor: props.themeType === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
-        },
-    }),
     'flexPlaceHolder': {
         marginRight: 'auto',
     },
@@ -587,11 +505,6 @@ const useStyles = createUseStyles({
 const translateActionStrItem = {
     beforeStr: 'Translating...',
     afterStr: 'Translated',
-}
-
-export interface MovementXY {
-    x: number
-    y: number
 }
 
 export interface IInnerTranslatorProps {
@@ -744,10 +657,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
 
     const headerRef = useRef<HTMLDivElement>(null)
 
-    const logoWithTextRef = useRef<LogoWithTextRef>(null)
-
-    const languagesSelectorRef = useRef<HTMLDivElement>(null)
-
     const containerRef = useRef<HTMLDivElement>(null)
     const editorContainerRef = useRef<HTMLDivElement>(null)
     const translatedContainerRef = useRef<HTMLDivElement>(null)
@@ -828,6 +737,12 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         },
         [updateSettings]
     )
+
+    // The content script cannot host the settings form, so it opens the extension options page.
+    const openExtensionOptions = useCallback(async () => {
+        const browser = (await import('webextension-polyfill')).default
+        await browser.runtime.sendMessage({ type: 'openOptionsPage' })
+    }, [])
 
     const toggleRenderMarkdown = useCallback(() => {
         void updateSettings({ renderMarkdown: !settings.renderMarkdown })
@@ -1116,7 +1031,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     detectTo: targetLang,
                     providerId,
                     model,
-                    onStatusCode: () => {},
                     onMessage: async (message) => {
                         if (!isCurrentTranslation() || signal.aborted) {
                             return
@@ -1271,7 +1185,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         setActionStr('Stopped')
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const handleInsertTranslatedText = useCallback(async () => {
         if (!translatedText || !isTauri()) {
             return
@@ -1414,12 +1327,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             background: settings.enableBackgroundBlur ? 'transparent' : '',
                         }}
                     >
-                        {showLogo ? (
-                            <LogoWithText ref={logoWithTextRef} />
-                        ) : (
-                            <div style={{ flexShrink: 0, marginRight: 'auto' }} />
-                        )}
-                        <div className={styles.popupCardHeaderActionsContainer} ref={languagesSelectorRef}>
+                        {showLogo ? <LogoWithText /> : <div style={{ flexShrink: 0, marginRight: 'auto' }} />}
+                        <div className={styles.popupCardHeaderActionsContainer}>
                             <div className={styles.from}>
                                 <Select
                                     size='mini'
@@ -1608,10 +1517,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                         event.stopPropagation()
                                         event.preventDefault()
                                         if (isBrowserExtensionContentScript()) {
-                                            const browser = (await import('webextension-polyfill')).default
-                                            await browser.runtime.sendMessage({
-                                                type: 'openOptionsPage',
-                                            })
+                                            await openExtensionOptions()
                                             return
                                         }
                                         setShowSettings(true)
@@ -1964,10 +1870,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                 e.stopPropagation()
                                 e.preventDefault()
                                 if (isBrowserExtensionContentScript()) {
-                                    const browser = (await import('webextension-polyfill')).default
-                                    await browser.runtime.sendMessage({
-                                        type: 'openOptionsPage',
-                                    })
+                                    await openExtensionOptions()
                                 } else {
                                     toggleSettingsVisibility()
                                 }

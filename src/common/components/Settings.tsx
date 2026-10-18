@@ -270,8 +270,6 @@ function toOpenAITTSVoice(value: string): OpenAITTSSettings['voice'] {
 }
 
 function TTSVoicesSettings({ value, providers, onChange, onBlur }: ITTSVoicesSettingsProps) {
-    console.debug('render tts voices settings')
-
     const { t } = useTranslation()
     const { theme, themeType } = useTheme()
 
@@ -935,43 +933,6 @@ function SettingsToggle({ value, onChange, onBlur, disabled, label, caption }: S
             </Checkbox>
             {caption && <div style={{ color: theme.colors.contentSecondary, fontSize: '0.85em' }}>{caption}</div>}
         </div>
-    )
-}
-
-interface RestorePreviousPositionCheckboxProps {
-    value?: boolean
-    onChange?: (value: boolean) => void
-    onBlur?: () => void
-}
-
-function RestorePreviousPositionCheckbox({ value, onChange, onBlur }: RestorePreviousPositionCheckboxProps) {
-    return (
-        <Checkbox
-            checkmarkType='toggle_round'
-            checked={value}
-            onChange={(e) => {
-                onChange?.(e.target.checked)
-                onBlur?.()
-            }}
-        />
-    )
-}
-interface RunAtStartupCheckboxProps {
-    value?: boolean
-    onChange?: (value: boolean) => void
-    onBlur?: () => void
-}
-
-function RunAtStartupCheckbox({ value, onChange, onBlur }: RunAtStartupCheckboxProps) {
-    return (
-        <Checkbox
-            checkmarkType='toggle_round'
-            checked={value}
-            onChange={(e) => {
-                onChange?.(e.target.checked)
-                onBlur?.()
-            }}
-        />
     )
 }
 
@@ -1789,8 +1750,6 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
         },
     }
 
-    console.debug('render settings')
-
     return (
         <div
             ref={scrollContainerRef}
@@ -2013,11 +1972,11 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                             name='restorePreviousPosition'
                             label={t('Fixed Position')}
                         >
-                            <RestorePreviousPositionCheckbox onBlur={onBlur} />
+                            <MyCheckbox onBlur={onBlur} />
                         </FormItem>
                         {isTauri && (
                             <FormItem name='runAtStartup' label={t('Run at startup')}>
-                                <RunAtStartupCheckbox onBlur={onBlur} />
+                                <MyCheckbox onBlur={onBlur} />
                             </FormItem>
                         )}
                         <FormItem

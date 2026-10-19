@@ -223,7 +223,7 @@ Linux 托盘 SHALL 提供可用的 Quit 菜单项，通过应用菜单事件退�
 
 ### Requirement: i18n locale 文件结构对齐
 
-界面语言 SHALL 为以下 6 种 locale:`en`、`zh-Hans`、`zh-Hant`、`ja`、`th`、`tr`,每种对应 `src/common/i18n/locales/<lang>/translation.json`,设置页 i18n 选择框 SHALL 只提供这 6 项。`en` SHALL 作为 `fallbackLng`;所有 6 种 locale 的 key 集合 SHALL 完全相同,新增或删除 key 时 SHALL 同步修改全部 locale。该约束由 `src/common/i18n/locales.spec.ts` 测试守护。
+界面语言 SHALL 为以下 6 种 locale:`en`、`zh-Hans`、`zh-Hant`、`ja`、`th`、`tr`,每种对应 `src/common/i18n/locales/<lang>/translation.json`,设置页 i18n 选择框 SHALL 只提供这 6 项。`en` SHALL 作为 `fallbackLng`;所有 6 种 locale 的 key 集合 SHALL 完全相同,新增或删除 key 时 SHALL 同步修改全部 locale。
 
 所有 locale SHALL NOT 包含以下已移除功能的 key:
 

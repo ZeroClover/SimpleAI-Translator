@@ -13,7 +13,7 @@ The implementation SHALL update action usage where current versions changed inpu
 #### Scenario: Workflow action baseline is documented
 - **WHEN** workflow action refs are updated
 - **THEN** the repository SHALL contain a checked action-version baseline that lists the old ref, selected ref, and any usage change for each updated action
-- **AND** that baseline SHALL include release, test-build, lint, unit-test, and Playwright workflows
+- **AND** that baseline SHALL cover the workflows currently present in the repository, including release, test-build, lint, and Playwright workflows
 
 #### Scenario: Moving and deprecated refs are removed
 - **WHEN** `.github/workflows/` is inspected

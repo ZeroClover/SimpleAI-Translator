@@ -2,7 +2,9 @@
 
 ## Purpose
 定义 SimpleAI Translator 在桌面端、浏览器扩展与运行时代码中的产品身份:Bundle 标识、窗口与页面标题、manifest 可见字段、DOM/IPC 命名空间,以及不继承旧 NextAI / OpenAI Translator 身份与数据的约束。
+
 ## Requirements
+
 ### Requirement: 桌面端 Bundle 标识
 
 桌面端(Tauri)应用 SHALL 使用以下身份字段:
@@ -65,8 +67,8 @@ Tauri 中面向用户的窗口标题 SHALL 使用 `SimpleAI Translator` 前缀:
 
 以下静态 HTML 入口的 `<title>` 标签 SHALL 使用 SimpleAI Translator 命名:
 - `src/tauri/index.html`:`<title>SimpleAI Translator</title>`
-- `src/browser-extension/options/index.html`:`<title>SimpleAI Translator Options</title>`
-- `src/browser-extension/popup/index.html`:`<title>SimpleAI Translator</title>`
+- `src/entrypoints/options/index.html`:`<title>SimpleAI Translator Options</title>`
+- `src/entrypoints/popup/index.html`:`<title>SimpleAI Translator</title>`
 
 所有 i18n locale 文件中提及产品名的字符串值 SHALL 使用 `SimpleAI Translator`。
 
@@ -89,20 +91,6 @@ Tauri 中面向用户的窗口标题 SHALL 使用 `SimpleAI Translator` 前缀:
 - **THEN** SHALL NOT 命中运行时代码、配置或构建身份字段
 - **AND** 命中 `github.com/nextai-translator/nextai-translator` 仓库 URL、Tauri updater endpoint URL、浏览器插件签名/所有者身份字段时不视为本需求失败
 
-### Requirement: 浏览器插件可见身份字段
-
-浏览器插件 manifest 的可见产品字段 SHALL 使用以下身份:
-- `name`:`SimpleAI Translator`
-- `description`:以"使用兼容 OpenAI / Anthropic 协议的 LLM 翻译"为主旨(当前为 `Translate text with OpenAI-compatible and Anthropic-compatible LLM providers.`),MUST NOT 提及 ChatGPT / NextAI 等过时词
-
-浏览器插件所有者与发布身份(Firefox `browser_specific_settings.gecko.id`、Chrome 扩展 ID、Chrome Web Store 条目、Firefox AMO owner、签名身份)不属于本需求。
-
-#### Scenario: manifest.ts 可见字段
-
-- **WHEN** 检查 `src/browser-extension/manifest.ts`
-- **THEN** `name` SHALL 等于 `"SimpleAI Translator"`
-- **AND** `description` SHALL NOT 包含子串 `ChatGPT` / `NextAI`
-
 ### Requirement: DOM / IPC 命名空间前缀
 
 应用使用的命名空间前缀 SHALL 为 `__zeroclover-simpleai-translator`,旧前缀 `__yetone-nextai-translator` SHALL NOT 出现在任何运行时代码中。
@@ -110,6 +98,8 @@ Tauri 中面向用户的窗口标题 SHALL 使用 `SimpleAI Translator` 前缀:
 具体涉及:
 - `src/common/constants.ts` 的 `PREFIX` 常量
 - `src/browser-extension/content_script/consts.ts` 中的 DOM 元素 id(`containerID`、`popupCardID`、`popupCardInnerContainerId`)
+
+内容脚本卡片的 shadow root 宿主是一个自定义元素。自定义元素名必须以小写字母开头,不能使用带双下划线的前缀,所以宿主元素名 SHALL 为 `zeroclover-simpleai-translator`;宿主内部元素的 DOM id 仍 SHALL 使用上述前缀。
 
 桌面端在非 Windows 平台的 IPC Unix socket 默认路径(`src-tauri/src/main.rs` 的 `DEFAULT_IPC_SOCKET_PATH`)SHALL 为 `/tmp/simpleai-translator.sock`,并 SHALL 允许通过环境变量 `SIMPLEAI_TRANSLATOR_IPC_SOCKET` 覆盖。
 
@@ -122,6 +112,12 @@ Tauri 中面向用户的窗口标题 SHALL 使用 `SimpleAI Translator` 前缀:
 
 - **WHEN** 检查 `src/browser-extension/content_script/consts.ts`
 - **THEN** 其中所有 DOM id 字面量 SHALL 以 `__zeroclover-simpleai-translator` 开头
+
+#### Scenario: 内容脚本宿主元素名
+
+- **WHEN** 在浏览器扩展中打开翻译卡片
+- **THEN** 卡片的 shadow root 宿主元素名 SHALL 为 `zeroclover-simpleai-translator`
+- **AND** 宿主内部的卡片元素 SHALL 使用 `consts.ts` 中以 `__zeroclover-simpleai-translator` 开头的 DOM id
 
 #### Scenario: IPC socket 路径
 
@@ -145,3 +141,17 @@ Tauri 中面向用户的窗口标题 SHALL 使用 `SimpleAI Translator` 前缀:
 - **WHEN** 检查 `src-tauri/src/config.rs`
 - **THEN** 文件 SHALL NOT 包含 `xyz.yetone.apps.openai-translator` 或 `xyz.yetone.apps.nextai-translator` 字符串
 - **AND** 文件 SHALL NOT 包含读取旧目录路径并复制到新目录的逻辑
+
+### Requirement: 浏览器插件 manifest 身份字段
+
+浏览器插件 manifest（由 `wxt.config.ts` 配置并在构建时生成）的可见产品字段 SHALL 使用以下身份:
+- `name`:`SimpleAI Translator`
+- `description`:以"使用兼容 OpenAI / Anthropic 协议的 LLM 翻译"为主旨(当前为 `Translate text with OpenAI-compatible and Anthropic-compatible LLM providers.`),MUST NOT 提及 ChatGPT / NextAI 等过时词
+
+浏览器插件所有者与发布身份(Firefox `browser_specific_settings.gecko.id`、Chrome 扩展 ID、Chrome Web Store 条目、Firefox AMO owner、签名身份)不属于本需求。
+
+#### Scenario: 生成的 manifest 可见字段
+
+- **WHEN** 检查 `wxt.config.ts`，以及 Chromium 与 Firefox 构建生成的 `manifest.json`
+- **THEN** `name` SHALL 等于 `"SimpleAI Translator"`
+- **AND** `description` SHALL NOT 包含子串 `ChatGPT` / `NextAI`

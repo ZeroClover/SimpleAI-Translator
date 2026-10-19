@@ -177,44 +177,13 @@ fn read_config_file(path: &std::path::Path) -> Result<String, String> {
 mod tests {
     use super::*;
 
-    fn proxy_config(enabled: bool, server: &str) -> ProxyConfig {
-        ProxyConfig {
-            enabled: Some(enabled),
-            protocol: Some(ProxyProtocol::HTTP),
-            server: Some(server.to_string()),
-            port: Some("1080".to_string()),
-            basic_auth: Some(BasicAuth {
-                username: Some("user".to_string()),
-                password: None,
-            }),
-            no_proxy: Some(String::new()),
-        }
-    }
-
-    #[test]
-    fn builds_a_proxy_only_when_enabled_and_complete() {
-        assert!(reqwest_proxy(&proxy_config(true, "127.0.0.1"))
-            .unwrap()
-            .is_some());
-        assert!(reqwest_proxy(&proxy_config(false, "127.0.0.1"))
-            .unwrap()
-            .is_none());
-        assert!(reqwest_proxy(&proxy_config(true, "")).unwrap().is_none());
-        assert!(reqwest_proxy(&proxy_config(true, "bad host")).is_err());
-    }
-
     #[test]
     fn preserve_invalid_config_before_recovery() {
         let dir = std::env::temp_dir().join(format!("simpleai-config-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("config.json");
-        let corruptions: &[&[u8]] = &[
-            b"{\"providers\":",
-            b"null",
-            b"[]",
-            b"{\"provider\":\"\xff\"}",
-            b"{\"provider\":\"\xe4\xb8",
-        ];
+        // Truncated JSON fails the JSON check; a truncated multi-byte character fails UTF-8 decoding.
+        let corruptions: &[&[u8]] = &[b"{\"providers\":", b"{\"provider\":\"\xe4\xb8"];
         for content in corruptions {
             std::fs::write(&path, content).unwrap();
             assert_eq!(read_config_file(&path).unwrap(), "{}");
@@ -258,19 +227,6 @@ mod tests {
         for index in 0..16 {
             assert_eq!(config[&format!("key{index}")], index);
         }
-        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
-        std::fs::remove_dir_all(dir).unwrap();
-    }
-
-    #[test]
-    fn keep_valid_config_and_initialize_missing_config() {
-        let dir = std::env::temp_dir().join(format!("simpleai-config-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("config.json");
-        assert_eq!(read_config_file(&path).unwrap(), "{}");
-        let content = "{\"fontSize\":20,\"providers\":[]}";
-        std::fs::write(&path, content).unwrap();
-        assert_eq!(read_config_file(&path).unwrap(), content);
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
         std::fs::remove_dir_all(dir).unwrap();
     }

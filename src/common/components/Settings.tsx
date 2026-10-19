@@ -1303,7 +1303,13 @@ function LLMProvidersSettings({
                         >
                             {t('Edit')}
                         </Button>
-                        <Button type='button' size='mini' kind='tertiary' onClick={() => deleteProvider(provider.id)}>
+                        <Button
+                            type='button'
+                            size='mini'
+                            kind='tertiary'
+                            aria-label={t('Delete')}
+                            onClick={() => deleteProvider(provider.id)}
+                        >
                             <RiDeleteBin5Line />
                         </Button>
                     </div>

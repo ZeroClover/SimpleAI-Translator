@@ -19,7 +19,7 @@ export function CopyButton({ text, styles }: { text: string; styles: { actionBut
                     }}
                     options={{ format: 'text/plain' }}
                 >
-                    <div className={styles.actionButton}>
+                    <div role='button' aria-label={t('Copy to clipboard')} className={styles.actionButton}>
                         <RxCopy size={13} />
                     </div>
                 </CopyToClipboard>

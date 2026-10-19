@@ -29,6 +29,8 @@ Checked through GitHub release metadata and action manifests on 2026-05-21.
 | `crate-ci/typos`                   | `v1.16.10`                 | `v1.46.2`       | Spell-check action only.                                                                                                                                                           |
 | `azure/login`                      | not used                   | `v3.0.0`        | Windows signing job uses GitHub OIDC.                                                                                                                                              |
 
+The baseline covers the workflows currently in `.github/workflows/`: release, test-build, lint, and Playwright. The separate unit-test workflow (`unit-test.yaml`) was removed on 2026-10-19 together with the Vitest suite; its action refs were the checkout, pnpm and Node setup versions listed above. The lint workflow's clippy job now also runs `cargo test`, and the Playwright workflow runs the whole Playwright list. No action ref changed with these workflow changes.
+
 Removed instead of upgraded: `actions/upload-release-asset`, `actions/github-script`, `battila7/get-version-action`, `ncipollo/release-action`, `oNaiPs/secrets-to-env-action`, `giraffate/clippy-action`, and `LoliGothick/rustfmt-check`.
 
 `azure/artifact-signing-action@v2.0.0` was checked but not used for release signing because Windows Authenticode signing must happen through Tauri's `bundle.windows.signCommand` before updater signatures and final updater metadata are generated. The workflow installs `Microsoft.ArtifactSigning.Client` and calls SignTool with `Azure.CodeSigning.Dlib.dll`.

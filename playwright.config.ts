@@ -5,10 +5,11 @@ import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
     testDir: './e2e',
-    retries: 2,
+    retries: 0,
     projects: [
-        { name: 'chromium', use: { browserName: 'chromium' } },
-        { name: 'updater-webkit', testMatch: 'updater.spec.ts', use: { browserName: 'webkit' } },
+        { name: 'desktop', testMatch: 'desktop.spec.ts', use: { browserName: 'chromium' } },
+        { name: 'extension', testMatch: 'extension.spec.ts', use: { browserName: 'chromium' } },
+        { name: 'updater', testMatch: 'updater.spec.ts', use: { browserName: 'webkit' } },
     ],
     webServer: {
         command: 'pnpm exec vite -c vite.config.tauri.ts --host 127.0.0.1',

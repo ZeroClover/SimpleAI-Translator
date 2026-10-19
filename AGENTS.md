@@ -38,7 +38,7 @@
 Use Node.js 24 (the Active LTS; `engines.node` in `package.json`) and install dependencies with `pnpm install` (package manager is pinned in `package.json`).
 - `pnpm dev-chromium` / `pnpm dev-firefox` run `wxt` for that browser with HMR; `pnpm dev-tauri` boots the desktop shell with Tauri devtools.
 - `pnpm build-browser-extension`, and `pnpm build-tauri` (or `pnpm build-tauri-no-updater`) produce distributable bundles; use `pnpm clean` to reset `dist/` before packaging.
-- `pnpm test` runs Vitest suites and `pnpm test:e2e` executes Playwright specs in `e2e/`.
+- `pnpm test:e2e` runs the Playwright tests in `e2e/` and is the only frontend test command; the extension tests need a fresh `pnpm build-browser-extension`. `cargo test --manifest-path src-tauri/Cargo.toml` runs the native tests.
 - `pnpm lint` / `pnpm lint:fix` run ESLint on `src/**/*.{ts,tsx}`; `pnpm format` runs Prettier on `src/`.
 - `pnpm check:no-telemetry` and `pnpm check:no-old-identity` are the grep guards behind the `no-telemetry` and `app-identity` specs.
 
@@ -46,7 +46,13 @@ Use Node.js 24 (the Active LTS; `engines.node` in `package.json`) and install de
 TypeScript + React 19 is the primary stack, with Base Web (`baseui`, carrying `patches/baseui@18.2.0.patch` so Select works inside the content script's shadow root) on Styletron plus `react-jss` for component styles. Keep 4-space indentation, single quotes, and trailing commas—Prettier enforces this, so format before pushing. Components stay in `PascalCase`, hooks/utilities in `camelCase`, and constants in `SCREAMING_SNAKE_CASE`. Reuse helpers from `src/common` instead of duplicating logic, and keep staged files lint-clean: the `simple-git-hooks` pre-commit hook runs `lint-staged` (ESLint + Prettier).
 
 ## Testing Guidelines
-Unit tests live next to the code as `foo.spec.ts` and run with Vitest. Mock remote APIs and keep snapshots deterministic, especially around translation results. Update Playwright specs in `e2e/*.spec.ts` when UI flows change, and verify `pnpm test` plus `pnpm test:e2e` before requesting review.
+The automated tests are a short list chosen by user-facing risk; there are no frontend unit tests.
+- `e2e/desktop.spec.ts` (Chromium) drives the real desktop renderer: `translate`, the engines, `fetchSSE`, `tauriFetch`, the settings adapter and IndexedDB all run. `e2e/desktop.ts` replaces only the native IPC boundary: `fetch`/`fetch_cancel` answered with test-chosen heads and body bytes over the real Channel, one config file shared by the windows of a context, and events routed between windows. This covers the frontend down to IPC, not the Rust or OS side. Do not intercept business modules such as `translate.ts` or `universal-fetch.ts`, and do not call translation callbacks directly.
+- `e2e/extension.spec.ts` (Chromium) loads the built extension from `dist/browser-extension/chromium` with its real service worker, port bridge and storage, against a loopback `node:http` site. The card opens through the same `open-translator` message the context menu sends; the native menu click and host-permission prompts are not automated.
+- `e2e/updater.spec.ts` runs the updater window in WebKit only.
+- The native tests are four exceptions in `src-tauri/src/{fetch,config}.rs`: cancelling closes the connection while the body is paused or before the response head arrives, a corrupt config file is backed up byte for byte before recovery, and concurrent config updates keep every key. The lint workflow runs them. Edge TTS, normal body EOF and error-body passthrough have no native test.
+- Add a test only for a user-visible regression (a failed translation, wrong persistence, data loss, active content) that no existing flow would catch, and name the flow that misses it. Pure functions and simple UI changes do not need their own test. Keep the Playwright list at 16 tests or fewer with `retries: 0`, locate controls by role and accessible name, and synchronise on events instead of sleeps.
+- Run `pnpm test:e2e`, plus `cargo test` for native changes, before requesting review.
 
 ## Commit & Pull Request Guidelines
 Follow the lightweight conventional pattern seen in history (`fix:`, `feat:`, `chore:`) with concise, imperative summaries and optional scope (e.g., `fix: handle streaming fallback`). Reference related issues in parentheses `(#1234)` when helpful. PRs should describe the change, attach screenshots or GIFs for UI work, list verification commands, and call out platform coverage across Chrome, Firefox, and Tauri targets. Request review after lint/tests pass and diffs are free of secrets.

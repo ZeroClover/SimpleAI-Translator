@@ -116,8 +116,8 @@ Common commands:
 -   `pnpm build-browser-extension`: build Chromium and Firefox extension bundles.
 -   `pnpm build-tauri`: build the desktop app.
 -   `pnpm lint`: run ESLint.
--   `pnpm test`: run unit tests once.
--   `pnpm test:e2e`: run Playwright tests.
+-   `pnpm test:e2e`: run the Playwright tests (the extension tests need a fresh `pnpm build-browser-extension`).
+-   `cargo test --manifest-path src-tauri/Cargo.toml`: run the native tests.
 
 ## License
 

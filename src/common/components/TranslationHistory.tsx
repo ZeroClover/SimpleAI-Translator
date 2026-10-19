@@ -325,6 +325,7 @@ export function TranslationHistory(props: TranslationHistoryProps) {
                                             <Button
                                                 size='mini'
                                                 kind='secondary'
+                                                aria-label={t('Restore')}
                                                 onClick={(event) => {
                                                     event.stopPropagation()
                                                     void handleRestore(item)
@@ -342,6 +343,7 @@ export function TranslationHistory(props: TranslationHistoryProps) {
                                             <Button
                                                 size='mini'
                                                 kind='tertiary'
+                                                aria-label={t('Copy to clipboard')}
                                                 onClick={async (event) => {
                                                     event.stopPropagation()
                                                     try {

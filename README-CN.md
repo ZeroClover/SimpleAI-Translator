@@ -116,8 +116,8 @@ pnpm install
 -   `pnpm build-browser-extension`：构建 Chromium 与 Firefox 扩展。
 -   `pnpm build-tauri`：构建桌面端。
 -   `pnpm lint`：运行 ESLint。
--   `pnpm test`：单次运行单元测试。
--   `pnpm test:e2e`：运行 Playwright 测试。
+-   `pnpm test:e2e`：运行 Playwright 测试（扩展测试需先执行 `pnpm build-browser-extension` 生成最新构建）。
+-   `cargo test --manifest-path src-tauri/Cargo.toml`：运行原生测试。
 
 ## License
 

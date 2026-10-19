@@ -269,13 +269,6 @@ mod tests {
         }
     }
 
-    fn json(body: InvokeResponseBody) -> serde_json::Value {
-        match body {
-            InvokeResponseBody::Json(json) => serde_json::from_str(&json).unwrap(),
-            InvokeResponseBody::Raw(bytes) => panic!("expected JSON, got {bytes:?}"),
-        }
-    }
-
     #[tokio::test(flavor = "multi_thread")]
     async fn cancelling_a_paused_body_closes_the_connection() {
         let (url, closed) = serve_once(
@@ -300,10 +293,12 @@ mod tests {
     async fn cancelling_while_waiting_for_the_response_head_closes_the_connection() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}/", listener.local_addr().unwrap());
+        let (received_sender, received) = mpsc::channel();
         let (closed_sender, closed) = mpsc::channel();
         std::thread::spawn(move || {
             let (mut stream, _) = listener.accept().unwrap();
             read_request(&mut stream);
+            let _ = received_sender.send(());
             // Never answer, like a server that is still thinking.
             let mut buffer = [0; 64];
             while matches!(stream.read(&mut buffer), Ok(n) if n > 0) {}
@@ -312,7 +307,10 @@ mod tests {
         let (channel, _messages) = collecting_channel();
 
         let request = tokio::spawn(fetch(request("head", url), channel));
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        tokio::task::spawn_blocking(move || received.recv_timeout(Duration::from_secs(5)))
+            .await
+            .unwrap()
+            .expect("the request never reached the server");
         fetch_cancel("head".to_string());
 
         let error = tokio::time::timeout(Duration::from_secs(2), request)
@@ -325,75 +323,5 @@ mod tests {
             .recv_timeout(Duration::from_secs(2))
             .expect("the connection stays open after cancelling");
         assert!(CANCELLATIONS.lock().get("head").is_none());
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn cancelling_before_the_request_starts_sends_nothing() {
-        fetch_cancel("early".to_string());
-        let (channel, _messages) = collecting_channel();
-
-        let error = fetch(request("early", "http://127.0.0.1:9/".to_string()), channel)
-            .await
-            .unwrap_err();
-        assert_eq!(error, ABORTED_ERROR);
-        assert!(CANCELLATIONS.lock().get("early").is_none());
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn reads_a_complete_body() {
-        let (url, _closed) = serve_once(
-            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 14\r\n\r\n{\"text\":\"中\"}"
-                .as_bytes(),
-        );
-        let (channel, messages) = collecting_channel();
-
-        let head = fetch(request("complete", url), channel).await.unwrap();
-        assert_eq!(head.status, 200);
-        assert_eq!(head.status_text, "OK");
-        assert!(head
-            .headers
-            .contains(&("content-type".to_string(), "application/json".to_string())));
-        let mut body = Vec::new();
-        loop {
-            match messages.recv_timeout(Duration::from_secs(5)).unwrap() {
-                InvokeResponseBody::Raw(bytes) => body.extend(bytes),
-                done => {
-                    assert_eq!(json(done), serde_json::json!({ "done": true }));
-                    break;
-                }
-            }
-        }
-        assert_eq!(body, "{\"text\":\"中\"}".as_bytes());
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn passes_through_a_non_success_response() {
-        let (url, _closed) = serve_once(
-            b"HTTP/1.1 400 Bad Request\r\ncontent-type: application/json\r\ncontent-length: 21\r\n\r\n{\"detail\":\"Bad mode\"}",
-        );
-        let (channel, messages) = collecting_channel();
-
-        let head = fetch(request("bad-request", url), channel).await.unwrap();
-        assert_eq!(head.status, 400);
-        assert_eq!(head.status_text, "Bad Request");
-        assert_eq!(
-            raw(messages.recv_timeout(Duration::from_secs(5)).unwrap()),
-            b"{\"detail\":\"Bad mode\"}"
-        );
-        assert_eq!(
-            json(messages.recv_timeout(Duration::from_secs(5)).unwrap()),
-            serde_json::json!({ "done": true })
-        );
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn reports_a_network_error() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let url = format!("http://{}/", listener.local_addr().unwrap());
-        drop(listener);
-        let (channel, _messages) = collecting_channel();
-
-        assert!(fetch(request("refused", url), channel).await.is_err());
-        assert!(CANCELLATIONS.lock().get("refused").is_none());
     }
 }

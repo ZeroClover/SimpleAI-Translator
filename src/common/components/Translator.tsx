@@ -1653,7 +1653,12 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                     <>
                                         {isLoading && (
                                             <Tooltip content={t('Stop')} placement='bottom'>
-                                                <div className={styles.actionButton} onClick={handleStopGenerating}>
+                                                <div
+                                                    role='button'
+                                                    aria-label={t('Stop')}
+                                                    className={styles.actionButton}
+                                                    onClick={handleStopGenerating}
+                                                >
                                                     <RxStop size={15} />
                                                 </div>
                                             </Tooltip>
@@ -1801,6 +1806,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                                 {!isLoading && (
                                                     <Tooltip content={t('Retry')} placement='bottom'>
                                                         <div
+                                                            role='button'
+                                                            aria-label={t('Retry')}
                                                             onClick={() => forceTranslate()}
                                                             className={styles.actionButton}
                                                         >
@@ -1860,6 +1867,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         <Button
                             size='mini'
                             kind='tertiary'
+                            aria-label={showSettings ? t('Go to Translator') : t('Go to Settings')}
                             overrides={{
                                 Root: {
                                     style: {

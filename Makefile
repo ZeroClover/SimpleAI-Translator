@@ -7,14 +7,8 @@ change-package-version:
 	sed "s/\"version\": \".*\"/\"version\": \"$(VERSION)\"/" package.json > package.json.tmp && mv package.json.tmp package.json
 
 build-browser-extension: change-package-version
-	pnpm vite build -c vite.config.chromium.ts
-	pnpm vite build -c vite.config.firefox.ts
-	rm -f dist/browser-extension/chromium.zip dist/browser-extension/firefox.zip
-	cd dist/browser-extension/chromium && zip -r ../chromium.zip .
-	cd dist/browser-extension/firefox && zip -r ../firefox.zip .
-
-build-userscript: change-package-version
-	pnpm vite build -c vite.config.userscript.ts
+	pnpm wxt zip -b chromium
+	pnpm wxt zip -b firefox
 
 build-popclip-extension:
 	rm -f dist/SimpleAI-Translator.popclipextz

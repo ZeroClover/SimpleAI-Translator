@@ -1,5 +1,5 @@
-import { ProviderConfig, ThinkingControl } from '../../types'
-import { normalizeAPIEndpoint, OPENAI_RESPONSES_API_PATH } from '../../openai-api-path'
+import { DEFAULT_ENDPOINT_BY_PROTOCOL, normalizeAPIEndpoint, OPENAI_RESPONSES_API_PATH } from '../../openai-api-path'
+import type { EngineProviderConfig } from '..'
 import {
     EngineSession,
     IEngine,
@@ -8,36 +8,11 @@ import {
     sendProtocolRequest,
     StructuredOutputRequest,
 } from '../interfaces'
-import { getReasoningEffort, listModels as listOpenAIModels } from './openai-chat'
+import { getHeaders, getReasoningEffort, listModels } from './openai-chat'
 
-const DEFAULT_ENDPOINT = 'https://api.openai.com/v1'
-type EngineProviderConfig = ProviderConfig & ThinkingControl
+export { listModels }
 
-function getHeaders(providerConfig: ProviderConfig): Record<string, string> {
-    return {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${providerConfig.apiKey}`,
-        ...providerConfig.extraHeaders,
-    }
-}
-
-function getErrorMessage(error: unknown): string {
-    if (error instanceof Error) {
-        return error.message
-    }
-    if (typeof error === 'string') {
-        return error
-    }
-    if (typeof error === 'object' && error !== null) {
-        const err = error as {
-            error?: { message?: string }
-            message?: string
-            response?: { error?: { message?: string } }
-        }
-        return err.response?.error?.message ?? err.error?.message ?? err.message ?? 'Unknown error'
-    }
-    return 'Unknown error'
-}
+const DEFAULT_ENDPOINT = DEFAULT_ENDPOINT_BY_PROTOCOL['openai-responses']
 
 function getTextFormat(structuredOutput: StructuredOutputRequest | undefined) {
     if (!structuredOutput) {
@@ -86,10 +61,6 @@ function getOutputText(output: unknown[]): string {
         .join('')
 }
 
-export async function listModels(providerConfig: ProviderConfig): Promise<string[]> {
-    return listOpenAIModels(providerConfig)
-}
-
 export class OpenAIResponsesEngine implements IEngine {
     constructor(private readonly providerConfig: EngineProviderConfig) {}
 
@@ -98,7 +69,7 @@ export class OpenAIResponsesEngine implements IEngine {
     }
 
     async sendMessage(req: IMessageRequest): Promise<void> {
-        const session = new EngineSession(req, getErrorMessage)
+        const session = new EngineSession(req)
         let refusalContent = ''
 
         const textFormat = getTextFormat(req.structuredOutput)

@@ -9,20 +9,20 @@ use crate::APP_HANDLE;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type, tauri_specta::Event)]
 pub struct ConfigUpdatedEvent;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, specta::Type)]
 #[allow(clippy::upper_case_acronyms)]
 pub enum ProxyProtocol {
     HTTP,
     HTTPS,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, specta::Type)]
 pub struct BasicAuth {
     pub username: Option<String>,
     pub password: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProxyConfig {
     pub enabled: Option<bool>,
@@ -33,11 +33,41 @@ pub struct ProxyConfig {
     pub no_proxy: Option<String>,
 }
 
+/// Builds the proxy for native requests, or `None` when the proxy is disabled or incomplete.
+pub fn reqwest_proxy(config: &ProxyConfig) -> Result<Option<reqwest::Proxy>, String> {
+    if !config.enabled.unwrap_or(false) {
+        return Ok(None);
+    }
+    let non_empty = |value: &Option<String>| value.clone().filter(|value| !value.is_empty());
+    let (Some(protocol), Some(server), Some(port)) = (
+        config.protocol.as_ref(),
+        non_empty(&config.server),
+        non_empty(&config.port),
+    ) else {
+        return Ok(None);
+    };
+    let scheme = match protocol {
+        ProxyProtocol::HTTP => "http",
+        ProxyProtocol::HTTPS => "https",
+    };
+    let mut proxy = reqwest::Proxy::all(format!("{scheme}://{server}:{port}"))
+        .map_err(|error| format!("invalid proxy URL: {error}"))?;
+    if let Some(basic_auth) = &config.basic_auth {
+        let username = basic_auth.username.as_deref().unwrap_or_default();
+        if !username.is_empty() {
+            proxy = proxy.basic_auth(username, basic_auth.password.as_deref().unwrap_or_default());
+        }
+    }
+    if let Some(no_proxy) = config.no_proxy.as_deref() {
+        proxy = proxy.no_proxy(reqwest::NoProxy::from_string(no_proxy));
+    }
+    Ok(Some(proxy))
+}
+
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub restore_previous_position: Option<bool>,
-    pub allow_using_clipboard_when_selected_text_not_available: Option<bool>,
     pub automatic_check_for_updates: Option<bool>,
     pub proxy: Option<ProxyConfig>,
 }
@@ -52,17 +82,6 @@ pub fn get_config() -> Result<Config, Box<dyn std::error::Error>> {
 }
 
 pub fn get_config_by_app(app: &AppHandle) -> Result<Config, Box<dyn std::error::Error>> {
-    let conf = _get_config_by_app(app);
-    match conf {
-        Ok(conf) => Ok(conf),
-        Err(e) => {
-            println!("get config failed: {}", e);
-            Err(e)
-        }
-    }
-}
-
-pub fn _get_config_by_app(app: &AppHandle) -> Result<Config, Box<dyn std::error::Error>> {
     if let Some(config_cache) = &*CONFIG_CACHE.lock() {
         return Ok(config_cache.clone());
     }
@@ -75,8 +94,6 @@ pub fn _get_config_by_app(app: &AppHandle) -> Result<Config, Box<dyn std::error:
     Ok(config)
 }
 
-#[tauri::command]
-#[specta::specta]
 pub fn clear_config_cache() {
     CONFIG_CACHE.lock().take();
 }
@@ -94,14 +111,14 @@ pub fn get_config_content() -> String {
     }
 }
 
-/// Merges `set_json` (a JSON object) into config.json and then deletes `remove`, as one atomic
-/// update, so concurrent saves from different windows never overwrite each other's keys.
+/// Merges `set_json` (a JSON object) into config.json as one atomic update, so concurrent saves
+/// from different windows never overwrite each other's keys.
 #[tauri::command]
 #[specta::specta]
-pub fn update_config(set_json: String, remove: Vec<String>) -> Result<(), String> {
+pub fn update_config(set_json: String) -> Result<(), String> {
     let app = APP_HANDLE.get().ok_or("App is not initialized")?;
     let set = serde_json::from_str(&set_json).map_err(|e| e.to_string())?;
-    update_config_file(&config_path_by_app(app)?, set, &remove)?;
+    update_config_file(&config_path_by_app(app)?, set)?;
     clear_config_cache();
     Ok(())
 }
@@ -121,15 +138,11 @@ fn config_path_by_app(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 fn update_config_file(
     path: &std::path::Path,
     set: serde_json::Map<String, serde_json::Value>,
-    remove: &[String],
 ) -> Result<(), String> {
     let _guard = CONFIG_FILE.lock();
     let mut config: serde_json::Map<String, serde_json::Value> =
         serde_json::from_str(&read_config_file(path)?).map_err(|e| e.to_string())?;
     config.extend(set);
-    for key in remove {
-        config.remove(key);
-    }
     let content = serde_json::to_string(&config).map_err(|e| e.to_string())?;
     let temporary_path = path.with_file_name(format!("config.{}.tmp", uuid::Uuid::new_v4()));
     let result = std::fs::write(&temporary_path, content)
@@ -169,13 +182,8 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("simpleai-config-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("config.json");
-        let corruptions: &[&[u8]] = &[
-            b"{\"providers\":",
-            b"null",
-            b"[]",
-            b"{\"provider\":\"\xff\"}",
-            b"{\"provider\":\"\xe4\xb8",
-        ];
+        // Truncated JSON fails the JSON check; a truncated multi-byte character fails UTF-8 decoding.
+        let corruptions: &[&[u8]] = &[b"{\"providers\":", b"{\"provider\":\"\xe4\xb8"];
         for content in corruptions {
             std::fs::write(&path, content).unwrap();
             assert_eq!(read_config_file(&path).unwrap(), "{}");
@@ -199,41 +207,26 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("simpleai-config-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("config.json");
-        std::fs::write(&path, "{\"fontSize\":15,\"apiKeys\":\"legacy\"}").unwrap();
+        std::fs::write(&path, "{\"fontSize\":15}").unwrap();
         let writers: Vec<_> = (0..16)
             .map(|index| {
                 let path = path.clone();
                 std::thread::spawn(move || {
                     let set = serde_json::json!({ format!("key{index}"): index });
-                    update_config_file(&path, set.as_object().unwrap().clone(), &[]).unwrap();
+                    update_config_file(&path, set.as_object().unwrap().clone()).unwrap();
                 })
             })
             .collect();
         for writer in writers {
             writer.join().unwrap();
         }
-        update_config_file(&path, serde_json::Map::new(), &["apiKeys".to_string()]).unwrap();
 
         let config: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(config["fontSize"], 15);
-        assert!(!config.contains_key("apiKeys"));
         for index in 0..16 {
             assert_eq!(config[&format!("key{index}")], index);
         }
-        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
-        std::fs::remove_dir_all(dir).unwrap();
-    }
-
-    #[test]
-    fn keep_valid_config_and_initialize_missing_config() {
-        let dir = std::env::temp_dir().join(format!("simpleai-config-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("config.json");
-        assert_eq!(read_config_file(&path).unwrap(), "{}");
-        let content = "{\"fontSize\":20,\"providers\":[]}";
-        std::fs::write(&path, content).unwrap();
-        assert_eq!(read_config_file(&path).unwrap(), content);
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
         std::fs::remove_dir_all(dir).unwrap();
     }

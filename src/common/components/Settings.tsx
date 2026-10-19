@@ -1,19 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import _ from 'underscore'
-import { Tabs, Tab, StyledTabList, StyledTabPanel } from 'baseui-sd/tabs-motion'
-import { Modal, ModalBody, ModalHeader } from 'baseui-sd/modal'
-import icon from '../assets/images/icon-large.png'
-import beams from '../assets/images/beams.jpg'
-import toast, { Toaster } from 'react-hot-toast'
+import { dequal } from 'dequal'
+import { Tabs, Tab, StyledTabList, StyledTabPanel } from 'baseui/tabs-motion'
+import { Modal, ModalBody, ModalHeader } from 'baseui/modal'
+import icon from '../assets/images/icon.png?no-inline'
+import beams from '../assets/images/beams.jpg?no-inline'
+import toast from 'react-hot-toast/headless'
 import * as utils from '../utils'
 import { Client as Styletron } from 'styletron-engine-atomic'
 import { Provider as StyletronProvider } from 'styletron-react'
-import { BaseProvider } from 'baseui-sd'
-import { Input } from 'baseui-sd/input'
-import { createForm } from './Form'
-import { Button, ButtonProps } from 'baseui-sd/button'
-import { Select, Value, Option } from 'baseui-sd/select'
-import { Checkbox } from 'baseui-sd/checkbox'
+import { BaseProvider } from 'baseui'
+import { Input } from 'baseui/input'
+import { Form, FormItem, useForm } from './Form'
+import { Button, ButtonProps } from 'baseui/button'
+import { Select, Value, Option } from 'baseui/select'
+import { Checkbox } from 'baseui/checkbox'
 import { LangCode, supportedLanguages } from '../lang'
 import { createUseStyles } from 'react-jss'
 import {
@@ -38,16 +38,15 @@ import { IoIosSave, IoMdAdd } from 'react-icons/io'
 import { OpenAITTSFormat, OpenAITTSSettings, TTSProvider } from '../tts/types'
 import { fetchEdgeVoices } from '../tts/edge-tts'
 import { getOpenAITTSVoices } from '../tts/openai-tts'
-import { useThemeType } from '../hooks/useThemeType'
-import { Slider } from 'baseui-sd/slider'
+import { Slider } from 'baseui/slider'
 import { GlobalSuspense } from './GlobalSuspense'
 import { TbCloudNetwork } from 'react-icons/tb'
-import { Cell, Grid } from 'baseui-sd/layout-grid'
+import { Cell, Grid } from 'baseui/layout-grid'
 import useSWR from 'swr'
-import { Skeleton } from 'baseui-sd/skeleton'
+import { Skeleton } from 'baseui/skeleton'
 import { SpeakerIcon } from './SpeakerIcon'
 import { RxSpeakerLoud } from 'react-icons/rx'
-import { Textarea } from 'baseui-sd/textarea'
+import { Textarea } from 'baseui/textarea'
 import { ProxyTester } from './ProxyTester'
 import NumberInput from './NumberInput'
 import { ProviderForm, ProviderFormValue } from './ProviderForm'
@@ -271,12 +270,10 @@ function toOpenAITTSVoice(value: string): OpenAITTSSettings['voice'] {
 }
 
 function TTSVoicesSettings({ value, providers, onChange, onBlur }: ITTSVoicesSettingsProps) {
-    console.debug('render tts voices settings')
-
     const { t } = useTranslation()
     const { theme, themeType } = useTheme()
 
-    const styles = useTTSSettingsStyles({ theme, themeType, isDesktopApp: utils.isDesktopApp() })
+    const styles = useTTSSettingsStyles({ theme, themeType, isTauri: utils.isTauri() })
 
     const [showLangSelector, setShowLangSelector] = useState(false)
 
@@ -287,13 +284,7 @@ function TTSVoicesSettings({ value, providers, onChange, onBlur }: ITTSVoicesSet
         () => ttsProviderOptions.map((option) => ({ id: option.id, label: t(option.labelKey) })),
         [t]
     )
-    const openAIProviders = useMemo(
-        () =>
-            providers.filter(
-                (provider) => provider.protocol === 'openai-chat' || provider.protocol === 'openai-responses'
-            ),
-        [providers]
-    )
+    const openAIProviders = useMemo(() => providers.filter(utils.canProvideTTS), [providers])
     const openAIConfig = value?.openai
     const openAIProviderId = openAIConfig?.providerId ?? openAIProviders[0]?.id ?? ''
     const openAIModel = openAIConfig?.model ?? ''
@@ -945,46 +936,9 @@ function SettingsToggle({ value, onChange, onBlur, disabled, label, caption }: S
     )
 }
 
-interface RestorePreviousPositionCheckboxProps {
-    value?: boolean
-    onChange?: (value: boolean) => void
-    onBlur?: () => void
-}
-
-function RestorePreviousPositionCheckbox({ value, onChange, onBlur }: RestorePreviousPositionCheckboxProps) {
-    return (
-        <Checkbox
-            checkmarkType='toggle_round'
-            checked={value}
-            onChange={(e) => {
-                onChange?.(e.target.checked)
-                onBlur?.()
-            }}
-        />
-    )
-}
-interface RunAtStartupCheckboxProps {
-    value?: boolean
-    onChange?: (value: boolean) => void
-    onBlur?: () => void
-}
-
-function RunAtStartupCheckbox({ value, onChange, onBlur }: RunAtStartupCheckboxProps) {
-    return (
-        <Checkbox
-            checkmarkType='toggle_round'
-            checked={value}
-            onChange={(e) => {
-                onChange?.(e.target.checked)
-                onBlur?.()
-            }}
-        />
-    )
-}
-
 const useStyles = createUseStyles({
     footer: (props: IThemedStyleProps) =>
-        props.isDesktopApp
+        props.isTauri
             ? {
                   zIndex: 999,
                   color: props.theme.colors.contentSecondary,
@@ -1067,14 +1021,14 @@ function LLMProvidersSettings({
     const selectedModelOption = useMemo(
         () =>
             defaultModel
-                ? modelOptions.find(
+                ? (modelOptions.find(
                       (option) => option.providerId === defaultModel.providerId && option.model === defaultModel.model
                   ) ?? {
                       id: `${defaultModel.providerId}:${defaultModel.model}`,
                       label: defaultModel.model,
                       providerId: defaultModel.providerId,
                       model: defaultModel.model,
-                  }
+                  })
                 : undefined,
         [defaultModel, modelOptions]
     )
@@ -1166,7 +1120,7 @@ function LLMProvidersSettings({
         (providerId: string) => {
             const nextProviders = providers.filter((provider) => provider.id !== providerId)
             const nextDefaultProviderId =
-                defaultProviderId === providerId ? nextProviders[0]?.id ?? null : defaultProviderId
+                defaultProviderId === providerId ? (nextProviders[0]?.id ?? null) : defaultProviderId
             const fallbackProvider = nextProviders.find((provider) => provider.model)
             const nextDefaultModel =
                 defaultModel?.providerId === providerId && fallbackProvider
@@ -1175,8 +1129,8 @@ function LLMProvidersSettings({
                           model: fallbackProvider.model,
                       }
                     : defaultModel?.providerId === providerId
-                    ? null
-                    : defaultModel
+                      ? null
+                      : defaultModel
             onChange(
                 nextProviders,
                 nextDefaultProviderId,
@@ -1238,8 +1192,8 @@ function LLMProvidersSettings({
                         ? { providerId: provider.id, model: ids[0] }
                         : defaultModel
                     : nextDefaultProviderId === provider.id
-                    ? { providerId: provider.id, model: ids[0] }
-                    : null
+                      ? { providerId: provider.id, model: ids[0] }
+                      : null
                 onChange(nextProviders, nextDefaultProviderId, nextDefaultModel, providerModelOutputControls)
             } catch (error) {
                 toast(
@@ -1349,7 +1303,13 @@ function LLMProvidersSettings({
                         >
                             {t('Edit')}
                         </Button>
-                        <Button type='button' size='mini' kind='tertiary' onClick={() => deleteProvider(provider.id)}>
+                        <Button
+                            type='button'
+                            size='mini'
+                            kind='tertiary'
+                            aria-label={t('Delete')}
+                            onClick={() => deleteProvider(provider.id)}
+                        >
                             <RiDeleteBin5Line />
                         </Button>
                     </div>
@@ -1492,11 +1452,9 @@ function LLMProvidersSettings({
     )
 }
 
-const { Form, FormItem, useForm } = createForm<ISettings>()
-
 interface IInnerSettingsProps {
     showFooter?: boolean
-    onSave?: (oldSettings: ISettings) => void
+    onSave?: () => void
 }
 
 interface ISettingsProps extends IInnerSettingsProps {
@@ -1520,15 +1478,14 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
     const isTauri = utils.isTauri()
     const { theme, themeType } = useTheme()
 
-    const { refreshThemeType } = useThemeType()
-
     const { t } = useTranslation()
 
     const [loading, setLoading] = useState(false)
-    const { settings, setSettings } = useSettings()
+    const { settings, updateSettings } = useSettings()
     const [values, setValues] = useState<ISettings>(settings)
-    const [prevValues, setPrevValues] = useState<ISettings>(values)
     const valuesRef = useRef(values)
+    // The values as last loaded or saved; saves write only the fields that differ from them.
+    const savedValuesRef = useRef(values)
 
     const [form] = useForm()
 
@@ -1544,8 +1501,8 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                     settings.runAtStartup = await autostartIsEnabled()
                 }
                 valuesRef.current = settings
+                savedValuesRef.current = settings
                 setValues(settings)
-                setPrevValues(settings)
             })()
         }
     }, [isTauri, settings])
@@ -1570,7 +1527,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
     )
 
     const syncAutostart = useCallback(
-        async (nextSettings: ISettings) => {
+        async (nextSettings: Partial<ISettings>) => {
             if (!isTauri) {
                 return
             }
@@ -1593,51 +1550,60 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
         [isTauri]
     )
 
+    const persistSettings = useCallback(
+        async (nextValues: ISettings) => {
+            const savedValues = savedValuesRef.current
+            // A field the form holds no value for (undefined) has nothing to write.
+            const changes: Partial<ISettings> = Object.fromEntries(
+                Object.entries(nextValues).filter(
+                    ([key, value]) => value !== undefined && !dequal(value, savedValues[key as keyof ISettings])
+                )
+            )
+            if (Object.keys(changes).length === 0) {
+                return
+            }
+            if ('runAtStartup' in changes) {
+                await syncAutostart(changes)
+            }
+            const written = await updateSettings(changes)
+            savedValuesRef.current = utils.normalizeSettings({ ...savedValues, ...written })
+
+            // A save that leaves OpenAI TTS without a usable Provider switches it to Edge TTS.
+            const writesLinkedTTS = changes.tts ? changes.tts.provider === 'openai' : 'providers' in changes
+            if (writesLinkedTTS && written.tts?.provider === 'edge') {
+                const providers = written.providers ?? savedValues.providers
+                const linkedProvider = providers.find((provider) => provider.id === written.tts?.openai?.providerId)
+                toast(
+                    t(
+                        linkedProvider
+                            ? 'The Provider linked to OpenAI TTS uses the Anthropic protocol, which does not support speech. Switched to Edge TTS.'
+                            : 'The Provider linked to OpenAI TTS was deleted. Switched to Edge TTS.'
+                    )
+                )
+            }
+        },
+        [syncAutostart, t, updateSettings]
+    )
+
     const onSubmit = useCallback(
         async (data: ISettings) => {
             setLoading(true)
-            const formSettings = mergeFormValues(valuesRef.current, data)
-            const oldSettings = await utils.getSettings()
-            // The Markdown preference is toggled in the translator, so the stored value wins over this form's snapshot.
-            const nextSettings = { ...formSettings, renderMarkdown: oldSettings.renderMarkdown }
-            await syncAutostart(nextSettings)
-            await utils.setSettings(nextSettings)
-
-            if (nextSettings.themeType) {
-                refreshThemeType()
-            }
-
+            const nextValues = mergeFormValues(valuesRef.current, data)
+            valuesRef.current = nextValues
+            await persistSettings(nextValues)
             toast(t('Saved'), {
                 icon: '👍',
                 duration: 3000,
             })
             setLoading(false)
-            valuesRef.current = nextSettings
-            setPrevValues(nextSettings)
-            setSettings(nextSettings)
-            onSave?.(oldSettings)
+            onSave?.()
         },
-        [syncAutostart, onSave, setSettings, refreshThemeType, t, mergeFormValues]
-    )
-
-    const persistSettings = useCallback(
-        async (values_: ISettings) => {
-            const { renderMarkdown } = await utils.getSettings()
-            const nextValues = { ...values_, renderMarkdown }
-            await syncAutostart(nextValues)
-            await utils.setSettings(nextValues)
-            valuesRef.current = nextValues
-            setPrevValues(nextValues)
-            setSettings(nextValues)
-        },
-        [setSettings, syncAutostart]
+        [mergeFormValues, onSave, persistSettings, t]
     )
 
     const onBlur = useCallback(async () => {
-        if (!_.isEqual(valuesRef.current, prevValues)) {
-            await persistSettings(valuesRef.current)
-        }
-    }, [persistSettings, prevValues])
+        await persistSettings(valuesRef.current)
+    }, [persistSettings])
 
     const handleLLMProvidersChange = useCallback(
         (
@@ -1666,18 +1632,16 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
         [form, persistSettings, values]
     )
 
-    const isDesktopApp = utils.isDesktopApp()
+    const styles = useStyles({ theme, themeType, isTauri })
 
-    const styles = useStyles({ theme, themeType, isDesktopApp })
-
-    // On the desktop app (and userscript) the long settings form must scroll
+    // On the desktop app the long settings form must scroll
     // inside an inner overflow container instead of at the document level. The
     // macOS WKWebView main-frame scrollbar is a native AppKit scroller that
     // ignores the global ::-webkit-scrollbar style and renders an ugly legacy
     // bar whenever a mouse is connected or "Show scroll bars: Always" is set;
     // an inner overflow:auto element does honor the thin style declared in
     // src/tauri/index.html.
-    const usesInnerScroll = isDesktopApp || utils.isUserscript()
+    const usesInnerScroll = isTauri
     const scrollContainerRef = useRef<HTMLDivElement>(null)
 
     const [isScrolledToBottom, setIsScrolledToBottom] = useState(false)
@@ -1792,8 +1756,6 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
         },
     }
 
-    console.debug('render settings')
-
     return (
         <div
             ref={scrollContainerRef}
@@ -1806,19 +1768,14 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                 // save footer (bottom) and the rounded window corners that would
                 // otherwise clip it ("切头去尾"). (::-webkit-scrollbar-track margin is
                 // ignored by WebKit, so this border-box trick is the reliable inset.)
-                paddingTop: utils.isBrowserExtensionOptions() || isDesktopApp ? undefined : '136px',
-                paddingBottom: utils.isBrowserExtensionOptions() ? undefined : isDesktopApp ? '16px' : '32px',
-                borderTop: isDesktopApp ? '136px solid transparent' : undefined,
-                borderBottom: isDesktopApp
-                    ? showFooter
-                        ? '42px solid transparent'
-                        : '12px solid transparent'
-                    : undefined,
-                background: isDesktopApp ? 'transparent' : theme.colors.backgroundPrimary,
-                minWidth: isDesktopApp ? 450 : 400,
-                height: isDesktopApp ? '100vh' : undefined,
-                boxSizing: isDesktopApp ? 'border-box' : undefined,
-                maxHeight: utils.isUserscript() ? 'calc(100vh - 32px)' : undefined,
+                paddingTop: utils.isBrowserExtensionOptions() || isTauri ? undefined : '136px',
+                paddingBottom: utils.isBrowserExtensionOptions() ? undefined : isTauri ? '16px' : '32px',
+                borderTop: isTauri ? '136px solid transparent' : undefined,
+                borderBottom: isTauri ? (showFooter ? '42px solid transparent' : '12px solid transparent') : undefined,
+                background: isTauri ? 'transparent' : theme.colors.backgroundPrimary,
+                minWidth: isTauri ? 450 : 400,
+                height: isTauri ? '100vh' : undefined,
+                boxSizing: isTauri ? 'border-box' : undefined,
                 overflow: usesInnerScroll ? 'auto' : undefined,
             }}
             data-testid='settings-container'
@@ -1912,7 +1869,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                     />
                 </Tabs>
             </nav>
-            {!isDesktopApp && (
+            {!isTauri && (
                 <div
                     style={{
                         padding: '20px 25px 0px 25px',
@@ -2001,7 +1958,7 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         </FormItem>
                         <FormItem
                             style={{
-                                display: isDesktopApp ? 'block' : 'none',
+                                display: isTauri ? 'block' : 'none',
                             }}
                             name='enableBackgroundBlur'
                             label={t('Window background blur')}
@@ -2016,21 +1973,21 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         </FormItem>
                         <FormItem
                             style={{
-                                display: isDesktopApp ? 'block' : 'none',
+                                display: isTauri ? 'block' : 'none',
                             }}
                             name='restorePreviousPosition'
                             label={t('Fixed Position')}
                         >
-                            <RestorePreviousPositionCheckbox onBlur={onBlur} />
+                            <MyCheckbox onBlur={onBlur} />
                         </FormItem>
                         {isTauri && (
                             <FormItem name='runAtStartup' label={t('Run at startup')}>
-                                <RunAtStartupCheckbox onBlur={onBlur} />
+                                <MyCheckbox onBlur={onBlur} />
                             </FormItem>
                         )}
                         <FormItem
                             style={{
-                                display: isDesktopApp ? 'block' : 'none',
+                                display: isTauri ? 'block' : 'none',
                             }}
                             name='automaticCheckForUpdates'
                             label={t('Automatic check for updates')}
@@ -2104,7 +2061,6 @@ export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProp
                         {t('Save')}
                     </Button>
                 </div>
-                <Toaster />
             </Form>
             {showFooter && (
                 <div

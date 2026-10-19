@@ -1,29 +1,27 @@
 import useSWR from 'swr'
 
 import { ISettings } from '../types'
-import { getSettings } from '../utils'
+import { getSettings, normalizeSettings, setSettings } from '../utils'
 import { useCallback } from 'react'
 
 export function useSettings(): {
     settings: ISettings
-    isSettingsLoading: boolean
-    setSettings: (settings: ISettings) => void
+    // Persists `changes` and then updates the cached settings with the fields as written.
+    updateSettings: (changes: Partial<ISettings>) => Promise<Partial<ISettings>>
 } {
-    const { data: settings, isLoading, mutate } = useSWR<ISettings>('settings', getSettings, { suspense: true })
+    const { data: settings, mutate } = useSWR<ISettings>('settings', getSettings, { suspense: true })
 
-    const setSettings = useCallback(
-        (newSettings: ISettings) => {
-            mutate(newSettings, {
-                optimisticData: newSettings,
-                revalidate: false,
-            })
+    const updateSettings = useCallback(
+        async (changes: Partial<ISettings>) => {
+            const written = await setSettings(changes)
+            await mutate((prev) => normalizeSettings({ ...prev, ...written }), { revalidate: false })
+            return written
         },
         [mutate]
     )
 
     return {
         settings: settings!,
-        isSettingsLoading: isLoading,
-        setSettings,
+        updateSettings,
     }
 }

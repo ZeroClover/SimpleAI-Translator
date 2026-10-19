@@ -1,0 +1,46 @@
+diff --git a/select/select-component.js b/select/select-component.js
+index f01fb57adacde3fd55f323bc9854fecad2d0fe62..4efd7532333ea86a0757949c8b988eee4b88875c 100644
+--- a/select/select-component.js
++++ b/select/select-component.js
+@@ -37,6 +37,9 @@ function Noop() {
+ 
+ // @ts-ignore
+ const isClick = event => event.type === 'click';
++// Inside a shadow root, listeners on document see `event.target` retargeted to the shadow host;
++// the first node of the composed path is the element that was actually clicked.
++const getEventTarget = event => event.composedPath ? event.composedPath()[0] : event.target;
+ // @ts-ignore
+ const isLeftClick = event => event.button !== null && event.button !== undefined && event.button === 0;
+ 
+@@ -106,8 +109,8 @@ class Select extends React.Component {
+     // Handle touch outside on mobile to dismiss menu, ensures that the
+     // touch target is not within the anchor DOM node.
+     _defineProperty(this, "handleTouchOutside", event => {
+-      if (containsNode(this.dropdown.current, event.target)) return;
+-      if (!containsNode(this.anchor.current, event.target)) {
++      if (containsNode(this.dropdown.current, getEventTarget(event))) return;
++      if (!containsNode(this.anchor.current, getEventTarget(event))) {
+         this.closeMenu();
+       }
+     });
+@@ -218,7 +221,7 @@ class Select extends React.Component {
+         if (containsNode(this.anchor.current, event.relatedTarget) || containsNode(this.dropdown.current, event.relatedTarget)) {
+           return;
+         }
+-      } else if (containsNode(this.anchor.current, event.target)) {
++      } else if (containsNode(this.anchor.current, getEventTarget(event))) {
+         return;
+       }
+       if (this.props.onBlur) {
+@@ -238,9 +241,9 @@ class Select extends React.Component {
+         this.justSelected = false;
+         return;
+       }
+-      if (containsNode(this.dropdown.current, event.target)) return;
++      if (containsNode(this.dropdown.current, getEventTarget(event))) return;
+       const isFocused = this.state.isFocused || this.state.isPseudoFocused;
+-      if (isFocused && !containsNode(this.anchor.current, event.target)) {
++      if (isFocused && !containsNode(this.anchor.current, getEventTarget(event))) {
+         this.handleBlur(event);
+       }
+     });

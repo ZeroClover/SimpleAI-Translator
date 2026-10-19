@@ -35,7 +35,7 @@ Linux 托盘 SHALL 提供可用的 Quit 菜单项，通过应用菜单事件退�
 
 ### Requirement: 桌面设置文件完整性
 
-桌面设置的保存与键删除 SHALL 由原生进程在同一把锁内完成：读取当前 `config.json`，合并写入的键、删除指定的键，先写入同目录的唯一临时文件，再替换 `config.json`；失败时 SHALL 保留旧文件并清理临时文件。各窗口的 WebView SHALL NOT 自行读改写整个 `config.json`。读取到非法 UTF-8、损坏 JSON 或非对象 JSON 时 SHALL 将原文件的全部字节保留为唯一的 `.corrupted` 备份并初始化空设置，不覆盖既有备份。原生字段类型错误 SHALL 使用原生默认值，不改写用户文件。配置读取错误 SHALL NOT 导致原生进程 panic。
+桌面设置的保存 SHALL 由原生进程在同一把锁内完成：读取当前 `config.json`，合并写入的键，先写入同目录的唯一临时文件，再替换 `config.json`；失败时 SHALL 保留旧文件并清理临时文件。各窗口的 WebView SHALL NOT 自行读改写整个 `config.json`;设置写入接口 SHALL NOT 提供删除键的能力。读取到非法 UTF-8、损坏 JSON 或非对象 JSON 时 SHALL 将原文件的全部字节保留为唯一的 `.corrupted` 备份并初始化空设置，不覆盖既有备份。原生字段类型错误 SHALL 使用原生默认值，不改写用户文件。配置读取错误 SHALL NOT 导致原生进程 panic。
 
 #### Scenario: 写入失败
 
@@ -223,7 +223,7 @@ Linux 托盘 SHALL 提供可用的 Quit 菜单项，通过应用菜单事件退�
 
 ### Requirement: i18n locale 文件结构对齐
 
-界面语言 SHALL 为以下 6 种 locale:`en`、`zh-Hans`、`zh-Hant`、`ja`、`th`、`tr`,每种对应 `src/common/i18n/locales/<lang>/translation.json`,设置页 i18n 选择框 SHALL 只提供这 6 项。`en` SHALL 作为 `fallbackLng`;所有 6 种 locale 的 key 集合 SHALL 完全相同,新增或删除 key 时 SHALL 同步修改全部 locale。该约束由 `src/common/i18n/locales.spec.ts` 测试守护。
+界面语言 SHALL 为以下 6 种 locale:`en`、`zh-Hans`、`zh-Hant`、`ja`、`th`、`tr`,每种对应 `src/common/i18n/locales/<lang>/translation.json`,设置页 i18n 选择框 SHALL 只提供这 6 项。`en` SHALL 作为 `fallbackLng`;所有 6 种 locale 的 key 集合 SHALL 完全相同,新增或删除 key 时 SHALL 同步修改全部 locale。
 
 所有 locale SHALL NOT 包含以下已移除功能的 key:
 
@@ -275,7 +275,7 @@ These toggles SHALL be persisted to the matching ProviderModelOutputControls rec
 
 ### Requirement: ISettings 更新
 
-`src/common/types.ts` 中 `ISettings` 接口 SHALL 包含以下 Provider 相关字段:`providers: ProviderConfig[]`、`defaultProviderId: string | null`、`defaultModel: ModelSelection | null`、`providerModelOutputControls?: ProviderModelOutputControls[]`。其余字段 SHALL 为 `automaticCheckForUpdates`、`enableBackgroundBlur`、`enableMica`(仅用于向 `enableBackgroundBlur` 提供缺省值)、`nativeLanguage`、`translationTargetLanguage`、`themeType`、`i18n`、`tts`、`restorePreviousPosition`、`runAtStartup`、`pinned`、`languageDetectionEngine`、`proxy`、`fontSize`、`renderMarkdown: boolean`。
+`src/common/types.ts` 中 `ISettings` 接口 SHALL 包含以下 Provider 相关字段:`providers: ProviderConfig[]`、`defaultProviderId: string | null`、`defaultModel: ModelSelection | null`、`providerModelOutputControls?: ProviderModelOutputControls[]`。其余字段 SHALL 为 `automaticCheckForUpdates`、`enableBackgroundBlur`、`nativeLanguage`、`translationTargetLanguage`、`themeType`、`i18n`、`tts`、`restorePreviousPosition`、`runAtStartup`、`pinned`、`languageDetectionEngine`、`proxy`、`fontSize`、`renderMarkdown: boolean`。
 
 运行时行为 SHALL NOT 依赖全局 `useStructuredOutput` 或 `useStrictSchema` 字段决定翻译请求是否启用结构化输出。旧版本设置中的同名顶层字段 SHALL NOT 被读取,且 SHALL NOT 写回持久化设置。`renderMarkdown` SHALL 作为已知设置字段读取和保存，SHALL NOT 作为 Provider + Model 的输出控制或请求参数。
 
@@ -283,7 +283,7 @@ These toggles SHALL be persisted to the matching ProviderModelOutputControls rec
 
 -   **WHEN** 在 `src/common/types.ts` 检查 `ISettings` 接口
 -   **THEN** `providerModelOutputControls?: ProviderModelOutputControls[]`、`defaultModel: ModelSelection | null`、`renderMarkdown: boolean` 字段 SHALL 存在
--   **AND** `useStructuredOutput` 与 `useStrictSchema` 字段 SHALL NOT 存在
+-   **AND** `useStructuredOutput`、`useStrictSchema` 与 `enableMica` 字段 SHALL NOT 存在
 
 #### Scenario: 归一化默认值
 
@@ -299,7 +299,7 @@ These toggles SHALL be persisted to the matching ProviderModelOutputControls rec
 
 ### Requirement: 部分设置写入
 
-只修改部分字段的设置写入(如主界面 Markdown 开关、主界面模型切换、浮窗固定、OpenAI TTS 回退)SHALL 只持久化被修改的字段,存储中的其它字段 SHALL 保持原值。写入值 SHALL 在当前已存储设置的基础上校验,依赖 Provider 的字段 SHALL 以已存储的 `providers` 校验。`providers` SHALL 仅在写入包含它时写入;写入包含 `providers`、`defaultProviderId` 或 `defaultModel` 中任一字段时,SHALL 同时写入校验后的 `defaultProviderId` 与 `defaultModel`。设置面板的完整保存 SHALL 保持现有行为。
+只修改部分字段的设置写入(如主界面 Markdown 开关、主界面模型切换、浮窗固定、OpenAI TTS 回退)SHALL 只持久化被修改的字段,存储中的其它字段 SHALL 保持原值。写入值 SHALL 在当前已存储设置的基础上校验,依赖 Provider 的字段 SHALL 以已存储的 `providers` 校验。每次写入 SHALL 只对设置存储发起一次写操作。`providers` SHALL 仅在写入包含它时写入;写入包含 `providers`、`defaultProviderId` 或 `defaultModel` 中任一字段时,SHALL 同时写入校验后的 `defaultProviderId` 与 `defaultModel`。设置面板的提交与失焦保存 SHALL 同样只持久化相对其上次加载或保存的值发生变化的字段;没有变化时 SHALL NOT 写入。写入包含 `providers` 而不包含 `tts` 时,若**已存储的** `tts` 关联 OpenAI TTS 且其 Provider 在新列表中已失效,系统 SHALL 在同一次写入中把已存储的 `tts` 以 `provider: 'edge'` 写回(其余字段保持已存储值),并 SHALL NOT 使用调用方持有的旧 `tts` 快照。
 
 #### Scenario: 其它界面保存后再切换 Markdown
 
@@ -311,6 +311,23 @@ These toggles SHALL be persisted to the matching ProviderModelOutputControls rec
 
 -   **WHEN** 一次写入只包含 `renderMarkdown` 或 `pinned`
 -   **THEN** 存储中的 `providers`、`defaultProviderId` 与 `defaultModel` SHALL 保持不变
+
+#### Scenario: 设置面板只保存改动字段
+
+-   **WHEN** 设置面板打开期间,翻译界面保存了新的 `defaultModel`,随后用户在设置面板只修改字号并保存
+-   **THEN** 存储中的 `fontSize` SHALL 为新值
+-   **AND** 翻译界面保存的 `defaultModel` SHALL 保持不变
+
+#### Scenario: 删除 Provider 时不覆盖其它界面保存的 TTS
+
+-   **WHEN** 设置面板加载时 `tts` 关联 Provider p1,随后另一界面把 TTS 改为 `system`(或改为关联仍有效的 p2)并保存,之后用户在设置面板删除 p1
+-   **THEN** 存储中的 `tts` SHALL 保持另一界面保存的值
+-   **AND** 系统 SHALL NOT 提示 OpenAI TTS 已切换到 Edge TTS
+
+#### Scenario: 删除关联 Provider 时同次写入回退
+
+-   **WHEN** 已存储的 `tts` 为 `openai` 并关联 p1,用户在设置面板删除 p1
+-   **THEN** 同一次写入 SHALL 把存储中的 `tts.provider` 改为 `'edge'`,`tts` 的其它字段保持不变
 
 #### Scenario: 切换模型不回写 Provider
 
@@ -337,7 +354,7 @@ Markdown 渲染 SHALL 是独立于 Provider、模型和结构化输出控制的�
 
 -   **WHEN** 用户先开启再关闭 Markdown，并在保存完成后重新打开翻译界面
 -   **THEN** Markdown SHALL 保持关闭，SHALL NOT 恢复之前的开启状态
--   **AND** Chrome、Firefox、Tauri 与用户脚本的现有设置存储路径 SHALL 均遵守此行为
+-   **AND** Chrome、Firefox 与 Tauri 的现有设置存储路径 SHALL 均遵守此行为
 
 #### Scenario: 保存其它设置
 

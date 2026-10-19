@@ -89,11 +89,10 @@ https://github.com/nextai-translator/nextai-translator/tree/v-pre-slim
 
 ### 浏览器扩展
 
-每个版本都附带浏览器扩展包与用户脚本：
+每个版本都附带浏览器扩展包：
 
 -   `SimpleAI-Translator-chromium-extension-<version>.zip`：解压后打开 `chrome://extensions`，开启 `开发者模式`，点击 `加载已解压的扩展程序` 并选择解压后的目录。
 -   `SimpleAI-Translator-firefox-extension-<version>.xpi`：该安装包未经 Mozilla 签名。可在 `about:debugging` -> `此 Firefox` -> `临时载入附加组件` 中加载，或在 Firefox Developer Edition / Nightly 中将 `xpinstall.signatures.required` 设为 `false` 后永久安装。
--   `SimpleAI-Translator-<version>.user.js`：使用 Tampermonkey、Violentmonkey 等用户脚本管理器安装。
 
 安装后打开设置，添加 LLM Provider，选择默认模型，然后刷新当前网页。
 
@@ -103,7 +102,7 @@ https://github.com/nextai-translator/nextai-translator/tree/v-pre-slim
 
 ## 开发
 
-安装依赖：
+开发需要 Node.js 24（当前的 Active LTS）或更高版本。安装依赖：
 
 ```sh
 pnpm install
@@ -115,11 +114,10 @@ pnpm install
 -   `pnpm dev-firefox`：以监听模式构建 Firefox 扩展。
 -   `pnpm dev-tauri`：启动 Tauri 桌面端。
 -   `pnpm build-browser-extension`：构建 Chromium 与 Firefox 扩展。
--   `pnpm build-userscript`：构建用户脚本。
 -   `pnpm build-tauri`：构建桌面端。
 -   `pnpm lint`：运行 ESLint。
--   `pnpm test`：单次运行单元测试。
--   `pnpm test:e2e`：运行 Playwright 测试。
+-   `pnpm test:e2e`：运行 Playwright 测试（扩展测试需先执行 `pnpm build-browser-extension` 生成最新构建）。
+-   `cargo test --manifest-path src-tauri/Cargo.toml`：运行原生测试。
 
 ## License
 

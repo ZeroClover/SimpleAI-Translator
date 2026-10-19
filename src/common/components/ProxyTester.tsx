@@ -1,11 +1,10 @@
 import { useTranslation } from 'react-i18next'
 import { ISettings } from '../types'
-import { Button } from 'baseui-sd/button'
-import { Notification } from 'baseui-sd/notification'
+import { Button } from 'baseui/button'
+import { Notification } from 'baseui/notification'
 import { useState } from 'react'
-import { fetch } from '@tauri-apps/plugin-http'
 import ReactCountryFlag from 'react-country-flag'
-import { getFetchProxy } from '../polyfills/tauri'
+import { tauriFetch } from '../polyfills/tauri'
 import { BsRocketTakeoff } from 'react-icons/bs'
 import { SpinnerIcon } from './SpinnerIcon'
 
@@ -32,10 +31,9 @@ export function ProxyTester(props: IProxyTesterProps) {
         try {
             setError(undefined)
             const start = Date.now()
-            const fetchProxy = getFetchProxy(props.proxy, true)
-            const resp = await fetch('https://api.ip.sb/geoip', {
-                proxy: fetchProxy,
-                connectTimeout: 10000,
+            const resp = await tauriFetch('https://api.ip.sb/geoip', {
+                proxy: { ...props.proxy, enabled: true },
+                signal: AbortSignal.timeout(10000),
             })
             const jsn = await resp.json()
             const end = Date.now()

@@ -1,6 +1,7 @@
 import React from 'react'
+import { FallbackProps } from 'react-error-boundary'
 
-export function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
+export function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
     return (
         <div
             role='alert'
@@ -37,7 +38,7 @@ export function ErrorFallback({ error, resetErrorBoundary }: { error: Error; res
                     wordBreak: 'break-word',
                 }}
             >
-                {error.message}
+                {error instanceof Error ? error.message : String(error)}
             </p>
             <button
                 onClick={resetErrorBoundary}

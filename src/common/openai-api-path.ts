@@ -1,7 +1,15 @@
+import { ProviderProtocol } from './types'
+
 export const OPENAI_CHAT_COMPLETIONS_API_PATH = '/v1/chat/completions'
 export const OPENAI_RESPONSES_API_PATH = '/v1/responses'
 export const OPENAI_AUDIO_SPEECH_API_PATH = '/v1/audio/speech'
 export const ANTHROPIC_MESSAGES_API_PATH = '/v1/messages'
+
+export const DEFAULT_ENDPOINT_BY_PROTOCOL: Record<ProviderProtocol, string> = {
+    'openai-chat': 'https://api.openai.com/v1',
+    'openai-responses': 'https://api.openai.com/v1',
+    'anthropic': 'https://api.anthropic.com',
+}
 
 const KNOWN_ENDPOINT_SUFFIXES = ['/chat/completions', '/responses', '/messages', '/audio/speech']
 
@@ -12,7 +20,7 @@ const API_VERSION_SEGMENT = /^v\d+(?:alpha|beta)?\d*$/i
 export function normalizeAPIEndpoint(
     endpoint: string | undefined | null,
     targetPath: string,
-    defaultEndpoint = 'https://api.openai.com/v1'
+    defaultEndpoint = DEFAULT_ENDPOINT_BY_PROTOCOL['openai-chat']
 ): string {
     const url = new URL((endpoint || defaultEndpoint).trim().replace(/\/+$/, ''))
     const targetParts = targetPath.split('/').filter(Boolean)

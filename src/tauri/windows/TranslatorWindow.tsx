@@ -19,7 +19,6 @@ const engine = new Styletron({
 
 export function TranslatorWindow() {
     const [uuid, setUUID] = useState('')
-    const [showSettings, setShowSettings] = useState(false)
 
     const { settings } = useSettings()
 
@@ -35,20 +34,6 @@ export function TranslatorWindow() {
                     setUUID(uuid_)
                     setExternalOriginalText(selectedText)
                 }
-            })
-        })()
-        return () => {
-            unlisten?.()
-        }
-    }, [])
-
-    useEffect(() => {
-        let unlisten: UnlistenFn | undefined
-        ;(async () => {
-            unlisten = await listen('show-settings', async () => {
-                const uuid_ = uuidv4().replace(/-/g, '').slice(0, 6)
-                setShowSettings(true)
-                setUUID(uuid_)
             })
         })()
         return () => {
@@ -97,7 +82,6 @@ export function TranslatorWindow() {
                 engine={engine}
                 showLogo={isMacOS}
                 showSettingsIcon
-                showSettings={showSettings}
                 autoFocus
                 defaultShowSettings
                 editorRows={10}

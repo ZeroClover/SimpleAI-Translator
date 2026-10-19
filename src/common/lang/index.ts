@@ -1,12 +1,8 @@
-/* eslint-disable no-control-regex */
-/* eslint-disable no-misleading-character-class */
-
 import { isTraditional } from '../traditional-or-simplified'
 import ISO6391 from 'iso-639-1'
 import { LANG_CONFIGS, Config as OptionalLangConfig } from './data'
 import { oneLine } from 'common-tags'
 import { getUniversalFetch } from '../universal-fetch'
-import qs from 'qs'
 import { getSettings } from '../utils'
 
 export type LangCode =
@@ -92,7 +88,6 @@ export const targetLanguages = Object.entries(LANG_CONFIGS)
     .filter(([, config]) => config.isTarget !== false)
     .map(([code, config]) => [code, config.name] as [LangCode, string])
 export const langMap = new Map(Object.entries(LANG_CONFIGS).map(([code, config]) => [code, config.name]))
-export const langMapReverse = new Map(Object.entries(LANG_CONFIGS).map(([code, config]) => [config.name, code]))
 
 export function getLangName(langCode: string): string {
     const langName = ISO6391.getName(langCode)
@@ -124,7 +119,7 @@ export async function googleDetectLang(text: string): Promise<LangCode | undefin
 
     const fetcher = getUniversalFetch()
     const resp = await fetcher(
-        `https://translate.google.com/translate_a/single?dt=at&dt=bd&dt=ex&dt=ld&dt=md&dt=qca&dt=rw&dt=rm&dt=ss&dt=t&${qs.stringify(
+        `https://translate.google.com/translate_a/single?dt=at&dt=bd&dt=ex&dt=ld&dt=md&dt=qca&dt=rw&dt=rm&dt=ss&dt=t&${new URLSearchParams(
             {
                 client: 'gtx',
                 sl: 'auto',
@@ -168,7 +163,7 @@ export async function bingDetectLang(text: string): Promise<LangCode | undefined
 
     if (tokenResp.ok) {
         const token = await tokenResp.text()
-        const url = `https://api-edge.cognitive.microsofttranslator.com/detect?${qs.stringify({
+        const url = `https://api-edge.cognitive.microsofttranslator.com/detect?${new URLSearchParams({
             'api-version': '3.0',
         })}`
 
@@ -384,12 +379,4 @@ export function getLangConfig(langCode: LangCode): LanguageConfig {
         genCommandPrompt: (sourceLanguageConfig: LanguageConfig) => oneLine`Please translate to ${config.name}`,
     }
     return { ...DEFAULT_CONFIG, ...config }
-}
-
-export function intoLangCode(langCode: string | null): LangCode {
-    const DEFAULT_LANGUAGE_CODE = 'en'
-    if (langCode && langCode in LANG_CONFIGS) {
-        return langCode as LangCode
-    }
-    return DEFAULT_LANGUAGE_CODE
 }

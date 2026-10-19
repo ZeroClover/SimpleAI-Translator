@@ -89,11 +89,10 @@ Download the `.deb` package or the `.AppImage` (x86_64). `SHA256SUMS-linux.txt` 
 
 ### Browser Extension
 
-Each release includes browser extension packages and a userscript:
+Each release includes browser extension packages:
 
 -   `SimpleAI-Translator-chromium-extension-<version>.zip`: unzip it, open `chrome://extensions`, enable `Developer mode`, then choose `Load unpacked` and select the unzipped folder.
 -   `SimpleAI-Translator-firefox-extension-<version>.xpi`: the package is not signed by Mozilla. Load it from `about:debugging` -> `This Firefox` -> `Load Temporary Add-on`, or install it permanently in Firefox Developer Edition or Nightly with `xpinstall.signatures.required` set to `false`.
--   `SimpleAI-Translator-<version>.user.js`: install it with a userscript manager such as Tampermonkey or Violentmonkey.
 
 After installation, open settings, add an LLM Provider, select a default model, and refresh the current page.
 
@@ -103,7 +102,7 @@ For details, see [Desktop Clip Extension](./CLIP-EXTENSIONS.md).
 
 ## Development
 
-Install dependencies with:
+Development requires Node.js 24 (the current Active LTS) or newer. Install dependencies with:
 
 ```sh
 pnpm install
@@ -115,11 +114,10 @@ Common commands:
 -   `pnpm dev-firefox`: build the Firefox extension in watch mode.
 -   `pnpm dev-tauri`: start the Tauri desktop app.
 -   `pnpm build-browser-extension`: build Chromium and Firefox extension bundles.
--   `pnpm build-userscript`: build the userscript.
 -   `pnpm build-tauri`: build the desktop app.
 -   `pnpm lint`: run ESLint.
--   `pnpm test`: run unit tests once.
--   `pnpm test:e2e`: run Playwright tests.
+-   `pnpm test:e2e`: run the Playwright tests (the extension tests need a fresh `pnpm build-browser-extension`).
+-   `cargo test --manifest-path src-tauri/Cargo.toml`: run the native tests.
 
 ## License
 

@@ -1,6 +1,7 @@
-import { ProviderConfig, ReasoningEffort, ThinkingControl } from '../../types'
+import { ProviderConfig, ReasoningEffort } from '../../types'
 import { getUniversalFetch } from '../../universal-fetch'
-import { ANTHROPIC_MESSAGES_API_PATH, normalizeAPIEndpoint } from '../../openai-api-path'
+import { ANTHROPIC_MESSAGES_API_PATH, DEFAULT_ENDPOINT_BY_PROTOCOL, normalizeAPIEndpoint } from '../../openai-api-path'
+import type { EngineProviderConfig } from '..'
 import {
     EngineSession,
     IEngine,
@@ -12,7 +13,7 @@ import {
 
 /* eslint-disable camelcase */
 
-const DEFAULT_ENDPOINT = 'https://api.anthropic.com'
+const DEFAULT_ENDPOINT = DEFAULT_ENDPOINT_BY_PROTOCOL['anthropic']
 const MODELS_PATH = '/v1/models'
 // Maximum page size accepted by the Models API.
 const MODELS_PAGE_LIMIT = 1000
@@ -20,7 +21,6 @@ const MODELS_PAGE_LIMIT = 1000
 // output at 32K, everything newer at 64K or more.
 const DEFAULT_MAX_TOKENS = 32000
 const ADAPTIVE_MAX_TOKENS = 64000
-type EngineProviderConfig = ProviderConfig & ThinkingControl
 
 function getHeaders(providerConfig: ProviderConfig): Record<string, string> {
     return {
@@ -29,20 +29,6 @@ function getHeaders(providerConfig: ProviderConfig): Record<string, string> {
         'x-api-key': providerConfig.apiKey,
         ...providerConfig.extraHeaders,
     }
-}
-
-function getErrorMessage(error: unknown): string {
-    if (error instanceof Error) {
-        return error.message
-    }
-    if (typeof error === 'string') {
-        return error
-    }
-    if (typeof error === 'object' && error !== null) {
-        const err = error as { error?: { message?: string }; message?: string }
-        return err.error?.message ?? err.message ?? 'Unknown error'
-    }
-    return 'Unknown error'
 }
 
 // Anthropic structured outputs reject array-size constraints; item counts are
@@ -193,7 +179,7 @@ export class AnthropicEngine implements IEngine {
     }
 
     async sendMessage(req: IMessageRequest): Promise<void> {
-        const session = new EngineSession(req, getErrorMessage)
+        const session = new EngineSession(req)
         let lastStopReason: string | null = null
 
         const outputConfig = getOutputConfig(req.structuredOutput)

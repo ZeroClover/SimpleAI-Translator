@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
 import { BaseThemeType } from '../types'
 import { useThemeDetector } from './useThemeDetector'
-import { useThemeType } from './useThemeType'
+import { useSettings } from './useSettings'
 
 export const useCurrentThemeType = (): BaseThemeType => {
-    const { themeType: themeTypeSetting } = useThemeType()
+    const { settings } = useSettings()
+    const themeTypeSetting = settings.themeType ?? 'light'
 
     const systemIsDark = useThemeDetector()
 

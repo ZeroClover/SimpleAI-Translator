@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast/headless'
 import { Client as Styletron } from 'styletron-engine-atomic'
 import { Provider as StyletronProvider } from 'styletron-react'
-import { BaseProvider } from 'baseui-sd'
-import { Textarea } from 'baseui-sd/textarea'
+import { BaseProvider } from 'baseui'
+import { Textarea } from 'baseui/textarea'
 import { createUseStyles } from 'react-jss'
 import { IoSettingsOutline } from 'react-icons/io5'
 import { TiArrowBack } from 'react-icons/ti'
@@ -12,14 +12,13 @@ import { TbArrowsExchange, TbMarkdown } from 'react-icons/tb'
 import { MdHistory } from 'react-icons/md'
 import { detectLang, getLangConfig, sourceLanguages, targetLanguages, LangCode } from '../lang'
 import { getTranslationCacheKey, resolveTranslationModel, translate } from '../translate'
-import { Select, Value, Option } from 'baseui-sd/select'
+import { Select, Value, Option } from 'baseui/select'
 import { RxEraser, RxEnter, RxReload, RxStop } from 'react-icons/rx'
 import { clsx } from 'clsx'
-import { Button } from 'baseui-sd/button'
+import { Button } from 'baseui/button'
 import { ErrorBoundary } from 'react-error-boundary'
 import { ErrorFallback } from '../components/ErrorFallback'
 import {
-    isDesktopApp,
     isTauri,
     isBrowserExtensionContentScript,
     isMacOS,
@@ -27,7 +26,6 @@ import {
     resolveAutomaticTargetLanguage,
     resolveProviderModelOutputControls,
     resolveTargetLanguageForSource,
-    setSettings as persistSettings,
 } from '../utils'
 import { InnerSettings } from './Settings'
 import { containerID, popupCardInnerContainerId } from '../../browser-extension/content_script/consts'
@@ -42,10 +40,9 @@ import { CopyButton } from './CopyButton'
 import { historyService } from '../services/history'
 import { TranslationHistory } from './TranslationHistory'
 import { IoIosRocket } from 'react-icons/io'
-import _ from 'underscore'
+import debounce from 'lodash.debounce'
 import { GlobalSuspense } from './GlobalSuspense'
-import { useLazyEffect } from '../hooks/useLazyEffect'
-import LogoWithText, { type LogoWithTextRef } from './LogoWithText'
+import LogoWithText from './LogoWithText'
 import Toaster from './Toaster'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useDeepCompareCallback, useDeepCompareEffect } from 'use-deep-compare'
@@ -156,14 +153,8 @@ const useStyles = createUseStyles({
         alignItems: 'center',
         gap: '4px',
     }),
-    'brand': {
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: '3px',
-    },
     'popupCardHeaderContainer': (props: IThemedStyleProps) =>
-        props.isDesktopApp
+        props.isTauri
             ? {
                   'position': 'fixed',
                   'backdropFilter': 'blur(20px)',
@@ -208,44 +199,6 @@ const useStyles = createUseStyles({
         '-webkit-user-select': 'text',
         'user-select': 'text',
     },
-    'popupCardHeaderButtonGroup': (props: IThemedStyleProps) => ({
-        'display': 'flex',
-        'flexDirection': 'row',
-        'alignItems': 'center',
-        'gap': '4px',
-        'marginLeft': '10px',
-        '@media screen and (max-width: 460px)': {
-            marginLeft: props.isDesktopApp ? '5px' : undefined,
-        },
-    }),
-    'popupCardHeaderMoreActionsContainer': () => ({
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginLeft: 5,
-    }),
-    'popupCardHeaderMoreActionsBtn': (props: IThemedStyleProps) => ({
-        'cursor': 'pointer',
-        'display': 'flex',
-        'alignItems': 'center',
-        'justifyContent': 'center',
-        'padding': '5px',
-        'borderRadius': '8px',
-        'transition': 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-        '& *': {
-            fill: props.theme.colors.contentPrimary,
-            color: props.theme.colors.contentPrimary,
-            stroke: props.theme.colors.contentPrimary,
-            transition: 'all 0.2s ease',
-        },
-        '&:hover': {
-            background: props.themeType === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
-            transform: 'scale(1.05)',
-        },
-        '&:active': {
-            transform: 'scale(0.95)',
-        },
-    }),
     'popupCardHeaderActionsContainer': (props: IThemedStyleProps) => ({
         'box-sizing': 'border-box',
         'display': 'flex',
@@ -257,8 +210,8 @@ const useStyles = createUseStyles({
         'padding': props.showLogo ? '5px 10px' : '5px 10px 5px 0px',
         'gap': '10px',
         '@media screen and (max-width: 460px)': {
-            padding: props.isDesktopApp ? '5px 0' : undefined,
-            gap: props.isDesktopApp ? '5px' : undefined,
+            padding: props.isTauri ? '5px 0' : undefined,
+            gap: props.isTauri ? '5px' : undefined,
         },
     }),
     'from': (props: IThemedStyleProps) => ({
@@ -293,13 +246,6 @@ const useStyles = createUseStyles({
         display: 'flex',
         flexDirection: 'column',
     },
-    'loadingContainer': {
-        margin: '0 auto',
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: '10px',
-    },
     'popupCardEditorContainer': {
         display: 'flex',
         flexDirection: 'column',
@@ -312,12 +258,6 @@ const useStyles = createUseStyles({
         '-ms-user-select': 'none',
         '-webkit-user-select': 'none',
         'user-select': 'none',
-    }),
-    'tokenCount': (props: IThemedStyleProps) => ({
-        color: props.theme.colors.contentTertiary,
-        fontSize: '12px',
-        fontFamily: 'monospace',
-        opacity: 0.7,
     }),
     'actionStr': (props: IThemedStyleProps) => ({
         position: 'absolute',
@@ -506,16 +446,6 @@ const useStyles = createUseStyles({
             },
         }
     },
-    'actionButtonDisabled': (props: IThemedStyleProps) => ({
-        color: props.theme.colors.buttonDisabledText,
-        cursor: 'default',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '6px',
-        borderRadius: '8px',
-        opacity: 0.4,
-    }),
     'enterHint': (props: IThemedStyleProps) => ({
         color: props.theme.colors.contentTertiary,
         fontSize: '11px',
@@ -535,27 +465,6 @@ const useStyles = createUseStyles({
             marginBottom: '-3px',
         },
     },
-    'dropZone': (props: IThemedStyleProps) => ({
-        'display': 'flex',
-        'flexDirection': 'column',
-        'alignItems': 'center',
-        'justifyContent': 'center',
-        'padding-left': '3px',
-        'padding-right': '3px',
-        'borderRadius': '12px',
-        'cursor': 'pointer',
-        'transition': 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-        '-ms-user-select': 'none',
-        '-webkit-user-select': 'none',
-        'user-select': 'none',
-        'border': `1.5px dashed ${props.themeType === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)'}`,
-        'background': props.themeType === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-        'color': props.theme.colors.contentSecondary,
-        '&:hover': {
-            background: props.themeType === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-            borderColor: props.themeType === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
-        },
-    }),
     'flexPlaceHolder': {
         marginRight: 'auto',
     },
@@ -598,21 +507,15 @@ const translateActionStrItem = {
     afterStr: 'Translated',
 }
 
-export interface MovementXY {
-    x: number
-    y: number
-}
-
 export interface IInnerTranslatorProps {
     uuid?: string
     autoFocus?: boolean
     showSettingsIcon?: boolean
-    showSettings?: boolean
     defaultShowSettings?: boolean
     containerStyle?: React.CSSProperties
     editorRows?: number
     showLogo?: boolean
-    onSettingsSave?: (oldSettings: ISettings) => void
+    onSettingsSave?: () => void
     onSettingsShow?: (isShow: boolean) => void
 }
 
@@ -643,9 +546,10 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const setShowSettings = useSettingsVisibility((s) => s.setShowSettings)
     const toggleSettingsVisibility = useSettingsVisibility((s) => s.toggleSettingsVisibility)
 
+    // A new uuid means the window was summoned again, which always starts on the translator view.
     useEffect(() => {
-        setShowSettings(props.showSettings ?? false)
-    }, [props.showSettings, props.uuid, setShowSettings])
+        setShowSettings(false)
+    }, [props.uuid, setShowSettings])
 
     const { onSettingsShow } = props
 
@@ -666,7 +570,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
 
     const editorRef = useRef<HTMLTextAreaElement>(null)
     const { t, i18n } = useTranslation()
-    const { settings, setSettings } = useSettings()
+    const { settings, updateSettings } = useSettings()
     const [selectedModel, setSelectedModel] = useState<ModelSelection | null>(() => resolveModelSelection(settings))
     const selectedProvider = useMemo(
         () => settings.providers.find((provider) => provider.id === selectedModel?.providerId),
@@ -676,14 +580,14 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const selectedModelOption = useMemo(
         () =>
             selectedModel
-                ? modelOptions.find(
+                ? (modelOptions.find(
                       (option) => option.providerId === selectedModel.providerId && option.model === selectedModel.model
                   ) ?? {
                       id: `${selectedModel.providerId}:${selectedModel.model}`,
                       label: selectedModel.model,
                       providerId: selectedModel.providerId,
                       model: selectedModel.model,
-                  }
+                  })
                 : undefined,
         [modelOptions, selectedModel]
     )
@@ -753,10 +657,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
 
     const headerRef = useRef<HTMLDivElement>(null)
 
-    const logoWithTextRef = useRef<LogoWithTextRef>(null)
-
-    const languagesSelectorRef = useRef<HTMLDivElement>(null)
-
     const containerRef = useRef<HTMLDivElement>(null)
     const editorContainerRef = useRef<HTMLDivElement>(null)
     const translatedContainerRef = useRef<HTMLDivElement>(null)
@@ -773,12 +673,11 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const styles = useStyles({
         theme,
         themeType,
-        isDesktopApp: isDesktopApp(),
+        isTauri: isTauri(),
         showLogo,
     })
     const [isLoading, setIsLoading] = useState(false)
     const [editableText, setEditableText] = useState('')
-    const [tokenCount, setTokenCount] = useState(0)
     const [translatedText, setTranslatedText] = useState('')
     const translatedLines = useMemo(() => translatedText.split('\n'), [translatedText])
     const [translateDeps, setTranslateDeps] = useState<{
@@ -799,7 +698,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     translateDepsRef.current = translateDeps
 
     useEffect(() => {
-        if (!isDesktopApp()) {
+        if (!isTauri()) {
             return undefined
         }
         const header = headerRef.current
@@ -833,19 +732,21 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const changeSelectedModel = useCallback(
         (model: ModelSelection) => {
             setSelectedModel(model)
-            const change = { defaultProviderId: model.providerId, defaultModel: model }
-            setSettings({ ...settings, ...change })
-            // Persist only the change: `settings` may predate a save from another window.
-            void persistSettings(change)
+            // Write only the change: `settings` may predate a save from another window.
+            void updateSettings({ defaultProviderId: model.providerId, defaultModel: model })
         },
-        [setSettings, settings]
+        [updateSettings]
     )
 
+    // The content script cannot host the settings form, so it opens the extension options page.
+    const openExtensionOptions = useCallback(async () => {
+        const browser = (await import('webextension-polyfill')).default
+        await browser.runtime.sendMessage({ type: 'openOptionsPage' })
+    }, [])
+
     const toggleRenderMarkdown = useCallback(() => {
-        const change = { renderMarkdown: !settings.renderMarkdown }
-        setSettings({ ...settings, ...change })
-        void persistSettings(change)
-    }, [setSettings, settings])
+        void updateSettings({ renderMarkdown: !settings.renderMarkdown })
+    }, [settings.renderMarkdown, updateSettings])
 
     const getTranslateDeps = useCallback(
         async function (text: string): Promise<typeof translateDeps> {
@@ -888,18 +789,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     useEffect(() => {
         setEditableText(translateDeps.text)
     }, [translateDeps.text])
-
-    useLazyEffect(
-        () => {
-            ;(async () => {
-                // use dynamic import to reduce bundle size
-                const { countTokens } = await import('../token')
-                setTokenCount(countTokens(editableText, selectedModel?.model))
-            })()
-        },
-        [editableText],
-        500
-    )
 
     const [errorMessage, setErrorMessage] = useState('')
     const startLoading = useCallback(() => {
@@ -972,7 +861,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             return maxHeight - headerHeight - editorHeight - actionButtonsHeight - paddingVertical
         }
 
-        const resizeHandle: ResizeObserverCallback = _.debounce(() => {
+        const resizeHandle: ResizeObserverCallback = debounce(() => {
             // Listen for element height changes
             const $translatedContent = translatedContentRef.current
             if ($translatedContent) {
@@ -1142,7 +1031,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     detectTo: targetLang,
                     providerId,
                     model,
-                    onStatusCode: () => {},
                     onMessage: async (message) => {
                         if (!isCurrentTranslation() || signal.aborted) {
                             return
@@ -1265,7 +1153,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     )
 
     useEffect(() => {
-        if (!isDesktopApp()) {
+        if (!isTauri()) {
             return
         }
         let unlistenHistory: UnlistenFn | undefined
@@ -1297,7 +1185,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         setActionStr('Stopped')
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const handleInsertTranslatedText = useCallback(async () => {
         if (!translatedText || !isTauri()) {
             return
@@ -1323,7 +1210,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
 
     useEffect(() => {
         const container = contentScrollRef.current
-        const scrollOnContainer = isDesktopApp() && !!container
+        const scrollOnContainer = isTauri() && !!container
         const isOnTop = () => {
             if (scrollOnContainer && container) {
                 return container.scrollTop === 0
@@ -1352,8 +1239,9 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         const scrollTarget: HTMLElement | Window = scrollOnContainer && container ? container : window
         scrollTarget.addEventListener('scroll', onScroll, { passive: true })
         window.addEventListener('resize', onScroll)
+        // Only this component's own content changes its scroll edges; host page mutations do not.
         const observer = new MutationObserver(onScroll)
-        observer.observe(scrollOnContainer && container ? container : document.body, {
+        observer.observe(scrollOnContainer && container ? container : (containerRef.current as HTMLDivElement), {
             childList: true,
             subtree: true,
         })
@@ -1419,17 +1307,11 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             })}
             ref={containerRef}
             style={{
-                background: isDesktopApp() ? 'transparent' : theme.colors.backgroundPrimary,
-                paddingBottom: showSettings || settings.enableBackgroundBlur || isDesktopApp() ? '0px' : '42px',
+                background: isTauri() ? 'transparent' : theme.colors.backgroundPrimary,
+                paddingBottom: showSettings || settings.enableBackgroundBlur || isTauri() ? '0px' : '42px',
             }}
         >
-            {showSettings && (
-                <InnerSettings
-                    onSave={(oldSettings) => {
-                        props.onSettingsSave?.(oldSettings)
-                    }}
-                />
-            )}
+            {showSettings && <InnerSettings onSave={props.onSettingsSave} />}
             <div
                 style={{
                     display: !showSettings ? 'block' : 'none',
@@ -1441,17 +1323,13 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         className={styles.popupCardHeaderContainer}
                         data-tauri-drag-region
                         style={{
-                            cursor: isDesktopApp() ? 'default' : showLogo ? 'move' : 'default',
-                            boxShadow: isDesktopApp() && !isScrolledToTop ? theme.lighting.shadow600 : undefined,
+                            cursor: isTauri() ? 'default' : showLogo ? 'move' : 'default',
+                            boxShadow: isTauri() && !isScrolledToTop ? theme.lighting.shadow600 : undefined,
                             background: settings.enableBackgroundBlur ? 'transparent' : '',
                         }}
                     >
-                        {showLogo ? (
-                            <LogoWithText ref={logoWithTextRef} />
-                        ) : (
-                            <div style={{ flexShrink: 0, marginRight: 'auto' }} />
-                        )}
-                        <div className={styles.popupCardHeaderActionsContainer} ref={languagesSelectorRef}>
+                        {showLogo ? <LogoWithText /> : <div style={{ flexShrink: 0, marginRight: 'auto' }} />}
+                        <div className={styles.popupCardHeaderActionsContainer}>
                             <div className={styles.from}>
                                 <Select
                                     size='mini'
@@ -1611,7 +1489,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         ref={contentScrollRef}
                         className={clsx(
                             styles.popupCardContentContainer,
-                            isDesktopApp() &&
+                            isTauri() &&
                                 !settings.enableBackgroundBlur &&
                                 styles.popupCardContentContainerDesktopScroll,
                             settings.enableBackgroundBlur && styles.popupCardContentContainerBackgroundBlur
@@ -1640,10 +1518,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                         event.stopPropagation()
                                         event.preventDefault()
                                         if (isBrowserExtensionContentScript()) {
-                                            const browser = (await import('webextension-polyfill')).default
-                                            await browser.runtime.sendMessage({
-                                                type: 'openOptionsPage',
-                                            })
+                                            await openExtensionOptions()
                                             return
                                         }
                                         setShowSettings(true)
@@ -1664,7 +1539,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             </div>
                             <div>
                                 <Textarea
-                                    inputRef={editorRef}
+                                    inputRef={editorRef as React.RefObject<HTMLTextAreaElement>}
                                     autoFocus={autoFocus}
                                     overrides={{
                                         Root: {
@@ -1736,7 +1611,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                         overflow: 'hidden',
                                     }}
                                 >
-                                    <div className={styles.tokenCount}> {tokenCount} </div>
                                     <div className={styles.flexPlaceHolder} />
                                     <div
                                         style={{
@@ -1779,7 +1653,12 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                     <>
                                         {isLoading && (
                                             <Tooltip content={t('Stop')} placement='bottom'>
-                                                <div className={styles.actionButton} onClick={handleStopGenerating}>
+                                                <div
+                                                    role='button'
+                                                    aria-label={t('Stop')}
+                                                    className={styles.actionButton}
+                                                    onClick={handleStopGenerating}
+                                                >
                                                     <RxStop size={15} />
                                                 </div>
                                             </Tooltip>
@@ -1927,6 +1806,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                                 {!isLoading && (
                                                     <Tooltip content={t('Retry')} placement='bottom'>
                                                         <div
+                                                            role='button'
+                                                            aria-label={t('Retry')}
                                                             onClick={() => forceTranslate()}
                                                             className={styles.actionButton}
                                                         >
@@ -1986,6 +1867,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         <Button
                             size='mini'
                             kind='tertiary'
+                            aria-label={showSettings ? t('Go to Translator') : t('Go to Settings')}
                             overrides={{
                                 Root: {
                                     style: {
@@ -1997,10 +1879,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                 e.stopPropagation()
                                 e.preventDefault()
                                 if (isBrowserExtensionContentScript()) {
-                                    const browser = (await import('webextension-polyfill')).default
-                                    await browser.runtime.sendMessage({
-                                        type: 'openOptionsPage',
-                                    })
+                                    await openExtensionOptions()
                                 } else {
                                     toggleSettingsVisibility()
                                 }

@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { TranslatorWindow } from './windows/TranslatorWindow'
 import { SettingsWindow } from './windows/SettingsWindow'

@@ -1,10 +1,10 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `src/browser-extension/` hosts extension surfaces (popup, options, background) and manifest tooling.
+- `src/entrypoints/` holds the thin WXT entrypoints (background, content script, popup, options); their implementations live in `src/browser-extension/` (the popup card UI in `content_script/`). The content script registers its listeners in `main(ctx)` and mounts the card with `createShadowRootUi`. `wxt.config.ts` defines the manifest; extension images are served through `chrome.runtime.getURL` (`utils.getAssetUrl`) and listed in `web_accessible_resources`.
 - `src/tauri/` contains the React renderer for desktop windows, while `src/common/` keeps shared hooks, stores, and translator logic consumed by both targets.
 - `src-tauri/` is the Rust/Tauri backend for native commands, updates, and packaging; platform assets live in `src-tauri/resources` and `src-tauri/icons`.
-- Supporting content sits in `public/` (static assets), `scripts/` (build helpers), `docs/` (release docs and notes), and `e2e/` (Playwright specs). Build outputs land in `dist/` and long-lived bundles in `release/`.
+- Supporting content sits in `public/` (static assets), `scripts/` (build helpers), `docs/` (release docs and notes), and `e2e/` (Playwright specs). Build outputs land in `dist/` (WXT writes `dist/browser-extension/{chromium,firefox}` and their zips) and long-lived bundles in `release/`.
 
 ## Current Code Map
 - `src/common/translate.ts` is the single translation entry point. It resolves the provider and model (runtime `providerId`/`model`, then `settings.defaultModel`, then `settings.defaultProviderId`), looks up that Provider + Model's output controls (thinking, `reasoningEffort`, structured output), assembles the prompt, and dispatches through `src/common/engines/index.ts`.
@@ -12,7 +12,8 @@
 - `src/common/components/Settings.tsx` and `src/common/components/ProviderForm.tsx` own LLM Provider management, model refresh, default model selection, per Provider + Model output controls, and OpenAI TTS settings.
 - `src/common/openai-api-path.ts` normalizes user-supplied endpoints into protocol URLs.
 - `src/common/tts/` owns TTS backends. OpenAI TTS is implemented in `openai-tts.ts` and reuses an existing OpenAI-compatible Provider instead of storing a separate API key.
-- `src/browser-extension/manifest.ts` and `src/common/universal-fetch.ts` cover extension permissions and fetch behavior, including optional host permissions for custom endpoints. `fetchSSE` in `src/common/utils.ts` decodes UTF-8 across chunks, consumes SSE events serially, reports complete error bodies, and hands whole JSON responses to `onJSONResponse`; the extension bridge and userscript adapter preserve the response media type.
+- `wxt.config.ts` (the extension manifest, built with WXT) and `src/common/universal-fetch.ts` cover extension permissions and fetch behavior, including optional host permissions for custom endpoints. `fetchSSE` in `src/common/utils.ts` reads any `fetch`-compatible `Response` the same way on every platform: it decodes UTF-8 across chunks, consumes SSE events serially, reports complete error bodies, hands whole JSON responses to `onJSONResponse`, and cancels the reader as soon as the signal aborts; the extension bridge preserves the response media type.
+- The desktop app has a single HTTP transport: `tauriFetch` in `src/common/polyfills/tauri.ts` calls the native `fetch` command in `src-tauri/src/fetch.rs`, which streams the body over a `tauri::ipc::Channel` and closes the connection on `fetch_cancel` (abort or `reader.cancel()`). It applies the stored proxy settings through `config::reqwest_proxy`, shared with Edge TTS.
 - `src-tauri/` keeps native shell behavior such as windows, tray, updates, and packaging; removed global shortcuts, OCR, and writing commands should not be reintroduced.
 
 ## Behavior Specs
@@ -23,6 +24,7 @@
 - `settings-surface`: which settings fields and panels exist.
 - `text-to-speech`: Edge, system, and OpenAI TTS.
 - `language-detection`, `app-identity`, `no-telemetry`: source-language detection, product naming and bundle identity, and the no-analytics guarantees.
+- `build-targets`: which build and release targets exist (no userscript or Safari Web Extension).
 
 ## Removed Modules
 - OCR and screenshot translation have been removed, including Tesseract integration, screenshot windows, OCR hotkeys, and OCR native binaries.
@@ -33,18 +35,24 @@
 - Remote promotion banners, promotion storage keys, and promotion analytics have been removed.
 
 ## Build, Test, and Development Commands
-Install dependencies with `pnpm install` (package manager is pinned in `package.json`).
-- `pnpm dev-chromium` / `pnpm dev-firefox` start the extension in Vite with HMR; `pnpm dev-tauri` boots the desktop shell with Tauri devtools.
-- `pnpm build-browser-extension`, `pnpm build-tauri` (or `pnpm build-tauri-no-updater`), and `pnpm build-userscript` produce distributable bundles; use `pnpm clean` to reset `dist/` before packaging.
-- `pnpm test` runs Vitest suites and `pnpm test:e2e` executes Playwright specs in `e2e/`.
+Use Node.js 24 (the Active LTS; `engines.node` in `package.json`) and install dependencies with `pnpm install` (package manager is pinned in `package.json`).
+- `pnpm dev-chromium` / `pnpm dev-firefox` run `wxt` for that browser with HMR; `pnpm dev-tauri` boots the desktop shell with Tauri devtools.
+- `pnpm build-browser-extension`, and `pnpm build-tauri` (or `pnpm build-tauri-no-updater`) produce distributable bundles; use `pnpm clean` to reset `dist/` before packaging.
+- `pnpm test:e2e` runs the Playwright tests in `e2e/` and is the only frontend test command; the extension tests need a fresh `pnpm build-browser-extension`. `cargo test --manifest-path src-tauri/Cargo.toml` runs the native tests.
 - `pnpm lint` / `pnpm lint:fix` run ESLint on `src/**/*.{ts,tsx}`; `pnpm format` runs Prettier on `src/`.
 - `pnpm check:no-telemetry` and `pnpm check:no-old-identity` are the grep guards behind the `no-telemetry` and `app-identity` specs.
 
 ## Coding Style & Naming Conventions
-TypeScript + React 18 is the primary stack, with Base Web (`baseui-sd`) on Styletron plus `react-jss` for component styles. Keep 4-space indentation, single quotes, and trailing commas—Prettier enforces this, so format before pushing. Components stay in `PascalCase`, hooks/utilities in `camelCase`, and constants in `SCREAMING_SNAKE_CASE`. Reuse helpers from `src/common` instead of duplicating logic, and keep staged files lint-clean: the `simple-git-hooks` pre-commit hook runs `lint-staged` (ESLint + Prettier).
+TypeScript + React 19 is the primary stack, with Base Web (`baseui`, carrying `patches/baseui@18.2.0.patch` so Select works inside the content script's shadow root) on Styletron plus `react-jss` for component styles. Keep 4-space indentation, single quotes, and trailing commas—Prettier enforces this, so format before pushing. Components stay in `PascalCase`, hooks/utilities in `camelCase`, and constants in `SCREAMING_SNAKE_CASE`. Reuse helpers from `src/common` instead of duplicating logic, and keep staged files lint-clean: the `simple-git-hooks` pre-commit hook runs `lint-staged` (ESLint + Prettier).
 
 ## Testing Guidelines
-Unit tests live next to the code as `foo.spec.ts` and run with Vitest. Mock remote APIs and keep snapshots deterministic, especially around translation results. Update Playwright specs in `e2e/*.spec.ts` when UI flows change, and verify `pnpm test` plus `pnpm test:e2e` before requesting review.
+The automated tests are a short list chosen by user-facing risk; there are no frontend unit tests.
+- `e2e/desktop.spec.ts` (Chromium) drives the real desktop renderer: `translate`, the engines, `fetchSSE`, `tauriFetch`, the settings adapter and IndexedDB all run. `e2e/desktop.ts` replaces only the native IPC boundary: `fetch`/`fetch_cancel` answered with test-chosen heads and body bytes over the real Channel, one config file shared by the windows of a context, and events routed between windows. This covers the frontend down to IPC, not the Rust or OS side. Do not intercept business modules such as `translate.ts` or `universal-fetch.ts`, and do not call translation callbacks directly.
+- `e2e/extension.spec.ts` (Chromium) loads the built extension from `dist/browser-extension/chromium` with its real service worker, port bridge and storage, against a loopback `node:http` site. The card opens through the same `open-translator` message the context menu sends; the native menu click and host-permission prompts are not automated.
+- `e2e/updater.spec.ts` runs the updater window in WebKit only.
+- The native tests are four exceptions in `src-tauri/src/{fetch,config}.rs`: cancelling closes the connection while the body is paused or before the response head arrives, a corrupt config file is backed up byte for byte before recovery, and concurrent config updates keep every key. The lint workflow runs them. Edge TTS, normal body EOF and error-body passthrough have no native test.
+- Add a test only for a user-visible regression (a failed translation, wrong persistence, data loss, active content) that no existing flow would catch, and name the flow that misses it. Pure functions and simple UI changes do not need their own test. Keep the Playwright list at 16 tests or fewer with `retries: 0`, locate controls by role and accessible name, and synchronise on events instead of sleeps.
+- Run `pnpm test:e2e`, plus `cargo test` for native changes, before requesting review.
 
 ## Commit & Pull Request Guidelines
 Follow the lightweight conventional pattern seen in history (`fix:`, `feat:`, `chore:`) with concise, imperative summaries and optional scope (e.g., `fix: handle streaming fallback`). Reference related issues in parentheses `(#1234)` when helpful. PRs should describe the change, attach screenshots or GIFs for UI work, list verification commands, and call out platform coverage across Chrome, Firefox, and Tauri targets. Request review after lint/tests pass and diffs are free of secrets.

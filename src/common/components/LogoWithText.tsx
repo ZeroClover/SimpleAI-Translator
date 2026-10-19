@@ -1,9 +1,8 @@
-import { forwardRef, useImperativeHandle, useRef } from 'react'
 import { createUseStyles } from 'react-jss'
 import { IThemedStyleProps } from '../types'
 import { useTheme } from '../hooks/useTheme'
 import { getAssetUrl } from '../utils'
-import icon from '@/common/assets/images/icon.png'
+import icon from '@/common/assets/images/icon.png?no-inline'
 
 const useStyles = createUseStyles({
     iconContainer: {
@@ -32,44 +31,16 @@ const useStyles = createUseStyles({
     }),
 })
 
-export type LogoWithTextRef = {
-    hideText: () => void
-    showText: () => void
-}
-
-const LogoWithText = forwardRef<LogoWithTextRef, unknown>(function LogoWithText(_props, ref) {
+export default function LogoWithText() {
     const { theme, themeType } = useTheme()
     const styles = useStyles({ theme, themeType })
-
-    const logoTextRef = useRef<HTMLDivElement>(null)
-
-    useImperativeHandle(
-        ref,
-        () => {
-            return {
-                hideText() {
-                    if (logoTextRef.current) {
-                        logoTextRef.current.style.display = 'none'
-                    }
-                },
-                showText() {
-                    if (logoTextRef.current) {
-                        logoTextRef.current.style.display = 'flex'
-                    }
-                },
-            }
-        },
-        []
-    )
 
     return (
         <div data-tauri-drag-region className={styles.iconContainer}>
             <img data-tauri-drag-region className={styles.icon} src={getAssetUrl(icon)} />
-            <div data-tauri-drag-region className={styles.iconText} ref={logoTextRef}>
+            <div data-tauri-drag-region className={styles.iconText}>
                 SimpleAI Translator
             </div>
         </div>
     )
-})
-
-export default LogoWithText
+}

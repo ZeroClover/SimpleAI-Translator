@@ -12,10 +12,6 @@ export function isTraditional(str: string): boolean {
     return detect(str)?.detectedCharacters === 'traditional'
 }
 
-export function isSimplified(str: string) {
-    return detect(str)?.detectedCharacters === 'simplified'
-}
-
 interface Result {
     inputLength: number
     simplifiedCharacters: number

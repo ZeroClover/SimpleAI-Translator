@@ -1,4 +1,4 @@
-import { Input, InputProps, Size } from 'baseui-sd/input'
+import { Input, InputProps, Size } from 'baseui/input'
 import React from 'react'
 
 export interface INumberInputProps {

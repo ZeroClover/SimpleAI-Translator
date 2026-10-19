@@ -93,7 +93,7 @@
 
 ### Requirement: Edge TTS 错误回退
 
-系统 SHALL 在 Edge TTS 请求失败(网络错误、上游错误、无音频或解析失败)时让朗读调用以错误结束:通过 toast 显示错误信息(以 `Edge TTS:` 开头,上游错误未带该前缀时 SHALL 补上)、调用 `onFinish`、把错误写入控制台,并使朗读按钮恢复到非播放状态。浏览器扩展、用户脚本与桌面端 SHALL 采用同一路径。系统 SHALL NOT 在 Edge TTS 失败时自动切换到 system TTS 或其它 provider。用户已停止该次朗读(中止信号已触发)后才到达的失败 SHALL 静默结束,SHALL NOT 显示 toast。
+系统 SHALL 在 Edge TTS 请求失败(网络错误、上游错误、无音频或解析失败)时让朗读调用以错误结束:通过 toast 显示错误信息(以 `Edge TTS:` 开头,上游错误未带该前缀时 SHALL 补上)、调用 `onFinish`、把错误写入控制台,并使朗读按钮恢复到非播放状态。浏览器扩展与桌面端 SHALL 采用同一路径。系统 SHALL NOT 在 Edge TTS 失败时自动切换到 system TTS 或其它 provider。用户已停止该次朗读(中止信号已触发)后才到达的失败 SHALL 静默结束,SHALL NOT 显示 toast。
 
 #### Scenario: Edge TTS 不可达
 
@@ -274,7 +274,7 @@ TTS 模块对外暴露的 API MUST NOT 引用 `Vocabulary`、`Action`、`writing
 
 ### Requirement: TTS 静默失败上限
 
-系统 SHALL 对网络型 TTS 请求设置超时,超时后 SHALL 视为失败并按对应 backend 的错误路径处理:浏览器扩展与用户脚本中的 Edge TTS SHALL 对整次合成设置 15 秒超时;OpenAI TTS SHALL 对每个 `/audio/speech` 片段请求设置 15 秒超时。系统 TTS(`speechSynthesis`)不设超时。对桌面端 Edge TTS 原生合成,renderer MUST NOT 套用 15 秒整次合成超时;原生后端 SHALL 对每个上游片段的 WebSocket 升级请求与握手各设置 10 秒连接超时,并在等待每个 WebSocket 帧时设置 60 秒接收超时,任一片段超时 SHALL 使整次合成失败。
+系统 SHALL 对网络型 TTS 请求设置超时,超时后 SHALL 视为失败并按对应 backend 的错误路径处理:浏览器扩展中的 Edge TTS SHALL 对整次合成设置 15 秒超时;OpenAI TTS SHALL 对每个 `/audio/speech` 片段请求设置 15 秒超时。系统 TTS(`speechSynthesis`)不设超时。对桌面端 Edge TTS 原生合成,renderer MUST NOT 套用 15 秒整次合成超时;原生后端 SHALL 对每个上游片段的 WebSocket 升级请求与握手各设置 10 秒连接超时,并在等待每个 WebSocket 帧时设置 60 秒接收超时,任一片段超时 SHALL 使整次合成失败。
 
 #### Scenario: 朗读请求超时
 

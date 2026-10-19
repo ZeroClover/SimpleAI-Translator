@@ -7,7 +7,6 @@ mod config;
 mod edge_tts;
 mod fetch;
 mod insertion;
-mod lang;
 mod tray;
 mod utils;
 mod windows;
@@ -20,35 +19,30 @@ use insertion::{
 use parking_lot::Mutex;
 use std::env;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use sysinfo::{CpuExt, System, SystemExt};
+use std::sync::{Arc, OnceLock};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_updater::UpdaterExt;
 use tauri_specta::Event;
 use tray::{PinnedFromTrayEvent, PinnedFromWindowEvent};
 use windows::{get_translator_window, CheckUpdateEvent, CheckUpdateResultEvent};
 
-use crate::config::{clear_config_cache, get_config_content, update_config, ConfigUpdatedEvent};
+use crate::config::{get_config_content, update_config, ConfigUpdatedEvent};
 use crate::edge_tts::{edge_tts_list_voices, edge_tts_synthesize};
-use crate::fetch::fetch_stream;
-use crate::lang::detect_lang;
+use crate::fetch::{fetch, fetch_cancel};
 use crate::windows::{
-    get_translator_window_always_on_top, hide_translator_window, show_history_window,
-    show_translator_window_command, show_translator_window_with_selected_text_command,
-    show_updater_window, TRANSLATOR_WIN_NAME,
+    get_translator_window_always_on_top, show_history_window, show_updater_window,
+    TRANSLATOR_WIN_NAME,
 };
 
-use once_cell::sync::OnceCell;
 #[cfg(debug_assertions)]
-use specta_typescript::{formatter::prettier, Typescript};
+use specta_typescript::Typescript;
 use tauri::AppHandle;
 use tauri_plugin_notification::NotificationExt;
 use tiny_http::{Response as HttpResponse, Server};
 use tokio::runtime::Runtime as TokioRuntime;
 
-pub static APP_HANDLE: OnceCell<AppHandle> = OnceCell::new();
+pub static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 pub static ALWAYS_ON_TOP: AtomicBool = AtomicBool::new(false);
-pub static CPU_VENDOR: Mutex<String> = Mutex::new(String::new());
 
 const DEFAULT_IPC_SOCKET_PATH: &str = "/tmp/simpleai-translator.sock";
 const IPC_SOCKET_PATH_ENV: &str = "SIMPLEAI_TRANSLATOR_IPC_SOCKET";
@@ -67,8 +61,6 @@ pub static UPDATE_RESULT: Mutex<Option<Option<UpdateResult>>> = Mutex::new(None)
 // async work (update checks, network) cannot stall the UI thread. It lives for
 // the whole process, which is the intended lifetime for a global runtime.
 fn init_tokio_runtime() {
-    use std::sync::OnceLock;
-
     static RUNTIME: OnceLock<TokioRuntime> = OnceLock::new();
 
     let runtime = RUNTIME.get_or_init(|| {
@@ -84,10 +76,32 @@ fn init_tokio_runtime() {
 #[tauri::command]
 #[specta::specta]
 fn get_update_result() -> (bool, Option<UpdateResult>) {
-    if UPDATE_RESULT.lock().is_none() {
-        return (false, None);
+    match &*UPDATE_RESULT.lock() {
+        Some(result) => (true, result.clone()),
+        None => (false, None),
     }
-    return (true, UPDATE_RESULT.lock().clone().unwrap());
+}
+
+/// Checks for an update, records the result and refreshes the tray menu when its update entry
+/// changes. A failed check records nothing.
+pub async fn check_update(
+    handle: &AppHandle,
+) -> Result<Option<UpdateResult>, tauri_plugin_updater::Error> {
+    let result = handle.updater()?.check().await?.map(|update| UpdateResult {
+        version: update.version,
+        current_version: update.current_version,
+        body: update.body,
+    });
+    let refresh_tray = {
+        let mut stored = UPDATE_RESULT.lock();
+        let refresh_tray = result.is_some() || matches!(*stored, Some(Some(_)));
+        *stored = Some(result.clone());
+        refresh_tray
+    };
+    if refresh_tray {
+        tray::create_tray(handle).unwrap();
+    }
+    Ok(result)
 }
 #[inline]
 fn launch_ipc_server(server: &Server) {
@@ -96,7 +110,7 @@ fn launch_ipc_server(server: &Server) {
         req.as_reader().read_to_string(&mut selected_text).unwrap();
         utils::send_text(selected_text);
         remember_active_window();
-        let window = windows::show_translator_window(false, true, false);
+        let window = windows::show_translator_window(true, false);
         window.set_focus().unwrap();
         utils::show();
         let response = HttpResponse::from_string("ok");
@@ -114,30 +128,19 @@ fn main() {
     init_tokio_runtime();
     let silently = env::args().any(|arg| arg == "--silently");
 
-    let mut sys = System::new();
-    sys.refresh_cpu(); // Refreshing CPU information.
-    if let Some(cpu) = sys.cpus().first() {
-        let vendor_id = cpu.vendor_id().to_string();
-        *CPU_VENDOR.lock() = vendor_id;
-    }
-
     let specta_builder = tauri_specta::Builder::<tauri::Wry>::new()
         .commands(tauri_specta::collect_commands![
             get_config_content,
             update_config,
             get_update_result,
-            clear_config_cache,
-            show_translator_window_command,
-            show_translator_window_with_selected_text_command,
             show_history_window,
             get_translator_window_always_on_top,
-            fetch_stream,
+            fetch,
+            fetch_cancel,
             edge_tts_list_voices,
             edge_tts_synthesize,
             insert_translation_into_previous_input,
             remember_active_window_command,
-            detect_lang,
-            hide_translator_window,
         ])
         .events(tauri_specta::collect_events![
             CheckUpdateEvent,
@@ -149,10 +152,7 @@ fn main() {
 
     #[cfg(debug_assertions)]
     specta_builder
-        .export(
-            Typescript::default().formatter(prettier),
-            "../src/tauri/bindings.ts",
-        )
+        .export(Typescript::default(), "../src/tauri/bindings.ts")
         .expect("Failed to export TypeScript bindings");
 
     let invoke_handler = specta_builder.invoke_handler();
@@ -162,9 +162,7 @@ fn main() {
 
     #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
     let mut app = tauri::Builder::default()
-        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             println!("{}, {argv:?}, {cwd}", app.package_info().name);
@@ -214,11 +212,11 @@ fn main() {
             app_handle.plugin(tauri_plugin_updater::Builder::new().build())?;
             if silently {
                 // create translator window
-                let _ = get_translator_window(false, false, false);
+                let _ = get_translator_window(false, false);
                 windows::do_hide_translator_window();
                 debug_println!("translator window is hidden");
             } else {
-                let window = get_translator_window(false, false, false);
+                let window = get_translator_window(false, false);
                 window.set_focus().unwrap();
                 window.show().unwrap();
             }
@@ -244,30 +242,7 @@ fn main() {
             tauri::async_runtime::spawn(async move {
                 loop {
                     tokio::time::sleep(std::time::Duration::from_secs(60 * 10)).await;
-                    let builder = handle.updater_builder();
-                    let updater = builder.build().unwrap();
-
-                    match updater.check().await {
-                        Ok(Some(update)) => {
-                            *UPDATE_RESULT.lock() = Some(Some(UpdateResult {
-                                version: update.version,
-                                current_version: update.current_version,
-                                body: update.body,
-                            }));
-                            tray::create_tray(&handle).unwrap();
-                        }
-                        Ok(None) => {
-                            if UPDATE_RESULT.lock().is_some() {
-                                if let Some(Some(_)) = *UPDATE_RESULT.lock() {
-                                    *UPDATE_RESULT.lock() = Some(None);
-                                    tray::create_tray(&handle).unwrap();
-                                }
-                            } else {
-                                *UPDATE_RESULT.lock() = Some(None);
-                            }
-                        }
-                        Err(_) => {}
-                    }
+                    let _ = check_update(&handle).await;
                 }
             });
             let handle = app_handle.clone();
@@ -279,7 +254,6 @@ fn main() {
 
             let handle = app_handle.clone();
             ConfigUpdatedEvent::listen_any(app_handle, move |_event| {
-                clear_config_cache();
                 tray::create_tray(&handle).unwrap();
             });
             Ok(())
@@ -297,36 +271,14 @@ fn main() {
         tauri::RunEvent::Ready => {
             let handle = app.clone();
             tauri::async_runtime::spawn(async move {
-                let builder = handle.updater_builder();
-                let updater = builder.build().unwrap();
-
-                match updater.check().await {
-                    Ok(Some(update)) => {
-                        *UPDATE_RESULT.lock() = Some(Some(UpdateResult {
-                            version: update.version,
-                            current_version: update.current_version,
-                            body: update.body,
-                        }));
-                        tray::create_tray(&handle).unwrap();
-                        let config = get_config().unwrap_or_default();
-                        if config.automatic_check_for_updates.is_none()
-                            || config.automatic_check_for_updates.is_some_and(|x| x)
-                        {
-                            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-                            show_updater_window();
-                        }
+                if let Ok(Some(_)) = check_update(&handle).await {
+                    let config = get_config().unwrap_or_default();
+                    if config.automatic_check_for_updates.is_none()
+                        || config.automatic_check_for_updates.is_some_and(|x| x)
+                    {
+                        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                        show_updater_window();
                     }
-                    Ok(None) => {
-                        if UPDATE_RESULT.lock().is_some() {
-                            if let Some(Some(_)) = *UPDATE_RESULT.lock() {
-                                *UPDATE_RESULT.lock() = Some(None);
-                                tray::create_tray(&handle).unwrap();
-                            }
-                        } else {
-                            *UPDATE_RESULT.lock() = Some(None);
-                        }
-                    }
-                    Err(_) => {}
                 }
             });
         }
@@ -349,7 +301,7 @@ fn main() {
             ..
         } => {
             remember_active_window();
-            windows::show_translator_window(false, false, false);
+            windows::show_translator_window(false, false);
         }
         _ => {}
     });

@@ -6,6 +6,7 @@ import SpeakerMotion from './SpeakerMotion'
 import { RxSpeakerLoud } from 'react-icons/rx'
 import { IconBaseProps } from 'react-icons'
 import { SpinnerIcon } from './SpinnerIcon'
+import { useTranslation } from 'react-i18next'
 
 interface ISpeakerIconProps extends IconBaseProps {
     divRef?: React.Ref<HTMLDivElement>
@@ -27,9 +28,10 @@ export function SpeakerIcon({
     volume,
     ...iconProps
 }: ISpeakerIconProps) {
+    const { t } = useTranslation()
     const [isLoading, setIsLoading] = useState(false)
     const [isSpeaking, setIsSpeaking] = useState(false)
-    const stopRef = useRef<() => void>()
+    const stopRef = useRef<() => void>(undefined)
 
     useEffect(() => {
         return () => {
@@ -80,6 +82,9 @@ export function SpeakerIcon({
     return (
         <div
             ref={divRef}
+            role='button'
+            aria-label={t('Speak')}
+            aria-pressed={isSpeaking}
             onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()

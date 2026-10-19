@@ -9,10 +9,6 @@ import {
     ReasoningEffort,
 } from './types'
 import { getUniversalFetch } from './universal-fetch'
-import { v4 as uuidv4 } from 'uuid'
-import { listen, Event, emit } from '@tauri-apps/api/event'
-import { commands } from '@/tauri/bindings'
-import toast from 'react-hot-toast'
 
 export const defaultNativeLanguage = 'zh-Hans'
 export const defaultTranslationTargetLanguage = 'en'
@@ -26,7 +22,6 @@ const settingKeys = {
     defaultProviderId: 1,
     defaultModel: 1,
     providerModelOutputControls: 1,
-    enableMica: 1,
     enableBackgroundBlur: 1,
     nativeLanguage: 1,
     translationTargetLanguage: 1,
@@ -41,72 +36,6 @@ const settingKeys = {
     fontSize: 1,
     renderMarkdown: 1,
 } satisfies Partial<Record<keyof ISettings, number>>
-
-const legacySettingKeys = [
-    'defaultTargetLanguage',
-    'apiKeys',
-    'apiURL',
-    'apiURLPath',
-    'apiModel',
-    'provider',
-    'chatgptModel',
-    'azureAPIKeys',
-    'azureAPIURL',
-    'azureAPIURLPath',
-    'azureAPIModel',
-    'azMaxWords',
-    'miniMaxGroupID',
-    'miniMaxAPIKey',
-    'miniMaxAPIModel',
-    'geminiAPIURL',
-    'geminiAPIKey',
-    'geminiAPIModel',
-    'moonshotAPIKey',
-    'moonshotAPIModel',
-    'deepSeekAPIKey',
-    'deepSeekAPIModel',
-    'defaultTranslateMode',
-    'writingTargetLanguage',
-    'writingHotkey',
-    'writingNewlineHotkey',
-    'ocrHotkey',
-    'autoCollect',
-    'customModelName',
-    'ollamaAPIURL',
-    'ollamaAPIModel',
-    'ollamaCustomModelName',
-    'ollamaModelLifetimeInMemory',
-    'groqAPIURL',
-    'groqAPIURLPath',
-    'groqAPIModel',
-    'groqAPIKey',
-    'groqCustomModelName',
-    'claudeAPIURL',
-    'claudeAPIURLPath',
-    'claudeAPIModel',
-    'claudeAPIKey',
-    'claudeCustomModelName',
-    'kimiAccessToken',
-    'kimiRefreshToken',
-    'chatglmAccessToken',
-    'chatglmRefreshToken',
-    'cohereAPIKey',
-    'cohereAPIModel',
-    'cerebrasAPIKey',
-    'cerebrasAPIModel',
-    'noModelsAPISupport',
-    'claudeThinking',
-    'claudeThinkingLevel',
-] as const
-
-const migrationSettingKeys = {
-    defaultTargetLanguage: 1,
-}
-
-const storageSettingKeys = {
-    ...settingKeys,
-    ...migrationSettingKeys,
-}
 
 function getStringSetting(value: unknown): string | undefined {
     return typeof value === 'string' && value.trim() ? value : undefined
@@ -176,7 +105,7 @@ function normalizeProviderList(providers: unknown): ProviderConfig[] {
         const modelOptions = Array.isArray(item.modelOptions)
             ? item.modelOptions.filter((model): model is string => typeof model === 'string' && model.trim() !== '')
             : []
-        const model = typeof item.model === 'string' ? item.model : modelOptions[0] ?? ''
+        const model = typeof item.model === 'string' ? item.model : (modelOptions[0] ?? '')
         return {
             id: item.id,
             name: item.name,
@@ -282,12 +211,17 @@ export function resolveProviderModelOutputControls(
     }
 }
 
+// Only OpenAI-compatible Providers offer the speech endpoint used by OpenAI TTS.
+export function canProvideTTS(provider: ProviderConfig): boolean {
+    return provider.protocol === 'openai-chat' || provider.protocol === 'openai-responses'
+}
+
 function hasDanglingOpenAITTSProvider(tts: ISettings['tts'] | undefined, providers: ProviderConfig[]): boolean {
     if (tts?.provider !== 'openai' || typeof tts.openai?.providerId !== 'string') {
         return false
     }
     const provider = providers.find((item) => item.id === tts.openai?.providerId)
-    return !provider || provider.protocol === 'anthropic'
+    return !provider || !canProvideTTS(provider)
 }
 
 function normalizeTTSSettings(tts: unknown, providers: ProviderConfig[]): ISettings['tts'] {
@@ -322,11 +256,8 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
         typeof rawSettings.defaultProviderId === 'string' &&
         providers.some((provider) => provider.id === rawSettings.defaultProviderId)
             ? rawSettings.defaultProviderId
-            : providers[0]?.id ?? null
-    const nativeLanguage =
-        getStringSetting(rawSettings.nativeLanguage) ??
-        getStringSetting(rawSettings.defaultTargetLanguage) ??
-        defaultNativeLanguage
+            : (providers[0]?.id ?? null)
+    const nativeLanguage = getStringSetting(rawSettings.nativeLanguage) ?? defaultNativeLanguage
     const translationTargetLanguage =
         getStringSetting(rawSettings.translationTargetLanguage) ?? getDefaultTranslationTargetLanguage(nativeLanguage)
 
@@ -342,11 +273,7 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
             rawSettings.providerModelOutputControls,
             providers
         ),
-        enableMica: rawSettings.enableMica ?? false,
-        enableBackgroundBlur:
-            rawSettings.enableBackgroundBlur === undefined || rawSettings.enableBackgroundBlur === null
-                ? rawSettings.enableMica ?? false
-                : rawSettings.enableBackgroundBlur,
+        enableBackgroundBlur: rawSettings.enableBackgroundBlur ?? false,
         nativeLanguage,
         translationTargetLanguage,
         themeType: rawSettings.themeType || 'followTheSystem',
@@ -375,19 +302,25 @@ export function normalizeSettings(rawSettings: RawSettings): ISettings {
 // Normalizes `settings` on top of the currently stored settings and returns only the keys the
 // caller wrote, so a partial write never replaces fields saved elsewhere. A write that touches
 // providers or the selection also writes the normalized selection, which is validated against
-// providers; providers themselves are written only when the caller supplies them.
+// providers; providers themselves are written only when the caller supplies them. When new
+// providers leave the stored OpenAI TTS settings without a usable Provider, the stored TTS
+// settings fall back to Edge TTS in the same write.
 export function sanitizeSettingsForStorage(settings: RawSettings, storedSettings: RawSettings): Partial<ISettings> {
     const normalized = normalizeSettings({ ...storedSettings, ...settings })
     const has = (key: string) => Object.prototype.hasOwnProperty.call(settings, key)
-    const hasLegacyDefaultTargetLanguage = has('defaultTargetLanguage')
     const writesProviderSelection = has('providers') || has('defaultProviderId') || has('defaultModel')
+    const ttsFallsBack =
+        has('providers') &&
+        !has('tts') &&
+        normalizeSettings(storedSettings).tts?.provider === 'openai' &&
+        normalized.tts?.provider === 'edge'
     const sanitized: Record<string, unknown> = {}
 
     for (const key of Object.keys(settingKeys) as Array<keyof typeof settingKeys>) {
         if (
             has(key) ||
             (writesProviderSelection && (key === 'defaultProviderId' || key === 'defaultModel')) ||
-            (hasLegacyDefaultTargetLanguage && (key === 'nativeLanguage' || key === 'translationTargetLanguage'))
+            (ttsFallsBack && key === 'tts')
         ) {
             sanitized[key] = normalized[key]
         }
@@ -398,44 +331,24 @@ export function sanitizeSettingsForStorage(settings: RawSettings, storedSettings
 
 export async function getSettings(): Promise<ISettings> {
     const browser = await getBrowser()
-    const items = await browser.storage.sync.get(Object.keys(storageSettingKeys))
+    const items = await browser.storage.sync.get(Object.keys(settingKeys))
 
     return normalizeSettings(items)
 }
 
-// Persists only the fields in `settings`; fields it omits keep their stored values.
-export async function setSettings(settings: Partial<ISettings>) {
+// Persists only the fields in `settings` with one storage write; fields it omits keep their stored
+// values. Returns the fields as written.
+export async function setSettings(settings: Partial<ISettings>): Promise<Partial<ISettings>> {
     const browser = await getBrowser()
-    const storedSettings = await browser.storage.sync.get(Object.keys(storageSettingKeys))
-    const normalized = sanitizeSettingsForStorage(settings, storedSettings)
-    await browser.storage.sync.set(normalized)
-    await browser.storage.sync.remove?.([
-        ...legacySettingKeys.filter(
-            (key) =>
-                key !== 'defaultTargetLanguage' || Object.prototype.hasOwnProperty.call(normalized, 'nativeLanguage')
-        ),
-    ])
-    if (settings.tts?.provider === 'openai' && normalized.tts?.provider === 'edge') {
-        // Loaded lazily so the background service worker never initializes i18n.
-        const { default: i18n } = await import('./i18n')
-        const providers = normalized.providers ?? normalizeSettings(storedSettings).providers
-        const linkedProvider = providers.find((item) => item.id === settings.tts?.openai?.providerId)
-        toast(
-            i18n.t(
-                linkedProvider
-                    ? 'The Provider linked to OpenAI TTS uses the Anthropic protocol, which does not support speech. Switched to Edge TTS.'
-                    : 'The Provider linked to OpenAI TTS was deleted. Switched to Edge TTS.'
-            )
-        )
-    }
+    const storedSettings = await browser.storage.sync.get(Object.keys(settingKeys))
+    const sanitized = sanitizeSettingsForStorage(settings, storedSettings)
+    await browser.storage.sync.set(sanitized)
+    return sanitized
 }
 
 export async function getBrowser(): Promise<IBrowser> {
     if (isTauri()) {
         return (await import('./polyfills/tauri')).tauriBrowser
-    }
-    if (isUserscript()) {
-        return (await import('./polyfills/userscript')).userscriptBrowser
     }
     return (await import('webextension-polyfill')).default
 }
@@ -461,74 +374,12 @@ export const isBrowserExtensionContentScript = () => {
     return window['__IS_OT_BROWSER_EXTENSION_CONTENT_SCRIPT__' as any] !== undefined
 }
 
-export const isDesktopApp = () => {
-    return isTauri()
-}
-
-export const isUserscript = () => {
-    // eslint-disable-next-line camelcase
-    return typeof GM_info !== 'undefined'
-}
-
-export const isDarkMode = async () => {
-    const settings = await getSettings()
-    if (settings.themeType === 'followTheSystem') {
-        return window.matchMedia('(prefers-color-scheme: dark)').matches
-    }
-    return settings.themeType === 'dark'
-}
-
 export const isFirefox = () => /firefox/i.test(navigator.userAgent)
-
-// js to csv
-export async function exportToCsv<T extends Record<string, string | number>>(filename: string, rows: T[]) {
-    if (!rows.length) return
-    filename += '.csv'
-    const columns = Object.keys(rows[0])
-    let csvFile = ''
-    for (const key of columns) {
-        csvFile += key + ','
-    }
-    csvFile += '\r\n'
-    const processRow = function (row: T) {
-        let s = ''
-        for (const key of columns) {
-            if (key === 'updatedAt') {
-                s += '\t' + `${row[key]}` + ','
-            } else {
-                s += '"' + `${row[key]}` + '"' + ','
-            }
-        }
-        return s + '\r\n'
-    }
-
-    for (let i = 0; i < rows.length; i++) {
-        csvFile += processRow(rows[i])
-    }
-
-    if (isDesktopApp()) {
-        const { BaseDirectory, writeTextFile } = await import('@tauri-apps/plugin-fs')
-        try {
-            return await writeTextFile(filename, csvFile, { baseDir: BaseDirectory.Desktop })
-        } catch (e) {
-            console.error(e)
-        }
-    } else {
-        const link = document.createElement('a')
-        if (link.download !== undefined) {
-            link.setAttribute('href', 'data:text/csv;charset=utf-8,ufeff' + encodeURIComponent(csvFile))
-            link.setAttribute('download', filename)
-            document.body.appendChild(link)
-            link.click()
-            document.body.removeChild(link)
-        }
-    }
-}
 
 interface FetchSSEOptions extends RequestInit {
     onMessage(data: string): Promise<void>
     // Receives the complete error body of a non-200 response, parsed as JSON when possible.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     onError(error: any): void
     onStatusCode?: (statusCode: number) => void
     // When set, a successful response with a JSON media type is read whole and passed here
@@ -562,10 +413,10 @@ function createResponseConsumer(
 ) {
     const mode = status !== 200 ? 'error' : onJSONResponse && isJSONMediaType(contentType) ? 'json' : 'sse'
     const events: string[] = []
-    const sseParser = createParser((event) => {
-        if (event.type === 'event') {
+    const sseParser = createParser({
+        onEvent(event) {
             events.push(event.data)
-        }
+        },
     })
     let body = ''
     return {
@@ -606,140 +457,60 @@ function createResponseConsumer(
 
 export async function fetchSSE(input: string, options: FetchSSEOptions) {
     const { onMessage, onError, onStatusCode, onJSONResponse, fetcher = getUniversalFetch(), ...fetchOptions } = options
-    const handlers = { onMessage, onError, onJSONResponse }
-
-    if (isTauri()) {
-        const id = uuidv4()
-        const signal = options.signal
-        const abortError = () => new DOMException('Aborted', 'AbortError')
+    const { signal } = fetchOptions
+    const abortError = () => new DOMException('Aborted', 'AbortError')
+    if (signal?.aborted) {
+        throw abortError()
+    }
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+    // Cancelling the reader ends a pending read at once, even if the transport never settles it.
+    const cancelReader = () => {
+        reader?.cancel().catch(() => {})
+    }
+    signal?.addEventListener('abort', cancelReader, { once: true })
+    try {
+        const resp = await fetcher(input, fetchOptions)
+        onStatusCode?.(resp.status)
+        const consumer = createResponseConsumer(resp.status, resp.headers.get('content-type'), {
+            onMessage,
+            onError,
+            onJSONResponse,
+        })
+        reader = resp.body?.getReader()
+        // An abort during `fetcher` fired before there was a reader to cancel.
         if (signal?.aborted) {
             throw abortError()
         }
-        const unlistens: Array<() => void> = []
-        let cleanedUp = false
-        const track = (unlisten: () => void) => {
-            if (cleanedUp) {
-                unlisten()
-            } else {
-                unlistens.push(unlisten)
-            }
-        }
-        let rejectRun: (error: unknown) => void = () => {}
-        const interrupted = new Promise<never>((_resolve, reject) => {
-            rejectRun = reject
-        })
-        const handleAbort = () => {
-            rejectRun(abortError())
-            void emit('abort-fetch-stream', { id }).catch(() => {})
-        }
-        signal?.addEventListener('abort', handleAbort, { once: true })
-        let consumer: ReturnType<typeof createResponseConsumer> | undefined
-        const getConsumer = (status: number, contentType?: string | null) => {
-            consumer ??= createResponseConsumer(status, contentType, handlers)
-            return consumer
-        }
-        // Native events arrive without waiting for the consumer, so they are queued and
-        // handled in order. A failed consumer stops the request.
-        let queue = Promise.resolve()
-        let failed = false
-        const enqueue = (task: () => Promise<void>) => {
-            queue = queue
-                .then(async () => {
-                    if (!failed && !cleanedUp && !signal?.aborted) {
-                        await task()
-                    }
-                })
-                .catch((error) => {
-                    failed = true
-                    rejectRun(error)
-                    void emit('abort-fetch-stream', { id }).catch(() => {})
-                })
-        }
-        let resolveEnd: () => void = () => {}
-        const ended = new Promise<void>((resolve) => {
-            resolveEnd = resolve
-        })
-        const isCurrent = (eventId: string) => !cleanedUp && !signal?.aborted && eventId === id
-        const run = async () => {
-            await Promise.all([
-                listen(
-                    'fetch-stream-status-code',
-                    (event: Event<{ id: string; status: number; contentType?: string | null }>) => {
-                        if (isCurrent(event.payload.id)) {
-                            getConsumer(event.payload.status, event.payload.contentType)
-                            onStatusCode?.(event.payload.status)
-                        }
-                    }
-                ).then(track),
-                listen(
-                    'fetch-stream-chunk',
-                    (event: Event<{ id: string; data: string; done: boolean; status: number }>) => {
-                        const payload = event.payload
-                        if (!isCurrent(payload.id)) {
-                            return
-                        }
-                        if (payload.done) {
-                            enqueue(async () => {
-                                await getConsumer(payload.status).end()
-                                resolveEnd()
-                            })
-                        } else {
-                            enqueue(() => getConsumer(payload.status).push(payload.data))
-                        }
-                    }
-                ).then(track),
-            ])
-            if (cleanedUp || signal?.aborted) {
-                return
-            }
-            const result = await commands.fetchStream(id, input, JSON.stringify(fetchOptions))
-            if (result.status === 'error') {
-                throw new Error(result.error)
-            }
-            // The command returns after emitting the final chunk; wait until it is consumed.
-            await ended
-        }
-        try {
-            await Promise.race([run(), interrupted])
-        } finally {
-            cleanedUp = true
-            signal?.removeEventListener('abort', handleAbort)
-            unlistens.splice(0).forEach((unlisten) => unlisten())
-        }
-        return
-    }
+        if (reader) {
+            const decode = createUTF8Decoder()
 
-    const resp = await fetcher(input, fetchOptions)
-    onStatusCode?.(resp.status)
-    const consumer = createResponseConsumer(resp.status, resp.headers.get('content-type'), handlers)
-    const reader = resp.body?.getReader()
-    if (reader) {
-        const decode = createUTF8Decoder()
-        try {
-            // eslint-disable-next-line no-constant-condition
             while (true) {
                 const { done, value } = await reader.read()
+                // A cancelled reader ends with `done`; an aborted request must not flush or finish.
+                if (signal?.aborted) {
+                    throw abortError()
+                }
                 if (done) {
                     break
                 }
                 await consumer.push(decode(value))
             }
             await consumer.push(decode())
-        } catch (error) {
-            await reader.cancel().catch(() => {})
-            throw error
-        } finally {
-            reader.releaseLock()
         }
+        await consumer.end()
+    } catch (error) {
+        await reader?.cancel().catch(() => {})
+        throw signal?.aborted ? abortError() : error
+    } finally {
+        signal?.removeEventListener('abort', cancelReader)
+        reader?.releaseLock()
     }
-    await consumer.end()
 }
 
+// In the extension (including content scripts, whose page is a web page) assets are served from the
+// extension origin; the desktop app serves them next to its pages.
 export function getAssetUrl(asset: string) {
-    if (isUserscript()) {
-        return asset
-    }
-    return new URL(asset, import.meta.url).href
+    return isTauri() ? asset : chrome.runtime.getURL(asset)
 }
 export const isMacOS = navigator.userAgent.includes('Mac OS X')
 export const isWindows = navigator.userAgent.includes('Windows')

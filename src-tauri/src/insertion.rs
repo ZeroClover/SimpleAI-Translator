@@ -1,4 +1,3 @@
-use std::thread;
 use std::time::Duration;
 
 use active_win_pos_rs::{get_active_window, ActiveWindow};
@@ -35,50 +34,34 @@ pub fn remember_active_window() {
 
 #[cfg(target_os = "macos")]
 fn focus_window(window: &ActiveWindow) -> Result<(), String> {
-    use cocoa::appkit::{NSApplicationActivateIgnoringOtherApps, NSRunningApplication};
-    #[cfg(not(target_arch = "aarch64"))]
-    use cocoa::base::NO;
-    use cocoa::base::{id, nil};
+    use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication};
 
-    unsafe {
-        let running_app: id = <id as NSRunningApplication>::runningApplicationWithProcessIdentifier(
-            nil,
-            window.process_id as i32,
-        );
-        if running_app != nil {
-            let activated_raw = NSRunningApplication::activateWithOptions_(
-                running_app,
-                NSApplicationActivateIgnoringOtherApps,
+    if let Some(running_app) =
+        NSRunningApplication::runningApplicationWithProcessIdentifier(window.process_id as i32)
+    {
+        // Ignoring other apps has no effect from macOS 14 on, but older versions need it to
+        // activate another app while the translator is frontmost.
+        #[allow(deprecated)]
+        let activated = running_app
+            .activateWithOptions(NSApplicationActivationOptions::ActivateIgnoringOtherApps);
+        if activated {
+            debug_println!(
+                "[insertion] activated app via NSRunningApplication: {}",
+                window.app_name
             );
-            let activated = {
-                #[cfg(target_arch = "aarch64")]
-                {
-                    activated_raw
-                }
-                #[cfg(not(target_arch = "aarch64"))]
-                {
-                    activated_raw != NO
-                }
-            };
-            if activated {
-                debug_println!(
-                    "[insertion] activated app via NSRunningApplication: {}",
-                    window.app_name
-                );
-                return Ok(());
-            } else {
-                debug_println!(
-                    "[insertion] NSRunningApplication activation returned false for {}",
-                    window.app_name
-                );
-            }
+            return Ok(());
         } else {
             debug_println!(
-                "[insertion] NSRunningApplication not found for pid {} ({})",
-                window.process_id,
+                "[insertion] NSRunningApplication activation returned false for {}",
                 window.app_name
             );
         }
+    } else {
+        debug_println!(
+            "[insertion] NSRunningApplication not found for pid {} ({})",
+            window.process_id,
+            window.app_name
+        );
     }
 
     if window.app_name.is_empty() {
@@ -193,7 +176,7 @@ fn focus_window(window: &ActiveWindow) -> Result<(), String> {
     let net_active_window = atom("_NET_ACTIVE_WINDOW")?;
 
     let data = x::ClientMessageData::Data32([1, x::CURRENT_TIME, window_id, 0, 0]);
-    let window = unsafe { x::Window::new(window_id) };
+    let window = x::Window::new(window_id);
     let event = x::ClientMessageEvent::new(window, net_active_window, data);
 
     conn.send_request(&x::SendEvent {
@@ -238,7 +221,6 @@ fn replace_input_with_text(text: &str) -> Result<(), String> {
         let _input_lock = INPUT_LOCK.lock();
         enigo.text(text).map_err(|e| e.to_string())?;
     }
-    thread::sleep(Duration::from_millis(80));
 
     Ok(())
 }
@@ -247,8 +229,9 @@ fn replace_input_with_text(text: &str) -> Result<(), String> {
 #[specta::specta]
 pub async fn insert_translation_into_previous_input(text: String) -> Result<(), String> {
     focus_previous_window()?;
-    thread::sleep(Duration::from_millis(200));
+    tokio::time::sleep(Duration::from_millis(200)).await;
     replace_input_with_text(&text)?;
+    tokio::time::sleep(Duration::from_millis(80)).await;
     debug_println!("[insertion] inserted translation ({} chars)", text.len());
     Ok(())
 }

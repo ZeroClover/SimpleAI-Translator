@@ -1,5 +1,4 @@
-import { DoSpeakOptions, SpeakOptions, TTSProvider } from './types'
-import { getSettings } from '../utils'
+import { DoSpeakOptions, TTSProvider } from './types'
 import { speak as edgeSpeak } from './edge-tts'
 import { LangCode } from '../lang'
 import { speak as openAISpeak } from './openai-tts'
@@ -116,25 +115,6 @@ export function startExclusivePlayback(stop: () => void): () => void {
             activePlaybackStop = undefined
         }
     }
-}
-
-export async function speak({ text, lang, onFinish, signal }: SpeakOptions) {
-    const settings = await getSettings()
-    const voiceCfg = settings.tts?.voices?.find((item) => item.lang === lang)
-    const rate = settings.tts?.rate
-    const volume = settings.tts?.volume
-    const provider = settings.tts?.provider ?? defaultTTSProvider
-
-    return await doSpeak({
-        provider,
-        text,
-        lang: lang ?? 'en',
-        voice: voiceCfg?.voice || undefined,
-        rate,
-        volume,
-        onFinish,
-        signal,
-    })
 }
 
 export async function doSpeak({

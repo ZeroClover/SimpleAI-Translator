@@ -1,37 +1,15 @@
-import { Theme } from 'baseui-sd/theme'
+import { Theme } from 'baseui/theme'
 import { OpenAITTSSettings, TTSProvider } from './tts/types'
 import { LangCode } from './lang'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-interface ISync {
-    get(keys: string[]): Promise<Record<string, any>>
-    set(items: Record<string, any>): Promise<void>
-    remove?(keys: string[]): Promise<void>
-}
-
-interface IStorage {
-    sync: ISync
-}
-
-interface IRuntimeOnMessage {
-    addListener(callback: (message: any, sender: any, sendResponse: any) => void): void
-    removeListener(callback: (message: any, sender: any, sendResponse: any) => void): void
-}
-
-interface IRuntime {
-    onMessage: IRuntimeOnMessage
-    sendMessage(message: any): void
-    getURL(path: string): string
-}
-
-interface II18n {
-    detectLanguage(text: string): Promise<{ languages: { language: string; percentage: number }[] }>
-}
-
 export interface IBrowser {
-    storage: IStorage
-    runtime: IRuntime
-    i18n: II18n
+    storage: {
+        sync: {
+            get(keys: string[]): Promise<Record<string, any>>
+            set(items: Record<string, any>): Promise<void>
+        }
+    }
 }
 
 export type BaseThemeType = 'light' | 'dark'
@@ -40,7 +18,7 @@ export type ThemeType = BaseThemeType | 'followTheSystem'
 export interface IThemedStyleProps {
     theme: Theme
     themeType: BaseThemeType
-    isDesktopApp?: boolean
+    isTauri?: boolean
     showLogo?: boolean
 }
 
@@ -87,7 +65,6 @@ export interface ISettings {
     defaultModel: ModelSelection | null
     providerModelOutputControls?: ProviderModelOutputControls[]
     enableBackgroundBlur: boolean
-    enableMica: boolean // deprecated, please use enableBackgroundBlur
     nativeLanguage: string
     translationTargetLanguage: string
     themeType?: ThemeType

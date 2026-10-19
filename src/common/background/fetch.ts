@@ -7,8 +7,10 @@ export interface BackgroundFetchRequestMessage {
     details?: { url: string; options: RequestInit }
 }
 
-export interface BackgroundFetchResponseMessage
-    extends Pick<Response, 'ok' | 'status' | 'statusText' | 'redirected' | 'type' | 'url'> {
+export interface BackgroundFetchResponseMessage extends Pick<
+    Response,
+    'ok' | 'status' | 'statusText' | 'redirected' | 'type' | 'url'
+> {
     error?: { message: string; name: string }
     status: number
     headers?: [string, string][]
@@ -97,7 +99,7 @@ export async function backgroundFetch(input: string, options: RequestInit) {
             }
 
             const ReadableStream = isFirefox()
-                ? (ReadableStreamPolyfill as typeof window.ReadableStream)
+                ? (ReadableStreamPolyfill as unknown as typeof window.ReadableStream)
                 : window.ReadableStream
             let resolved = false
             const browser = (await import('webextension-polyfill')).default
@@ -109,8 +111,8 @@ export async function backgroundFetch(input: string, options: RequestInit) {
 
             const readableStream = new ReadableStream({
                 start(controller) {
-                    port.onMessage.addListener((msg: BackgroundFetchResponseMessage) => {
-                        const { data, error, ...restResp } = msg
+                    port.onMessage.addListener((message) => {
+                        const { data, error, ...restResp } = message as BackgroundFetchResponseMessage
                         if (error) {
                             const e = new Error()
                             e.message = error.message
@@ -144,7 +146,7 @@ export async function backgroundFetch(input: string, options: RequestInit) {
                         }
                         try {
                             controller.close()
-                        } catch (e) {
+                        } catch {
                             // may throw if controller is errored
                         }
                     })

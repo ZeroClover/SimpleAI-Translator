@@ -1,12 +1,14 @@
 import toast from 'react-hot-toast/headless'
 import i18n from '../i18n'
-import { OPENAI_AUDIO_SPEECH_API_PATH, normalizeAPIEndpoint } from '../openai-api-path'
+import { DEFAULT_ENDPOINT_BY_PROTOCOL, OPENAI_AUDIO_SPEECH_API_PATH, normalizeAPIEndpoint } from '../openai-api-path'
+import { getErrorMessage } from '../engines/interfaces'
+import { isGPT4oMiniTTSModel, isTTS1Model } from '../engines/model-filter'
+import { getHeaders } from '../engines/protocols/openai-chat'
 import { ProviderConfig } from '../types'
 import { getUniversalFetch } from '../universal-fetch'
-import { getSettings, setSettings } from '../utils'
+import { canProvideTTS, getSettings, setSettings } from '../utils'
 import { SpeakOptions } from './types'
 
-const DEFAULT_ENDPOINT = 'https://api.openai.com/v1'
 const MAX_INPUT_LENGTH = 4096
 // gpt-4o-mini-tts caps input at 2000 tokens; CJK text is roughly one token per character.
 const GPT_4O_MINI_TTS_MAX_INPUT_LENGTH = 1500
@@ -20,34 +22,12 @@ const DEFAULT_VOICE = 'alloy'
 const TTS_1_VOICES = ['alloy', 'ash', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer']
 const ALL_VOICES = [...TTS_1_VOICES, 'ballad', 'verse', 'marin', 'cedar']
 
-function isOpenAITTSModel(model: string): boolean {
-    return /^gpt-4o-mini-tts(?:-[0-9]{4}-[0-9]{2}-[0-9]{2})?$/i.test(model)
-}
-
-function isTTS1Model(model: string): boolean {
-    return /^tts-1(?:-hd)?$/i.test(model)
-}
-
 export function getOpenAITTSVoices(model: string): string[] {
     return isTTS1Model(model) ? TTS_1_VOICES : ALL_VOICES
 }
 
 export function getOpenAITTSMaxInputLength(model: string): number {
-    return isOpenAITTSModel(model) ? GPT_4O_MINI_TTS_MAX_INPUT_LENGTH : MAX_INPUT_LENGTH
-}
-
-function getErrorMessage(error: unknown): string {
-    if (error instanceof Error) {
-        return error.message
-    }
-    if (typeof error === 'string') {
-        return error
-    }
-    if (typeof error === 'object' && error !== null) {
-        const resp = error as { error?: { message?: string }; message?: string; detail?: string }
-        return resp.error?.message ?? resp.message ?? resp.detail ?? i18n.t('OpenAI TTS request failed.')
-    }
-    return i18n.t('OpenAI TTS request failed.')
+    return isGPT4oMiniTTSModel(model) ? GPT_4O_MINI_TTS_MAX_INPUT_LENGTH : MAX_INPUT_LENGTH
 }
 
 function getConfigErrorMessage(providerId: string | undefined, providerConfig: ProviderConfig | undefined): string {
@@ -57,7 +37,7 @@ function getConfigErrorMessage(providerId: string | undefined, providerConfig: P
     if (!providerConfig) {
         return i18n.t('The Provider linked to OpenAI TTS was deleted. Switched to Edge TTS.')
     }
-    if (providerConfig.protocol === 'anthropic') {
+    if (!canProvideTTS(providerConfig)) {
         return i18n.t(
             'The Provider linked to OpenAI TTS uses the Anthropic protocol, which does not support speech. Switched to Edge TTS.'
         )
@@ -120,14 +100,6 @@ export function splitOpenAITTSInput(text: string, maxLength = MAX_INPUT_LENGTH):
 export function openAITTSSpeedFromRate(rate?: number): number {
     const speed = (rate ?? 10) / 10
     return Math.min(4, Math.max(0.25, speed))
-}
-
-function getHeaders(providerConfig: ProviderConfig): Record<string, string> {
-    return {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${providerConfig.apiKey}`,
-        ...providerConfig.extraHeaders,
-    }
 }
 
 async function playAudioBlob(blob: Blob, { signal, onStartSpeaking }: OpenAISpeakOptions): Promise<void> {
@@ -193,12 +165,16 @@ async function synthesizeSegment({
             ['response_format']: format,
             speed,
         }
-        if (instructions && isOpenAITTSModel(model)) {
+        if (instructions && isGPT4oMiniTTSModel(model)) {
             body.instructions = instructions
         }
 
         const resp = await getUniversalFetch()(
-            normalizeAPIEndpoint(providerConfig.endpoint, OPENAI_AUDIO_SPEECH_API_PATH, DEFAULT_ENDPOINT),
+            normalizeAPIEndpoint(
+                providerConfig.endpoint,
+                OPENAI_AUDIO_SPEECH_API_PATH,
+                DEFAULT_ENDPOINT_BY_PROTOCOL['openai-chat']
+            ),
             {
                 method: 'POST',
                 headers: getHeaders(providerConfig),
@@ -228,7 +204,7 @@ export async function speak(options: OpenAISpeakOptions): Promise<void> {
     const openAIConfig = settings.tts?.openai
     const providerConfig = settings.providers.find((provider) => provider.id === openAIConfig?.providerId)
 
-    if (!openAIConfig?.model || !providerConfig || providerConfig.protocol === 'anthropic') {
+    if (!openAIConfig?.model || !providerConfig || !canProvideTTS(providerConfig)) {
         await setSettings({
             tts: {
                 ...settings.tts,
@@ -269,7 +245,7 @@ export async function speak(options: OpenAISpeakOptions): Promise<void> {
         if (options.signal.aborted) {
             return
         }
-        const message = getErrorMessage(error)
+        const message = getErrorMessage(error, i18n.t('OpenAI TTS request failed.'))
         toast(message)
         throw error
     }

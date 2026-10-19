@@ -1,25 +1,20 @@
 import { useCallback, useMemo, useState } from 'react'
-import toast from 'react-hot-toast'
-import { Button } from 'baseui-sd/button'
-import { Input } from 'baseui-sd/input'
-import { Select } from 'baseui-sd/select'
-import { Textarea } from 'baseui-sd/textarea'
+import toast from 'react-hot-toast/headless'
+import { Button } from 'baseui/button'
+import { Input } from 'baseui/input'
+import { Select } from 'baseui/select'
+import { Textarea } from 'baseui/textarea'
 import { useTranslation } from 'react-i18next'
 import { ProviderConfig, ProviderProtocol } from '../types'
 import { useTheme } from '../hooks/useTheme'
 import { requestHostPermission } from '../background/fetch'
+import { DEFAULT_ENDPOINT_BY_PROTOCOL } from '../openai-api-path'
 
 const protocolOptions: { id: ProviderProtocol; labelKey: string }[] = [
     { id: 'openai-chat', labelKey: 'OpenAI Chat Completions' },
     { id: 'openai-responses', labelKey: 'OpenAI Responses' },
     { id: 'anthropic', labelKey: 'Anthropic Messages' },
 ]
-
-const defaultEndpointByProtocol: Record<ProviderProtocol, string> = {
-    'openai-chat': 'https://api.openai.com/v1',
-    'openai-responses': 'https://api.openai.com/v1',
-    'anthropic': 'https://api.anthropic.com',
-}
 
 export type ProviderFormValue = Omit<ProviderConfig, 'id'> & { id?: string }
 
@@ -156,7 +151,7 @@ export function ProviderForm({ initialValue, onCancel, onSave }: ProviderFormPro
                 onChange={(event) => setEndpoint(event.currentTarget.value)}
             />
             <div style={{ color: theme.colors.contentSecondary, fontSize: 12 }}>
-                {t('Official endpoint')}: {defaultEndpointByProtocol[protocol]}
+                {t('Official endpoint')}: {DEFAULT_ENDPOINT_BY_PROTOCOL[protocol]}
             </div>
             <Button type='button' size='mini' kind='tertiary' onClick={() => setShowAdvanced((value) => !value)}>
                 {t('Advanced')}

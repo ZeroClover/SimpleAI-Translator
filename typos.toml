@@ -11,6 +11,7 @@ Sie = "Sie"
 OT = "OT"
 BA = "BA"
 tak = "tak"
+PN = "PN"
 
 [files]
 extend-exclude = ["public/*", "dist/*", "src/common/geo-data.ts", "pnpm-lock.yaml", "*.storyboard", "src-tauri/gen/*", "src/common/i18n/locales/tr/*"]

@@ -1,4 +1,4 @@
-import { Tooltip } from 'baseui-sd/tooltip'
+import { Tooltip } from 'baseui/tooltip'
 import { CopyToClipboard } from 'react-copy-to-clipboard'
 import { RxCopy } from 'react-icons/rx'
 import { useTranslation } from 'react-i18next'
@@ -19,7 +19,7 @@ export function CopyButton({ text, styles }: { text: string; styles: { actionBut
                     }}
                     options={{ format: 'text/plain' }}
                 >
-                    <div className={styles.actionButton}>
+                    <div role='button' aria-label={t('Copy to clipboard')} className={styles.actionButton}>
                         <RxCopy size={13} />
                     </div>
                 </CopyToClipboard>

@@ -24,6 +24,7 @@
 - `settings-surface`: which settings fields and panels exist.
 - `text-to-speech`: Edge, system, and OpenAI TTS.
 - `language-detection`, `app-identity`, `no-telemetry`: source-language detection, product naming and bundle identity, and the no-analytics guarantees.
+- `build-targets`: which build and release targets exist (no userscript or Safari Web Extension).
 
 ## Removed Modules
 - OCR and screenshot translation have been removed, including Tesseract integration, screenshot windows, OCR hotkeys, and OCR native binaries.

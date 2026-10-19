@@ -176,7 +176,7 @@ fn focus_window(window: &ActiveWindow) -> Result<(), String> {
     let net_active_window = atom("_NET_ACTIVE_WINDOW")?;
 
     let data = x::ClientMessageData::Data32([1, x::CURRENT_TIME, window_id, 0, 0]);
-    let window = unsafe { x::Window::new(window_id) };
+    let window = x::Window::new(window_id);
     let event = x::ClientMessageEvent::new(window, net_active_window, data);
 
     conn.send_request(&x::SendEvent {

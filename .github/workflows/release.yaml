@@ -143,7 +143,7 @@ jobs:
               run: cargo install tauri-cli --version "=2.8.4" --locked
 
             - name: Build Tauri app
-              uses: tauri-apps/tauri-action@action-v0.6.2
+              uses: tauri-apps/tauri-action@action-v1.0.0
               env:
                   TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
                   TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -264,7 +264,7 @@ jobs:
               run: cargo install tauri-cli --version "=2.8.4" --locked
 
             - name: Build Tauri app
-              uses: tauri-apps/tauri-action@action-v0.6.2
+              uses: tauri-apps/tauri-action@action-v1.0.0
               env:
                   APPLE_API_KEY: ${{ secrets.NOTARY_ASC_API_KEY_ID }}
                   APPLE_API_ISSUER: ${{ secrets.ASC_API_ISSUER }}
@@ -432,7 +432,7 @@ jobs:
                   node -e "const fs = require('node:fs'); const configPath = 'src-tauri/tauri.conf.json'; const config = JSON.parse(fs.readFileSync(configPath, 'utf8')); config.bundle.windows.signCommand = { cmd: process.env.SIGN_CMD, args: ['sign', '/fd', 'SHA256', '/tr', 'http://timestamp.acs.microsoft.com', '/td', 'SHA256', '/dlib', process.env.SIGN_DLIB, '/dmdf', process.env.SIGN_METADATA, '%1'] }; fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');"
 
             - name: Build Tauri app
-              uses: tauri-apps/tauri-action@action-v0.6.2
+              uses: tauri-apps/tauri-action@action-v1.0.0
               env:
                   TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
                   TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
